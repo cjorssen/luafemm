@@ -1,0 +1,26 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\usemodule[tikz]
+\usemodule[pgfplots]
+\edef\beforeat{\the\catcode64}
+\usemodule[luafemm]
+\usepgfplotslibrary{femm}
+\input luafemm.tex
+\ifnum\catcode64=\beforeat\else\errmessage{luafemm leaked the at catcode}\fi
+\pgfplotsset{compat=1.18}
+\starttext
+\starttikzpicture[femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,mesh size=2}]
+  \input scene.tex
+\stoptikzpicture
+\starttikzpicture
+\startaxis[width=8cm,height=5cm,no markers]
+  \femmplot[profile=format-test,component=B,plot options={blue}]
+  \addlegendentry{Magnitude}
+  \femmplot[profile=format-test,component=By,plot options={red}]
+  \addlegendentry{Vertical component}
+\stopaxis
+\stoptikzpicture
+\stoptext

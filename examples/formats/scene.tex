@@ -1,0 +1,14 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Shared magnetic geometry for the three standalone format examples.
+\filldraw[femm/region={material=cast-alnico-5-lng37,magnetization angle=90},
+  fill=red!20] (-3,-2) rectangle (3,2);
+\filldraw[femm/region={material=pure-iron},fill=gray!20]
+  (-3,-4) rectangle (3,-3);
+\path[femm/region={material=copper}] (5,-2) rectangle (6,2);
+\draw[femm/profile={name=format-test,samples=17,curve tolerance=.01},blue]
+  (-5,4) .. controls (-2,7) and (2,7) .. (5,4);
+\pic[femm/lines=9] {femm field};

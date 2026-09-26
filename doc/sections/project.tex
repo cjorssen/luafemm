@@ -1,0 +1,43 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section*{Author, licence and development notice}
+Copyright \textcopyright\ 2026 Christophe Jorssen, author and Current Maintainer
+of \textsf{luafemm}. Contact:
+\href{mailto:christophe.jorssen@gmail.com}{\nolinkurl{christophe.jorssen@gmail.com}}.
+The original package code and documentation are distributed under the
+\href{https://www.latex-project.org/lppl/lppl-1-3c.txt}{LaTeX Project Public License,
+version 1.3c}; the LPPL maintenance status is \texttt{maintained}.
+The file inventory and third-party exceptions are recorded in
+\texttt{MANIFEST.md} and \texttt{LICENSES.md}.
+
+Publication is planned on CTAN. Development is hosted at
+\href{https://github.com/cjorssen/luafemm}{github.com/cjorssen/luafemm};
+please report bugs through the
+\href{https://github.com/cjorssen/luafemm/issues}{GitHub issue tracker}.
+The development is based on studying the source code of FEMM/xfemm and
+Triangle and reimplementing selected formulations and algorithms in
+Lua/LuaTeX. No native solver or mesher is embedded, and this is not a
+complete port of either program.
+
+\medskip
+\noindent\textbf{Development notice.}
+This package was ``vibe coded'' with \textbf{Codex/GPT-6-Astra}, under
+Christophe Jorssen's direction. AI-assisted code can contain subtle
+programming and mathematical errors even when examples compile and
+regression tests pass. Independently check computed fields, meshes and
+material interpretations against analytical results or a validated solver,
+and study mesh and domain convergence. Do not rely on these results for
+safety-critical engineering decisions without independent validation.
+The current tests do not certify equivalence with FEMM or Triangle.
+
+\medskip
+The imported FEMM material data and their generated derivatives retain
+separate upstream terms, including the Aladdin Free Public License.
+They are not relicensed as LPPL data. The current archives therefore
+contain mixed licensing; the data's redistribution status must be settled
+or explicitly declared when preparing the CTAN submission. Reimplementation
+in another language does not itself grant permission to relicense
+third-party material. See the provenance section for the retained notices.

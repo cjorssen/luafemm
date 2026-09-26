@@ -1,0 +1,132 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Numerical method, verification and limits}
+\label{sec:numerics}
+\subsection{Planar finite elements}
+The domain is invariant along $z$. In SI units,
+$\mathbf A=A_z\mathbf e_z$ and
+$\mathbf B=(\partial_y A_z,-\partial_x A_z)$.
+For test functions $v$ vanishing on the outer boundary, the weak problem is
+\[
+ \int_\Omega \nu\nabla A_z\cdot\nabla v
+ =\int_\Omega J_zv+
+  \int_\Omega H_c\mathbf m\cdot(\partial_yv,-\partial_xv).
+\]
+The potential uses continuous piecewise-affine functions on triangles.
+Material laws and sources are constant within each element. With basis
+functions $N_i$, the element residual is
+\[
+ R_i=|T|\left[\nu\nabla A_z\cdot\nabla N_i
+ -J_z/3-H_c(m_x\partial_yN_i-m_y\partial_xN_i)\right].
+\]
+The differential tangent follows from the exact slope of each affine
+piece of H(B). The code scales the entire system by $\mu_0$ for numerical
+convenience; this does not change the solution. Dirichlet degrees of
+freedom are eliminated. Newton steps use backtracking to decrease the
+residual. Linear systems use conjugate gradients and incomplete Cholesky
+IC(0); an unsuccessful factorisation is restarted with a positive diagonal
+shift of the preconditioner, without changing the system being solved.
+
+The default boundary $A_z=0$ represents a finite truncation of the
+exterior. For physical depth $d$, potential levels separated by $\Delta A_z$
+enclose flux $d\,\Delta A_z$. Equal level spacing therefore represents equal
+flux spacing, not equal geometric separation.
+
+\subsection{Constrained meshing and predicates}
+The mesher splits crossings, T junctions and collinear overlaps of the
+polygonal constraints. It samples their edges and seeds the interior
+with triangular lattices, using the finest local size where requested.
+Incremental Delaunay insertion is followed by constrained-segment cavity
+retriangulation and Lawson edge flips.
+
+Topological decisions use orientation and incircle predicates. A
+floating-point filter certifies well-separated signs; uncertain cases
+are recomputed using error-free sums/products and floating-point
+expansions in Lua. The result has the exact sign of the determinant of
+the supplied binary coordinates, including exact zero, provided arithmetic
+neither overflows nor underflows. Normalising coordinates before meshing
+keeps the intended working range moderate. This does not make the input
+geometry exact before its TeX rounding, nor make intersection construction
+exact: intersection coordinates still use floating-point arithmetic.
+
+The final audit checks positive areas, rectangular coverage, preservation
+of every constraint and vertex, at most two triangles per edge, exposed
+edges only on the tagged exterior, Euler's relation $V-E+F=1$, and local
+Delaunay legality of every unconstrained flippable edge. Failure stops
+the calculation. The prototype limit is 40000 vertices for Delaunay and
+150000 grid vertices.
+
+Triangle was studied as an algorithmic reference; its source and binary
+are not embedded. This is not a full Triangle port. There is no
+Ruppert/Chew quality refinement, no guaranteed minimum angle and no
+guaranteed smooth transition between mesh sizes. Narrow features and
+acute corners can create badly conditioned triangles. Monitor |min_angle|
+and perform refinement studies; smaller spacing alone is not a quality
+certificate.
+
+\subsection{What is tested}
+The release checks analytic affine fields, manufactured Poisson convergence,
+nonlinear saturation, current and magnetisation reversal, an exact
+magnet/air interface patch, and a magnetised disk against the infinite-domain
+solution. Geometry tests cover intersections, shared edges, small gaps,
+concavity, scaling and translation. An independent Python rational oracle
+checks 3015 predicate signs; 49 stress configurations exercise the mesher.
+Python is a development-test dependency only.
+
+All 246 catalogue records are validated. Profiles are tested for Cartesian
+and local components, arc length, reversed traversal, normal offsets,
+out-of-domain policy and retained model lifetime. The same nonlinear
+scene is compiled under plain LuaTeX, LuaLaTeX and ConTeXt MkIV; computed
+sample values and node counts must agree within $10^{-10}$. Load guards,
+catcode restoration, transformed paths and PGFPlots legends are exercised.
+
+For the original mixed alnico/illustrative-iron U with 1 mm gaps, sample
+results document sensitivity rather than absolute accuracy:
+\begin{center}\small
+\begin{tabular}{rrrrr}
+\toprule Global/gap step (mm) & Domain (mm$^2$) & Nodes & Left $B_y$ (T) & Right $B_y$ (T)\\
+\midrule
+2 / .5 & $200\times185$ & 11376 & .782876 & -.782907\\
+1.5 / .25 & $200\times185$ & 20409 & .777974 & -.778597\\
+2 / .5 & $280\times265$ & 22293 & .775140 & -.775140\\
+\bottomrule
+\end{tabular}\end{center}
+The refinements change the gap field by about 0.6 percent, and the larger
+domain by about one percent. Material-model error is a separate issue.
+No quantitative comparison with an executable FEMM/xfemm solver is yet
+claimed by this release.
+
+\subsection{Supported physics and practical diagnostics}
+The solver is static, planar and isotropic, with either a linear law or
+a monotone tabulated law and prescribed permanent-magnet direction.
+It does not include axisymmetry, time dependence, hysteresis, irreversible
+demagnetisation, eddy currents, mechanical forces or open-boundary elements.
+
+If Newton fails, inspect the material data, extreme element aspect ratios
+and current scale before raising |max iterations|. For a lost or collapsed
+geometric feature, compare its size with PGF capture precision and the
+merging tolerance. For a graph with jumps, inspect the elementwise field
+and sampling side before requesting graphical smoothing. The log identifies
+the failing stage; a solver failure is not turned into a plausible plot.
+
+\subsection{Primary references}
+The development was based on studying the source code of FEMM/xfemm
+and Triangle, then reimplementing selected formulations and algorithms
+in Lua/LuaTeX. No native solver or mesher is embedded. The following primary references
+also describe the surrounding algorithms and interfaces:
+\begin{itemize}
+\item \href{https://www.femm.info/wiki/Documentation}{FEMM documentation},
+  planar magnetostatics and material conventions; FEMM revision
+  \nolinkurl{7d9e8ed90772ddb939a3256f976e231bcb5cca97}.
+\item xfemm revision \nolinkurl{34ac6cc586a346066984526620dfb67383c8e3c5},
+  \nolinkurl{cfemm/fsolver/static2d.cpp} and
+  \nolinkurl{cfemm/libfemm/CMaterialProp.cpp}.
+\item Jonathan Shewchuk,
+  \href{https://www.cs.cmu.edu/~quake/robust.html}{Robust Adaptive Floating-Point Geometric Predicates}
+  and \href{https://www.cs.cmu.edu/~quake/triangle.research.html}{Triangle algorithm references}.
+\item The \href{https://tikz.dev}{PGF/TikZ manual} and the installed
+  PGFPlots manual for path transformations, key handlers and axes.
+\end{itemize}

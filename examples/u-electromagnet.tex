@@ -1,0 +1,89 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[a4paper,11pt]{article}
+\usepackage[margin=19mm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath}
+\usepackage{luafemm}
+\pagestyle{empty}
+\definecolor{field}{HTML}{126E82}
+\definecolor{copper}{HTML}{CA783E}
+\begin{document}
+\noindent{\LARGE\bfseries An electromagnet computed in LuaTeX}\par
+\smallskip
+\noindent\textsf{luafemm \luafemmversion{} · nonlinear planar magnetostatics}
+
+\medskip
+\noindent TikZ paths describe the materials and draw the device. Lua solves
+for the finite-element vector potential; TikZ overlays oriented field lines.
+
+\begin{center}
+\tikzset{
+  % Illustrative B (T) / H (A/m) curve, not a commercial steel grade.
+  femm/materials/iron/.style={bh={0/0,0.5/80,1.0/180,1.3/350,
+    1.5/900,1.65/2500,1.8/7000,2.0/20000}},
+  core/.style={femm/region={material=iron},draw=black!65,
+    fill=black!9,line width=.65pt},
+  winding/.style={femm/region={material=copper},draw=copper!80!black,
+    fill=copper!25,line width=.65pt}
+}
+\begin{tikzpicture}[
+  femm/problem={xmin=-110,xmax=110,ymin=-95,ymax=115,
+    mesh size=2,mesher=delaunay,curve tolerance=.03}]
+  \filldraw[core] (-40,-30)--(40,-30)--(40,30)--(25,30)
+    --(25,-15)--(-25,-15)--(-25,30)--(-40,30)--cycle;
+  \filldraw[core] (-40,33) rectangle (40,48);
+  % NI = 6000 ampere-turns; each winding section measures 6 x 26 square mm.
+  \filldraw[winding,femm/current density=6000/(6*26)*1000000]
+    (-48,-10) rectangle (-42,16);
+  \filldraw[winding,femm/current density=-6000/(6*26)*1000000]
+    (-23,-10) rectangle (-17,16);
+  \begin{scope}
+    \clip (-64,-47) rectangle (65,66);
+    \pic[femm/lines=29,femm/field style={color=field}] {femm field};
+  \end{scope}
+  % Draw conductor symbols after the field to keep them readable.
+  \foreach \y in {-6,0,6,12}{
+    \node[fill=copper!25,inner sep=.2pt,text=copper!65!black] at (-45,\y) {$\odot$};
+    \node[fill=copper!25,inner sep=.2pt,text=copper!65!black] at (-20,\y) {$\otimes$};
+  }
+  \node[fill=white,inner sep=2pt,font=\small] at (0,40.5) {Armature};
+  \node[fill=white,inner sep=2pt,font=\small] at (0,-23) {U-shaped core};
+  \node[align=center,font=\small] at (0,7) {Air\\$NI=6000\,\mathrm{A\!\cdot\!turns}$};
+  \draw[thin] (40,30)--(52,30) (40,33)--(52,33);
+  \draw[thin,-Stealth] (49,25)--(49,30);
+  \draw[thin,-Stealth] (49,38)--(49,33);
+  \node[anchor=west,font=\small,fill=white,inner sep=1pt] at (51,31.5) {$e=3\,\mathrm{mm}$};
+  \draw[thin] (-40,-30)--(-40,-39) (40,-30)--(40,-39);
+  \draw[Stealth-Stealth,thin] (-40,-37)--(40,-37)
+    node[midway,fill=white,inner sep=2pt,font=\small] {$80\,\mathrm{mm}$};
+  \node[anchor=west,font=\small,text=field,fill=white,inner sep=2pt] at (-60,61) {\bfseries Contours $A_z=\mathrm{constant}$, oriented along $\mathbf B$};
+  \node[anchor=west,font=\small,fill=white,inner sep=2pt] at (-60,-44) {$\odot\ J_z>0$ (outward)\qquad $\otimes\ J_z<0$ (inward)};
+\end{tikzpicture}
+\end{center}
+% The solved model stays available in Lua after the TeX group closes.
+\noindent\textbf{Computed result.}
+At the gap centres, $|\mathbf B|=\femmB{-32.5}{31.5}\,\mathrm T$
+on the left and $\femmB{32.5}{31.5}\,\mathrm T$ on the right.
+Mesh: \femmstat{nodes} nodes, \femmstat{triangles} triangles.
+Newton: \femmstat{newton} iterations.
+
+\medskip
+\noindent\textbf{Model.} The ferromagnetic section is $15\,\mathrm{mm}$ wide,
+with two $3\,\mathrm{mm}$ gaps and infinite depth.
+The interpolated $H(B)$ curve describes an illustrative saturating material.
+The outer boundary of the $220\times210\,\mathrm{mm}^2$ air domain has
+$A_z=0$; the figure shows a closer crop.
+
+\medskip
+\noindent\textbf{Computation.}
+$\mathbf B=(\partial_y A_z,-\partial_x A_z)$ and
+$-\nabla\!\cdot\!\bigl(\nu(|\nabla A_z|)\nabla A_z\bigr)=J_z$,
+with $\nu=H/B$.
+The solver uses triangular $P_1$ elements, damped Newton iterations and
+preconditioned conjugate gradients. The contours follow the computed
+potential without graphical smoothing.
+\end{document}

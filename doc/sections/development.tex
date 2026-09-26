@@ -1,0 +1,129 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Lua API and development}
+\label{sec:development}
+\subsection{Module boundaries}
+Every Lua file returns a module table and uses local implementation
+variables; there is no deprecated |module()| call and no runtime change
+to |package.path|. LuaTeX's or ConTeXt's TEXMF resolver finds installed
+files. The TeX loader creates one deliberate Lua global, |luafemm|, to
+hold the loaded module and current model. Numerical scripts can use
+|local femm=require('luafemm')| without a running TeX interpreter.
+
+\begin{description}
+\item[luafemm.lua] Material laws, model ownership, assembly, Newton,
+  preconditioning, field evaluation and contour topology.
+\item[luafemm-mesh.lua] PSLG subdivision, constrained Delaunay meshing,
+  local density and final mesh audit.
+\item[luafemm-predicates.lua] Filtered orientation/incircle signs with
+  expansion fallback; diagnostic fallback counters.
+\item[luafemm-path.lua] Affine frames and soft-path polygonalisation.
+\item[luafemm-materials.lua] Catalogue lookup and static interpretation;
+  the separate generated data module retains upstream values.
+\item[luafemm-profiles.lua] Named measurement paths, sampling and cached rows.
+\item[luafemm-tex.lua] TeX boundary: escaped numeric strings, picture
+  initialisation, material resolution and emitted drawing commands.
+\end{description}
+Public functions have LDoc-style comments with units, arguments and
+return values. Private numerical helpers document invariants and algorithmic
+choices rather than restating each arithmetic operation. StyLua configuration
+fixes Lua 5.3 syntax, four-space indentation and a 100-column target.
+
+\subsection{Core calls}
+The public constructor copies its input; material and region declarations
+also take independent copies. The structures below are owned by their model.
+Callbacks and logging functions are retained as function references.
+\begin{codeexample}[code only]
+local femm = require('luafemm')
+local model = femm.new {
+  unit = .001, mesher = 'delaunay', h = 2,
+  xmin = -20, xmax = 20, ymin = -20, ymax = 20,
+  tolerance = 1e-7, max_newton = 60
+}
+femm.material(model, 'magnet', {library='cast-alnico-5-lng37'})
+femm.region(model, 'magnet', {{-3,-5},{3,-5},{3,5},{-3,5}}, 0, 90)
+femm.solve(model)
+local bx, by, az, hx, hy = femm.sample(model, 0, 8)
+\end{codeexample}
+
+|new(options)| accepts the numerical counterparts of problem keys:
+|h|, |xmin|, |xmax|, |ymin|, |ymax|, |mesher|, |mesh_tolerance|,
+|tolerance| and |max_newton|. |unit| is metres per model coordinate unit,
+default .001. Optional |boundary(x,y)| and |source(x,y)| callbacks receive
+SI coordinates and return $A_z$ in T\,m and $J_z$ in A/m$^2$, respectively.
+The source callback replaces region currents. |log(message)| receives
+iteration diagnostics. The Lua-only mesher default is |grid|.
+
+|material(model,name,properties)| accepts |mur|, |bh|, |coercivity|,
+|remanence|, |current| and |library|. |region(model,name,points,current,angle,mesh_size)|
+uses model coordinates, A/m$^2$, degrees and model-unit local spacing.
+Omitted current inherits the material source; omitted angle and local
+spacing are zero. |mesh(model)| prepares the discrete model, and
+|solve(model)| meshes if needed and returns the same solved model.
+
+|sample(model,x,y)| returns |Bx,By,Az,Hx,Hy| in SI; inputs use model
+coordinates. |contours(model,count,levels)| returns oriented path arrays
+with |x| and |y| in model units and a |level| in T\,m. Optional explicit
+|levels| replace the automatic level count. |constitutive(material,B)|
+returns $\mu_0H_{\rm table}/B$ and $\mu_0\,dH_{\rm table}/dB$.
+These are scaled law coefficients, not the physical vector H of a magnet.
+
+Solved |model.stats| has the names listed in Section~\ref{sec:field}.
+|model.A| is the nodal potential in T\,m, |model.nodes| contains SI positions,
+and |model.triangles| contains P1 connectivity, material references and
+element fields. Treat these implementation structures as read-only.
+|import_mesh| and |update_fields| are internal preparation hooks, not a
+stable foreign-mesh import interface in this release.
+
+\subsection{Catalogue and profile calls}
+|require('luafemm-materials').get(id)| returns an independent record with
+|id|, |name|, |path|, |fields| and |bh|. Exact original names are also accepted
+when unambiguous. |list()| returns all independent records in upstream
+order. |properties(id)| returns the effective static material properties.
+
+Load the profile module with |require('luafemm-profiles')|. Its
+\nolinkurl{register(model,name,points,options)} function registers a polyline with |samples|,
+|offset| and |outside| options. |sample(name)| returns cached rows containing
+|s,t,x,y,B,Bx,By,Bt,Bn,H,Hx,Hy,Ht,Hn,Az|. |get(name)| exposes the internal
+profile record and should be treated as read-only. \nolinkurl{coordinates(name,component,abscissa)}
+formats the selected columns as PGFPlots coordinate pairs. Re-register
+a profile after any manual solution modification; otherwise the cached
+rows deliberately remain unchanged.
+
+\subsection{Builds, tests and source conventions}
+The repository uses an installable |tex/| layout, English source comments,
+English examples and documentation, and separate upstream data notices.
+All build products are confined to |build/|. Development builds require
+Python 3 (standard library), TeX Live tools and optionally StyLua for
+format checking; installed documents need none of those development tools.
+
+|make test| runs numerical tests, the rational predicate oracle and the
+three-format integration matrix. |make examples| compiles the full examples.
+|make manual| executes the manual examples, builds the key index and
+resolves cross-references. |make materials| deterministically regenerates
+the material module and catalogue from the preserved source file.
+|make dist| creates local source and TDS archives; it does not publish,
+commit or tag a release. The contributor guide documents the release checks.
+
+\begin{command}{\luafemmversion}
+Expandable semantic version, currently |0.5.0-rc.1|.
+\end{command}
+\begin{command}{\luafemmversiondate}
+Expandable release date, currently |2026-09-25|.
+\end{command}
+\begin{command}{\luafemmversionnumber}
+Expandable integer for simple compatibility comparisons, currently |50001|.
+It increases when a release changes the public interface; it is not the
+number of commits.
+\end{command}
+
+The original package code and documentation use the LaTeX Project Public
+License, version 1.3c (LPPL-1.3c). Christophe Jorssen is the author and
+Current Maintainer; the maintenance status is \texttt{maintained}. The
+imported FEMM data retain their upstream terms. PGF's documentation
+environments are loaded from TeX Live, not copied into this repository.
+The manual's reference-and-example presentation was modelled on tikz-ext;
+its prose and examples were written for luafemm.

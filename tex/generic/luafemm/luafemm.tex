@@ -1,0 +1,33 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% luafemm generic loader. LuaTeX is the engine requirement, not the format.
+% No LaTeX allocation, error, package-loading or document commands are used.
+\ifdefined\luafemmversion \expandafter\endinput\fi
+\ifdefined\directlua\else
+  \errmessage{luafemm requires LuaTeX (plain, LaTeX or ConTeXt MkIV)}%
+  \expandafter\endinput
+\fi
+\ifdefined\usetikzlibrary\else\input tikz.tex\relax\fi
+\usetikzlibrary{arrows.meta,decorations.markings}%
+\usepgflibrary{fpu}%
+% Restore the incoming catcode even when this file is loaded by a format wrapper.
+\edef\luafemmRestoreAt{\catcode64=\the\catcode64\relax}%
+\catcode64=11\relax
+\def\luafemmversion{0.5.0-rc.1}%
+\def\luafemmversiondate{2026-09-25}%
+\def\luafemmversionnumber{50001}%
+% The only Lua global owned by the package. Numerical modules return tables.
+\directlua{luafemm = require('luafemm'); luafemm.tex = require('luafemm-tex')}%
+% Public result commands are expandable so that numeric output can be reused.
+\def\femmstat#1{\directlua{luafemm.tex.statistic('\luaescapestring{#1}',false)}}%
+\def\femmmeshstat#1{\directlua{luafemm.tex.statistic('\luaescapestring{#1}',true)}}%
+\def\femmB#1#2{\directlua{luafemm.tex.field_value('\luaescapestring{#1}','\luaescapestring{#2}')}}%
+\protected\def\femmsolve{\directlua{luafemm.solve(luafemm.current)}}%
+\input luafemm-legacy.tex\relax
+\input luafemm-tikz.tex\relax
+\input luafemm-profiles.tex\relax
+\luafemmRestoreAt
+\endinput

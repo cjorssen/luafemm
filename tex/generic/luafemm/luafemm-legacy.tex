@@ -1,0 +1,69 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Prototype 0.1 command API. New documents should use physical TikZ paths.
+\pgfkeys{/femm/.is family,/femm,
+  xmin/.initial=-90,xmax/.initial=90,ymin/.initial=-75,ymax/.initial=95,
+  mesh size/.initial=2,tolerance/.initial=0.0000001,
+  material/.initial=air,current density/.initial=0,
+  mu r/.initial=1,bh/.initial={},lines/.initial=35}
+\def\luafemm@value#1{\pgfkeysvalueof{/femm/#1}}
+% Geometry coordinates are millimetres; keep TikZ x=y=1mm in the model.
+\protected\def\femmbegin{%
+  \pgfutil@ifnextchar[{\luafemm@beginlegacy}{\luafemm@beginlegacy[]}}%
+\def\luafemm@beginlegacy[#1]{%
+  \begingroup
+  \pgfkeys{/femm/.cd,#1}%
+  \tikzset{x=1mm,y=1mm}%
+  \directlua{luafemm.current=luafemm.new{
+    xmin=luafemm.tex.number('\luaescapestring{\luafemm@value{xmin}}','xmin'),xmax=luafemm.tex.number('\luaescapestring{\luafemm@value{xmax}}','xmax'),
+    ymin=luafemm.tex.number('\luaescapestring{\luafemm@value{ymin}}','ymin'),ymax=luafemm.tex.number('\luaescapestring{\luafemm@value{ymax}}','ymax'),
+    h=luafemm.tex.number('\luaescapestring{\luafemm@value{mesh size}}','mesh size'),tolerance=luafemm.tex.number('\luaescapestring{\luafemm@value{tolerance}}','tolerance'),
+    log=function(s) texio.write_nl('luafemm: '..s) end}}
+}
+\protected\def\femmend{\endgroup}
+\protected\def\femmmaterial{%
+  \pgfutil@ifnextchar[{\luafemm@materiallegacy}{\luafemm@materiallegacy[]}}%
+\def\luafemm@materiallegacy[#1]#2{%
+  \begingroup
+  \pgfkeys{/femm/.cd,mu r=1,bh={},#1}%
+  \directlua{local bh=luafemm.parse_pairs('\luaescapestring{\luafemm@value{bh}}');
+    luafemm.material(luafemm.current,'\luaescapestring{#2}',
+      {mur=luafemm.tex.number('\luaescapestring{\luafemm@value{mu r}}','mu r'),bh=next(bh) and bh or nil})}%
+  \endgroup}
+% A single PGF list describes both the computational and drawn polygon.
+% PGF expressions and macros are accepted for each coordinate and Jz.
+% pgfutil's loop does not group each iteration: all accumulation stays local
+% to femmregion, without xdef leaking temporary paths out of its group.
+\def\luafemm@legacypair#1/#2\relax{%
+  \pgfmathparse{#1}\let\luafemm@xnum\pgfmathresult
+  \pgfmathparse{#2}\let\luafemm@ynum\pgfmathresult
+  \edef\luafemm@points{\luafemm@points\luafemm@xnum/\luafemm@ynum,}%
+  \edef\luafemm@path{\luafemm@path(\luafemm@xnum,\luafemm@ynum)--}%
+}
+\protected\def\femmregion{%
+  \pgfutil@ifnextchar[{\luafemm@regionlegacy}{\luafemm@regionlegacy[]}}%
+\def\luafemm@regionlegacy[#1]#2{%
+  \begingroup
+  \pgfkeys{/femm/.cd,material=air,current density=0,#1}%
+  \def\luafemm@points{}\def\luafemm@path{}%
+  \pgfutil@for\luafemm@pairitem:=#2\do{%
+    \expandafter\luafemm@legacypair\luafemm@pairitem\relax}%
+  \pgfkeys{/pgf/fpu=true}%
+  \pgfmathparse{\luafemm@value{current density}}%
+  \pgfmathfloattofixed{\pgfmathresult}\let\luafemm@current\pgfmathresult
+  \pgfkeys{/pgf/fpu=false}%
+  \directlua{luafemm.region(luafemm.current,'\luaescapestring{\luafemm@value{material}}',
+    luafemm.parse_pairs('\luafemm@points'),\luafemm@current)}%
+  \path[femm region] \luafemm@path cycle;
+  \endgroup}
+\tikzset{femm region/.style={draw=black,fill=gray!20,line width=.5pt}}
+\protected\def\femmfieldlines{%
+  \pgfutil@ifnextchar[{\luafemm@lineslegacy}{\luafemm@lineslegacy[]}}%
+\def\luafemm@lineslegacy[#1]{%
+  \begingroup\pgfkeys{/femm/.cd,#1}%
+  \directlua{luafemm.tex.tikz_lines(luafemm.current,luafemm.tex.number('\luaescapestring{\luafemm@value{lines}}','lines'))}%
+  \endgroup}
+\endinput

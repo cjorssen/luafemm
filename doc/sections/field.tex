@@ -1,0 +1,126 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Solving, field lines, mesh and numeric results}
+\label{sec:field}
+\begin{key}{/tikz/femm/solve}
+Resolve the current problem when this path executes, for example
+|\path[femm/solve];|. This is optional: field pictures and requested
+profile values solve on demand. Declare all regions before the first
+mesh or solve request. A mesh-only picture does not solve the system.
+\end{key}
+\begin{command}{\femmsolve}
+Command form of the same solve operation. A current model must exist.
+\end{command}
+
+\begin{key}{/tikz/pics/femm field}
+Used as |\pic {femm field};|. Solve if necessary and draw oriented
+isolines of $A_z$. Each level can have several connected components.
+Because $\mathbf B=(\partial_y A_z,-\partial_x A_z)$, these are field lines
+of the computed P1 solution. They are polygonal, without graphical smoothing.
+\end{key}
+\begin{key}{/tikz/pics/femm mesh}
+Used as |\pic {femm mesh};|. Generate the mesh if necessary, then draw each
+edge once. It is useful for inspecting interfaces and local refinement.
+\end{key}
+Both pictures are anchored to the original model frame. Moving the pic
+inside a local scope does not detach the field from the media. Use a clip
+to display a smaller part of the computed domain.
+
+\begin{key}{/tikz/femm/lines=\meta{positive integer} (initially 29)}
+Number of evenly spaced potential levels. Levels are placed at the
+midpoints of equal bins between the minimum and maximum potential.
+This counts levels, not necessarily visible connected curves. Zero-field
+models produce no contours.
+\end{key}
+\begin{key}{/tikz/femm/arrows=\meta{true or false} (initially true)}
+Enable or disable the direction markers. The direction follows B, not an
+arbitrary contour traversal. With no value, PGF's boolean handler selects true.
+\end{key}
+\begin{key}{/tikz/femm/arrow spacing=\meta{dimension} (initially 22mm)}
+Distance between repeated markers along the rendered path. Markers occupy
+the middle part of each contour (from relative positions .12 to .95).
+Short paths need not contain a marker. This is a graphic dimension, not
+a mesh length or physical parameter.
+\end{key}
+\begin{key}{/tikz/femm/arrow length=\meta{dimension} (initially 1.3mm)}
+Length of the Stealth marker, in the displayed figure.
+\end{key}
+\begin{key}{/tikz/femm/arrow width=\meta{dimension} (initially .85mm)}
+Width of the Stealth marker.
+\end{key}
+\begin{key}{/tikz/femm/field style=\marg{TikZ options}}
+Extra graphics options for this field picture; empty initially. For
+example |{teal!70!black,line width=.5pt}|. The base |femm field| style is
+applied first, and these options second. This key sets rather than appends
+the extra options within the current TeX scope.
+\end{key}
+\begin{key}{/tikz/femm/mesh style=\marg{TikZ options}}
+Extra mesh graphics options, empty initially. The base |femm mesh| style
+is applied first. No material or mesh-size property is changed by a
+graphic style.
+\end{key}
+\begin{stylekey}{/tikz/femm field}
+Base contour style: |blue!65!black,line width=.32pt,femm oriented field|.
+Extend with |/.append style| if the standard arrow handling is to remain.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm mesh}
+Base mesh style: |draw=black!25,line width=.12pt|.
+\end{stylekey}
+\begin{key}{/tikz/femm oriented field}
+Reusable marker setup used by |femm field|. It respects |femm/arrows|
+and the marker dimensions. PGF's floating-point vector length is enabled
+locally for decoration: very short contour segments would otherwise
+overflow PGF's fixed-point reciprocal. The contour vertices are unchanged.
+\end{key}
+The helper styles |femm current field| and |femm current mesh| are internal
+storage for the corresponding extra-style keys; use those keys rather
+than depending on the helper implementation.
+
+\subsection{Numeric output}
+\begin{command}{\femmB\marg{x}\marg{y}}
+Print $|\mathbf B|$ in tesla, with three digits after the decimal point.
+Coordinates are model-unit numeric literals. The current model must
+already be solved; the first containing triangle is used at interfaces.
+For more precision or components, use a profile or the Lua API.
+\end{command}
+\begin{command}{\femmstat\marg{name}}
+Print a solved-model statistic with up to eight significant digits.
+Unknown or unavailable values are errors.
+\end{command}
+\begin{center}
+\begin{tabular}{ll}
+\toprule Name & Meaning \\
+\midrule
+|nodes|, |triangles| & Mesh vertex and element counts \\
+|newton| & Accepted Newton corrections \\
+|cg| & Total conjugate-gradient iterations \\
+|residual| & Final relative nonlinear residual \\
+|seconds| & CPU solution time, excluding mesh generation \\
+|peak| & Largest element value of $|\mathbf B|$ in T \\
+|net_current| & Integral of $J_z$ over the section, in A \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{command}{\femmmeshstat\marg{name}}
+Print a constrained-mesh diagnostic with up to six significant digits.
+These values require the Delaunay mesher; they do not exist for |grid|.
+\end{command}
+\begin{center}
+\begin{tabular}{ll}
+\toprule Name & Meaning \\
+\midrule
+|min_angle| & Smallest triangle angle in degrees \\
+|max_area| & Largest triangle area in model units squared \\
+|mesh_tolerance| & Actual vertex-merging distance in model units \\
+|seconds| & CPU mesh generation and audit time \\
+|flips| & Constraint-legalisation edge flips \\
+|exact_orientation|, |exact_incircle| & Exact-arithmetic fallback counts \\
+\bottomrule
+\end{tabular}
+\end{center}
+Statistics remain accessible after the source picture's TeX group closes.
+Starting another model changes the current model for these commands;
+named profiles, in contrast, retain their own source model.

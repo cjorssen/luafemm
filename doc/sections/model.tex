@@ -1,0 +1,153 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Problems, coordinates and physical paths}
+\label{sec:model}
+\begin{key}{/tikz/femm/problem=\marg{options} (default \normalfont empty)}
+Create one model at the beginning of a |tikzpicture|. Put this key in the
+picture options, not on a path or a nested scope. It installs |x=1mm,y=1mm|
+and records the initial affine frame. There is one current model; nested
+models inside the same picture are unsupported. Separate pictures create
+independent models.
+\end{key}
+
+The following subkeys belong to |/femm/problem| and are normally supplied
+inside |femm/problem={...}|. All lengths in this list are numbers in
+\emph{model millimetres}, not graphic dimensions.
+
+\begin{key}{/femm/problem/xmin=\meta{number} (initially -90)}
+Left boundary of the rectangular air domain.
+\end{key}
+\begin{key}{/femm/problem/xmax=\meta{number} (initially 90)}
+Right boundary; must exceed |xmin|. All material vertices must lie within
+the domain, including its boundary.
+\end{key}
+\begin{key}{/femm/problem/ymin=\meta{number} (initially -75)}
+Bottom boundary of the air domain.
+\end{key}
+\begin{key}{/femm/problem/ymax=\meta{number} (initially 95)}
+Top boundary; must exceed |ymin|. The potential is zero on the entire
+outer rectangle. This finite boundary is an approximation to the exterior,
+so enlarge the domain when testing the sensitivity of a result.
+\end{key}
+\begin{key}{/femm/problem/mesh size=\meta{positive number} (initially 2)}
+Global target spacing of interior points and maximum length used to
+subdivide input constraints. It is not a bound on every triangle diameter
+or area. Smaller values increase both memory and solution time.
+\end{key}
+\begin{key}{/femm/problem/mesher=\meta{delaunay or grid} (initially delaunay)}
+|delaunay| uses the constrained Lua triangulator and accepts general
+polygonal interfaces. |grid| retains the prototype's structured algorithm,
+which requires axis-aligned region edges. Local mesh sizes apply only to
+|delaunay|. The standalone Lua constructor retains |grid| as its default
+for compatibility; the TikZ interface explicitly selects |delaunay|.
+\end{key}
+\begin{key}{/femm/problem/mesh tolerance=\meta{nonnegative number} (initially 0)}
+Vertex-merging distance. Zero selects $10^{-12}$ times the greater domain
+dimension. A positive value must be below one percent of the global mesh
+size. Features at this scale may merge. This tolerance controls geometric
+construction, not the exact signs of the robust predicates.
+\end{key}
+\begin{key}{/femm/problem/curve tolerance=\meta{positive number} (initially .03)}
+Default chord-distance tolerance for flattening material curves. It is
+copied to the region options when the picture starts. It does not change
+the original TikZ drawing and is distinct from mesh spacing. Measurement
+profiles have a separate |curve tolerance| option.
+\end{key}
+\begin{key}{/femm/problem/tolerance=\meta{positive number} (initially 1e-7)}
+Target relative Newton residual, normalised by the initial residual. This
+is an algebraic stopping criterion, not an estimate of the physical error.
+\end{key}
+\begin{key}{/femm/problem/max iterations=\meta{positive integer} (initially 60)}
+Maximum number of Newton corrections. Nonconvergence raises an error;
+the package does not silently use the last iterate.
+\end{key}
+
+\subsection{Declaring regions}
+\begin{key}{/tikz/femm/region=\marg{options} (default \normalfont empty)}
+Attach physical properties to one evaluated closed path. Use |\path|,
+|\draw| or |\filldraw| with |rectangle|, |circle|, |ellipse|, or |-- cycle|.
+The capture happens after TikZ evaluates coordinates, transformations,
+arcs, Bézier curves and rounded corners. Nodes on the path are annotations
+and do not create additional regions. Stroke width does not add material.
+\end{key}
+
+\begin{key}{/femm/region/material=\meta{choice} (initially air)}
+Select one of the 246 catalogue identifiers or a previously declared
+custom material style. This is a PGF |.is choice| handler. Unknown values
+produce an error, except that a declared |femm/materials/|\meta{name}
+style is accepted as a custom choice. Catalogue identifiers are reserved.
+\end{key}
+\begin{key}{/femm/region/current density=\meta{expression or material} (initially material)}
+Uniform signed $J_z$ in A/m$^2$. PGF expressions are accepted, including
+|6000/(6*26)*1000000| for 6000 ampere-turns over a $6\times26$ mm$^2$
+section. Positive current points out of the page. |material| inherits
+the catalogue source; for most materials this is zero. Use an explicit
+zero for a passive conductor. Currents are not renormalised if a path is
+resized. The return section of a winding normally has the opposite sign.
+\end{key}
+\begin{key}{/femm/region/magnetization angle=\meta{expression} (initially 0)}
+Prescribed direction in degrees from $+x$ towards $+y$, evaluated by PGF.
+This is a direction in the model frame: rotating a local region path does
+not automatically rotate its magnetisation. Rotating the entire picture
+rotates both the rendered geometry and the displayed field.
+\end{key}
+\begin{key}{/femm/region/mesh size=\meta{nonnegative number} (initially 0)}
+Local spacing inside this polygon and along its edges. Zero inherits the
+global spacing; a positive value refines but does not coarsen that value.
+Where refinement regions overlap, the smallest spacing wins. The region
+still paints a material: declare a broad air refinement region before
+the solids it contains, otherwise it replaces their material.
+\end{key}
+\begin{key}{/femm/region/curve tolerance=\meta{positive number}}
+Override the picture's chord tolerance for this material path. The
+initial value is copied from the problem at picture start.
+\end{key}
+
+\begin{keylist}[/tikz/femm]{material=\meta{choice},current density=\meta{expression},
+  magnetization angle=\meta{expression},mesh size=\meta{number},curve tolerance=\meta{number}}
+Aliases of the corresponding |/femm/region| subkeys. They can be inherited
+from scopes or combined with graphics in a reusable TikZ style.
+The alias |femm/mesh size| on a path means \emph{local} spacing; set the
+global spacing inside |femm/problem|.
+\end{keylist}
+
+\begin{codeexample}[width=5cm]
+\tikzset{passive/.style={
+  femm/region={material=copper,
+    current density=0},
+  draw,fill=orange!25}}
+\begin{tikzpicture}[femm/problem={
+  xmin=-12,xmax=12,ymin=-12,ymax=12,
+  mesh size=2}]
+  \path[femm/region={material=air,
+    mesh size=.6}]
+    (-6,-5) rectangle (6,5);
+  \filldraw[passive,rotate=15]
+    (-4,-3) rectangle (4,3);
+  \pic {femm mesh};
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{Geometry and overlap rules}
+A region must be a simple closed contour. Self-intersections, touching
+parts of the same contour, backtracking edges and multiple subcontours
+are errors. Declare a material hole as a separate later air region.
+Distinct regions may overlap or intersect: \emph{the last declared
+region determines material and current}. The mesher splits their
+interfaces first, then classifies triangles by their centroids.
+
+Use |femm/region| only on physical paths, not as |every path|. A clip
+changes the visible part of a field or mesh, never the computed domain.
+For profile paths, use |femm/profile| instead of |femm/region|.
+
+The frame of the original picture is removed during capture and
+reapplied to generated field and mesh graphics. Consequently |scale=2|
+on the whole picture is a display change. A local scale inside the
+picture changes the physical geometry. Fixed graphic dimensions, such
+as the radius of |rounded corners|, retain TikZ's ordinary meaning.
+Captured coordinates are rounded to $0.0001$ model unit, and points within
+$0.001$ unit of a domain side are snapped to that side. Finer geometric
+features cannot be recovered by reducing the mesh tolerance.

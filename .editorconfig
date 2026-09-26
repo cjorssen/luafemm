@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: LPPL-1.3c
+# Copyright (C) 2026 Christophe Jorssen
+# Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+# LPPL maintenance status: maintained
+# This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{tex,sty,mkiv,md,yml}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[data/femm/*]
+trim_trailing_whitespace = false

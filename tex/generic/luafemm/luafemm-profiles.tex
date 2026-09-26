@@ -1,0 +1,62 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Profile capture needs only TikZ; plotting additionally needs pgfplots.
+% Internal file, @ catcode supplied by luafemm.tex. Profiles retain their model
+% on the Lua side; changing a TeX group does not discard a named profile.
+\newtoks\luafemm@plottoks
+\pgfkeys{/femm/profile/.is family,/femm/profile,
+  name/.initial=,samples/.initial=201,curve tolerance/.initial=.03,
+  offset/.initial=0,outside/.is choice,
+  outside/error/.code={\def\luafemm@profileoutside{error}},
+  outside/nan/.code={\def\luafemm@profileoutside{nan}}}
+\def\luafemm@profileoutside{error}
+\def\luafemm@profilevalue#1{\pgfkeysvalueof{/femm/profile/#1}}
+\tikzset{femm/profile/.code={%
+  \pgfqkeys{/femm/profile}{#1}%
+  \tikzset{postaction={femm/capture profile}}},
+  femm/capture profile/.code={\tikz@addmode{\luafemm@captureprofile}}}
+\def\luafemm@captureprofile{%
+  \begingroup
+  \pgfsyssoftpath@getcurrentpath\luafemm@profilepath
+  \pgfprocessround{\luafemm@profilepath}{\luafemm@profilepath}%
+  \directlua{require('luafemm-profiles').capture(luafemm.current,
+    '\luaescapestring{\luafemm@profilevalue{name}}','\luaescapestring{\meaning\luafemm@profilepath}',{
+      samples=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{samples}}','samples'),
+      tolerance=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{curve tolerance}}','curve tolerance'),
+      offset=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{offset}}','offset'),
+      outside='\luafemm@profileoutside'})}%
+  \endgroup}
+\pgfkeys{/femm/plot/.is family,/femm/plot,
+  profile/.initial=,component/.is choice,abscissa/.is choice,
+  plot options/.initial={}}
+\def\luafemm@plotcomponent{B}\def\luafemm@plotabscissa{s}
+\def\luafemm@componentchoice#1{\pgfkeys{/femm/plot/component/#1/.code={\def\luafemm@plotcomponent{#1}}}}
+\luafemm@componentchoice{B}\luafemm@componentchoice{Bx}\luafemm@componentchoice{By}
+\luafemm@componentchoice{Bt}\luafemm@componentchoice{Bn}
+\luafemm@componentchoice{H}\luafemm@componentchoice{Hx}\luafemm@componentchoice{Hy}
+\luafemm@componentchoice{Ht}\luafemm@componentchoice{Hn}\luafemm@componentchoice{Az}
+\def\luafemm@abscissachoice#1{\pgfkeys{/femm/plot/abscissa/#1/.code={\def\luafemm@plotabscissa{#1}}}}
+\luafemm@abscissachoice{s}\luafemm@abscissachoice{t}\luafemm@abscissachoice{x}\luafemm@abscissachoice{y}
+% Group only option parsing; execute addplot outside it so that axis state,
+% cycle lists and legends behave exactly as for an ordinary addplot+.
+\protected\def\femmplot{%
+  \pgfutil@ifnextchar[{\luafemm@plot}{\luafemm@plot[]}}%
+\def\luafemm@plot[#1]{%
+  \ifdefined\addplot
+    \begingroup
+    \pgfqkeys{/femm/plot}{profile={},component=B,abscissa=s,plot options={},#1}%
+    \pgfkeysgetvalue{/femm/plot/plot options}\luafemm@plotoptions
+    \luafemm@plottoks=\expandafter{\luafemm@plotoptions}%
+    \edef\luafemm@plotcommand{\endgroup
+      \noexpand\addplot+[unbounded coords=jump,\the\luafemm@plottoks] coordinates {%
+        \directlua{tex.sprint(require('luafemm-profiles').coordinates(
+          '\luaescapestring{\pgfkeysvalueof{/femm/plot/profile}}',
+          '\luafemm@plotcomponent','\luafemm@plotabscissa'))}};}%
+    \luafemm@plotcommand
+  \else
+    \errmessage{luafemm: femmplot requires pgfplots and an axis environment}%
+  \fi}
+\endinput

@@ -1,0 +1,71 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\usetikzlibrary{femm,calc}
+\nopagenumbers
+\tikzset{
+  femm/materials/iron/.style={mu r=150},
+  iron/.style={femm/region={material=iron},draw,fill=gray!20},
+  coil/.style={femm/region,draw,fill=orange!30}
+}
+\tikzpicture[femm/problem={xmin=-20,xmax=20,ymin=-20,ymax=20,mesh size=2},scale=1.2]
+  \filldraw[iron] (-10,-10) rectangle (-5,10);
+  \filldraw[iron,rotate=15] (3,-9)--(9,-8)--(8,9)--(4,8)--cycle;
+  \filldraw[iron] (0,12) circle[radius=3];
+  \draw[coil,femm/current density=1e6] (-14,-5) rectangle (-12,5) node[above] {+};
+  \draw[coil,femm/current density=-1e6] (-3,-5) rectangle (-1,5);
+  \pic {femm mesh};
+  \pic[femm/lines=11,femm/field style={red}] {femm field};
+\endtikzpicture
+\directlua{
+  local m=luafemm.current
+  assert(m.options.mesher=='delaunay')
+  assert(rawlen(m.regions)==5,'unexpected number of captured paths')
+  assert(math.abs(m.regions[1].points[1][1]+10)<.001)
+  assert(rawlen(m.regions[3].points)>16,'circle was not flattened')
+  assert(m.stats.residual<1e-7)
+  texio.write_nl('TIKZ INTERFACE PASS')
+}
+\tikzpicture[femm/problem={xmin=-20,xmax=20,ymin=-20,ymax=20,mesh size=3},
+  rotate=23,xshift=7mm,scale=.7]
+  \coordinate (o) at (0,0);
+  \scope[shift={($(o)+(2,3)$)},rotate=90]
+    \filldraw[iron] (0,0) rectangle (4,2);
+  \endscope
+  \filldraw[iron,rounded corners=1mm] (-12,-10)--(-3,-10)--(-3,-4)--(-12,-4)--cycle;
+  \filldraw[coil,femm/current density=2*1000000] (8,0)
+    arc[start angle=0,end angle=180,radius=3]--cycle;
+  \pic[femm/arrows=false,femm/lines=7] {femm field};
+\endtikzpicture
+\directlua{
+  local m=luafemm.current
+  assert(rawlen(m.regions)==3)
+  local a=m.regions[1].points[1]
+  assert(math.abs(a[1]-2)<.002 and math.abs(a[2]-3)<.002,'scope transform was lost')
+  assert(rawlen(m.regions[2].points)>8,'rounded corners were lost')
+  assert(rawlen(m.regions[3].points)>8,'arc was lost')
+  texio.write_nl('TIKZ TRANSFORMS PASS')
+}
+\tikzset{femm/materials/magnet/.style={mu r=3,remanence=1.2}}
+\tikzpicture[femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,
+  mesh size=2,mesh tolerance=0.000000001},scale=.7]
+  \scope[femm/material=magnet,femm/magnetization angle=2*45,femm/mesh size=.5]
+    \filldraw[femm/region,fill=red!20] (-2,-3) rectangle (2,3);
+  \endscope
+  \path[femm/region] (5,5) rectangle (6,6);
+  \pic[femm/lines=7] {femm field};
+\endtikzpicture
+\directlua{
+  local m=luafemm.current
+  assert(m.regions[1].angle==90 and m.regions[1].mesh_size==.5)
+  assert(m.regions[2].material=='air' and m.materials.air.hc==0)
+  assert(math.abs(m.materials.magnet.hc-1.2/(3*luafemm.mu0))<1e-6)
+  assert(m.stats.net_current==0 and m.stats.residual<1e-7)
+  local bx,by=luafemm.sample(m,0,0)
+  assert(by>.1,'permanent magnet has wrong orientation')
+  texio.write_nl('TIKZ MAGNET KEYS PASS')
+}
+\bye

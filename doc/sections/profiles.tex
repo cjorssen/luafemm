@@ -1,0 +1,133 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Measurement paths and the PGFPlots library}
+\label{sec:profiles}
+Load |\usepgfplotslibrary{femm}| after PGFPlots for the standard library
+entry point. It loads the generic TikZ library if necessary. The profile
+capture and command are also available through |femm| for compatibility;
+only plotting requires PGFPlots.
+
+\begin{key}{/tikz/femm/profile=\marg{options}}
+Register an evaluated measurement path, without adding a physical region.
+Use |\draw| to display the path or |\path| to keep it invisible. A single
+connected open or closed path is required; arcs, circles, Bézier curves,
+rounded corners, named coordinates and local transformations are accepted.
+Do not combine |femm/region| and |femm/profile| on the same path.
+Capture itself does not mesh or solve the model.
+\end{key}
+
+The profile subkeys belong to |/femm/profile|:
+\begin{key}{/femm/profile/name=\meta{identifier}}
+Required name, with letters, digits, hyphens or underscores. The registry
+is document-wide; reusing a name replaces its old geometry and cached
+values. A profile keeps its own model even after another picture starts.
+\end{key}
+\begin{key}{/femm/profile/samples=\meta{integer} (initially 201)}
+Number of equally spaced arc-length samples, including both endpoints;
+between 2 and 100000. Increasing this number refines the graph's sampling,
+not the finite-element solution. A narrow peak may be missed between samples.
+\end{key}
+\begin{key}{/femm/profile/curve tolerance=\meta{positive number} (initially .03)}
+Flattening tolerance in model units. Independent of the material-path
+tolerance. Samples follow the resulting polyline, so its arc length is
+an approximation to the original smooth curve's length.
+\end{key}
+\begin{key}{/femm/profile/offset=\meta{number} (initially 0)}
+Signed displacement towards the path's left normal, in model units.
+Use a small nonzero offset to choose a side of a material interface.
+The reported distance $s$ remains measured on the original path; the
+sampled $x,y$ coordinates include the displacement. At sharp vertices,
+offsets follow the chosen segment normal, not a rounded offset curve.
+\end{key}
+\begin{key}{/femm/profile/outside=\meta{error or nan} (initially error)}
+PGF choice controlling samples outside the rectangular domain. |error|
+stops with the offending point. |nan| supplies missing values, creating
+gaps in the graph. It does not hide a mesher or solver failure.
+\end{key}
+
+\begin{command}{\femmplot\oarg{options}}
+Inside a PGFPlots axis, emit a complete |\addplot+ ... coordinates ...;|
+command. Do not append another semicolon. The first request solves the
+profile's source model if necessary and caches all components. Further
+component plots reuse those rows. Values pass in memory; no data file,
+Python process or shell escape is involved. Options are parsed locally;
+|\addplot+| executes in the enclosing axis so that legends and cycle lists
+advance normally.
+\end{command}
+
+Every call resets the following plot options, in family |/femm/plot|:
+\begin{key}{/femm/plot/profile=\meta{identifier}}
+Required name of a previously registered profile.
+\end{key}
+\begin{key}{/femm/plot/component=\meta{choice} (initially B)}
+PGF choice: |B|, |Bx|, |By|, |Bt|, |Bn|, |H|, |Hx|, |Hy|, |Ht|, |Hn| or |Az|.
+Unsubscripted B and H mean the magnitudes. B components are in T, H
+components in A/m and Az in T\,m. Cartesian components refer to the model
+frame. Tangential and normal components follow the path direction.
+\end{key}
+\begin{key}{/femm/plot/abscissa=\meta{choice} (initially s)}
+|s| is distance from the first point in model units; |t| is $s/L$ from
+zero to one; |x| and |y| are sampled coordinates. In the TikZ interface,
+distances are in millimetres. The parameter |t| is \emph{not} the polynomial
+parameter of a Bézier curve. Nonmonotone x/y paths are plotted in traversal
+order, not sorted by the chosen abscissa.
+\end{key}
+\begin{key}{/femm/plot/plot options=\marg{PGFPlots options}}
+Ordinary options appended to |\addplot+|, empty by default. For example
+|{red,thick,dashed,no markers}|. All axis labels, bounds, grids, legends and
+cycle lists remain PGFPlots options. The emitted plot also sets
+|unbounded coords=jump| unless explicitly overridden here.
+\end{key}
+
+\clearpage
+\subsection{A curve and its components}
+This example includes both the source picture and the graph and is
+executed during the manual build.
+\begin{codeexample}[width=6cm]
+\begin{tikzpicture}[femm/problem={
+  xmin=-15,xmax=15,ymin=-15,ymax=15,
+  mesh size=2}]
+  \filldraw[femm/region={
+    material=cast-alnico-5-lng37,
+    magnetization angle=90},
+    fill=red!20]
+    (-3,-4) rectangle (3,4);
+  \draw[femm/profile={name=demo,
+    samples=51},blue,dashed]
+    (-8,6) .. controls (0,12) .. (8,6);
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=5.8cm,height=4.5cm,
+  xlabel={$s$ (mm)},ylabel={Field (T)},
+  no markers]
+  \femmplot[profile=demo,component=B,
+    plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=demo,component=By,
+    plot options={red}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{Tangents, interfaces and plotting conventions}
+For unit tangent $\hat{\mathbf t}$, the left normal is
+$\hat{\mathbf n}=(-\hat t_y,\hat t_x)$.
+The signed components are $B_t=\mathbf B\cdot\hat{\mathbf t}$ and
+$B_n=\mathbf B\cdot\hat{\mathbf n}$, and likewise for H. Reversing the
+path changes these signs at a common point, while Bx and By are unchanged.
+At a polygon vertex, the following segment supplies the tangent; the
+final point uses the last segment. A closed path repeats its first
+position as its final sample, but endpoint tangents can differ at a corner.
+
+The P1 potential is continuous. Its gradient, and therefore B and H,
+is constant in each triangle and may jump between elements or materials.
+No smoothing is applied. PGFPlots normally joins consecutive samples by
+straight segments. |const plot| changes the graphic convention but does
+not locate all triangle-edge intersections. At an exact interface the
+first containing triangle supplies the value; an offset or a path wholly
+inside the desired medium makes the sampling side explicit.

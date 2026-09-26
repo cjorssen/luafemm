@@ -1,0 +1,52 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Prototype command compatibility}
+The following interface is retained for the 0.1 example. New documents
+should attach physics to native paths instead. The legacy interface
+uses the structured |grid| mesher and does not expose catalogue choices,
+coercivity, local refinement or curved material paths directly.
+
+\begin{command}{\femmbegin\oarg{options}}
+Inside a TikZ picture, start a grouped model and set |x=1mm,y=1mm|.
+Subkeys in family |/femm| are |xmin=-90|, |xmax=90|, |ymin=-75|,
+|ymax=95|, |mesh size=2| and |tolerance=1e-7|. Numeric values have the same
+units as their modern counterparts. The domain uses zero exterior potential.
+\end{command}
+\begin{command}{\femmend}
+End the group started by |\femmbegin|. The Lua model remains available.
+\end{command}
+\begin{command}{\femmmaterial\oarg{options}\marg{name}}
+Define a custom material. Options |mu r=1| and |bh={}| reset for each call;
+a nonempty B/H list has the same monotonicity and unit rules as above.
+\end{command}
+\begin{command}{\femmregion\oarg{options}\marg{x/y list}}
+Declare and draw a polygon from comma-separated coordinate pairs.
+Options |material=air| and |current density=0| reset on each call.
+PGF expressions are evaluated for coordinates and current density. The
+polygon is closed automatically. Grid meshing accepts axis-aligned edges only.
+\end{command}
+\begin{command}{\femmfieldlines\oarg{options}}
+Draw contours of the already solved model. The legacy |/femm/lines| key
+has initial value 35. It is distinct from the modern |femm/lines| value 29.
+Use |\femmsolve| first.
+\end{command}
+\begin{stylekey}{/tikz/femm region}
+Legacy polygon style: |draw=black,fill=gray!20,line width=.5pt|.
+The modern path interface leaves the physical path's graphics to its
+ordinary TikZ options.
+\end{stylekey}
+
+For example, the old polygon declaration
+\begin{codeexample}[code only]
+\femmregion[material=iron]{0/0,5/0,5/3,0/3}
+\end{codeexample}
+becomes a native TikZ path:
+\begin{codeexample}[code only]
+\filldraw[femm/region={material=iron}] (0,0) rectangle (5,3);
+\end{codeexample}
+Use |\pic {femm field};| in place of an explicit solve and
+|\femmfieldlines|. Result commands |\femmB|, |\femmstat| and
+|\femmmeshstat| are shared, subject to the mesher-specific statistics.

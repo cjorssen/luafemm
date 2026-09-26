@@ -1,0 +1,123 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Material library and constitutive laws}
+\label{sec:materials}
+The embedded catalogue contains all 246 records from the supplied FEMM
+magnetic material library: air, permanent magnets, soft magnetic materials,
+nonmagnetic metals and winding wires. A material is selected by an ASCII
+identifier, such as |pure-iron|, |copper|, |aluminum-6061-t6| or
+|cast-alnico-5-lng37|. See Appendix~\ref{sec:catalogue} for every choice.
+This is the magnetic solver's catalogue; dielectric and thermal material
+databases belong to other FEMM solvers and are not imported.
+
+The names, folders, every numeric field and every B--H point are preserved.
+The two records named Supermalloy have distinct identifiers:
+|supermalloy| and
+|supermalloy-metals-handbook-dc-magnetization-curves|. No record is
+overwritten by name matching. Installed documents need neither the FEMM
+clone nor its executable.
+
+\subsection{Custom and derived materials}
+Define a material as a style under |/tikz/femm/materials|. The style name
+then becomes a valid |material| choice. Define styles before the first
+use, and use a name that is not reserved by the catalogue.
+\begin{codeexample}[code only]
+\tikzset{
+  femm/materials/my-iron/.style={
+    bh={0/0,.5/80,1/180,1.3/350,1.5/900,1.8/7000,2/20000}},
+  femm/materials/my-metal/.style={library=copper,mu r=1.01},
+  femm/materials/recoil-magnet/.style={mu r=1.05,remanence=1.2},
+  core/.style={femm/region={material=my-iron},draw,fill=gray!20}
+}
+\end{codeexample}
+
+The following keys are evaluated while resolving a material style. Empty
+internal slots mean ``inherit from the library, if any''. The effective
+defaults below apply when there is no library base. Explicit properties
+override the base, independently of their order in the style.
+
+\begin{key}{/tikz/femm/materials/library=\meta{choice}}
+Use a catalogue record as the base of a custom material. This is a PGF
+|.is choice| handler, with no initial base. A private copy is created;
+overrides never change the catalogue itself. A material name is model-wide:
+do not redefine its physical law between regions of the same model.
+\end{key}
+\begin{key}{/tikz/femm/materials/mu r=\meta{positive number}}
+Relative permeability of a linear isotropic material; effective default 1.
+A nonempty |bh| table takes precedence. Setting |mu r| on a derived
+nonlinear material does not remove its B--H table.
+\end{key}
+\begin{key}{/tikz/femm/materials/bh=\marg{B/H pairs}}
+Comma-separated numeric pairs: B in tesla, H in A/m. The table must have
+at least two points, begin with |0/0|, and have strictly increasing B and H.
+There is no curve by default. A nonempty table replaces the base table;
+an empty value inherits it. The package interpolates H(B) linearly. Beyond
+the final point, the slope is $1/\mu_0$. This is deliberately not FEMM's
+spline interpolation, so imported data do not imply bitwise FEMM results.
+\end{key}
+\begin{key}{/tikz/femm/materials/coercivity=\meta{nonnegative number}}
+Prescribed source strength $H_c$ in A/m; effective default zero.
+It can accompany either |mu r| or a \emph{shifted} B--H table. Its direction
+is chosen by each region's |magnetization angle|.
+\end{key}
+\begin{key}{/tikz/femm/materials/remanence=\meta{nonnegative number}}
+Remanent induction $B_r$ in tesla, for a linear recoil law; effective
+default zero. A positive value is incompatible with a B--H table or
+nonzero |coercivity|, including inherited ones. It gives
+$H_c=B_r/(\mu_0\mu_r)$. This extrapolated intercept is not necessarily the
+measured coercivity of a nonlinear hard magnet.
+\end{key}
+
+\subsection{Permanent magnets}
+The constitutive convention is
+\[
+ \mathbf H=\nu(|\mathbf B|)\mathbf B-H_c\mathbf m,
+ \qquad \mathbf m=(\cos\alpha,\sin\alpha),\qquad
+ \nu(B)=H_{\rm table}(B)/B.
+\]
+Along the positive magnetisation direction, the physical field is
+$H_{\rm physical}(B)=H_{\rm table}(B)-H_c$. Thus the table starts at
+|0/0| while the physical demagnetisation branch starts at $H=-H_c$.
+Remanence occurs where $H_{\rm table}(B_r)=H_c$. Do not paste a measured
+negative-H demagnetisation table directly into |bh|.
+
+The |cast-alnico-5-lng37| record has $H_c=48600$ A/m and a table endpoint
+at $B=1.204$ T, $H_{\rm table}=48600$ A/m. The example
+|examples/alnico-u.tex| uses that table with illustrative soft iron;
+|examples/materials-profiles.tex| uses the catalogue's |pure-iron| instead.
+Both produce a field without imposed current. The magnetisation direction
+is prescribed, not an internal history variable: hysteresis, irreversible
+demagnetisation and measured transverse anisotropy are not modelled.
+
+\subsection{Static interpretation of the catalogue}
+All records in this revision have equal |Mu_x| and |Mu_y|. For |LamType=0|,
+a fill fraction $f$ is applied as
+\[
+ \mu_{r,\rm eff}=f\mu_r+(1-f),\qquad
+ B_{\rm eff}(H)=f B(H)+(1-f)\mu_0H.
+\]
+This accounts for the ten records with fill fraction 0.98. The winding
+types 3 and 8 have unit relative permeability in the static model, as in
+FEMM's static assembly. Other lamination types and anisotropic permeability
+are not silently approximated if introduced in a future database: the
+adapter rejects unsupported cases.
+
+Conductivity, wire diameter, strand count, lamination thickness and
+harmonic loss parameters remain available as metadata. They do not add
+eddy currents, skin effects, AC loss or a circuit model to this static
+solver. The real material source |J_re| is converted from A/mm$^2$ to A/m$^2$.
+\emph{Sixty-nine copper-clad aluminium wire records specify 1 A/mm$^2$.}
+Use |current density=0| to make one of those regions passive. This value
+is also shown in the machine-readable and Markdown catalogues.
+
+\subsection{Provenance and data terms}
+The source is FEMM revision
+\nolinkurl{7d9e8ed90772ddb939a3256f976e231bcb5cca97},
+file |bin/matlib.dat|. The repository keeps the original bytes, the
+upstream notice and a deterministic Lua importer. The imported data are
+identified separately from the original LPPL code of this package; FEMM's
+Aladdin Free Public License notice is included in |data/femm/LICENSE.txt|.
+The release does not relabel the FEMM data as LPPL data.

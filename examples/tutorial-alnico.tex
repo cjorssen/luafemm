@@ -1,0 +1,85 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{
+  core/.style={femm/region={material=pure-iron},
+    draw=black!70,fill=gray!15},
+  magnet/.style={femm/region={material=cast-alnico-5-lng37,
+    magnetization angle=180},draw=red!70!black,fill=red!25},
+  gap mesh/.style={femm/region={material=air,mesh size=.5}}
+}
+\begin{tikzpicture}[femm/problem={xmin=-110,xmax=110,
+  ymin=-95,ymax=115,mesh size=5}]
+  \filldraw[core]
+    (-40,-30)--(40,-30)--(40,30)--(25,30)
+    --(25,-15)--(-25,-15)--(-25,30)--(-40,30)--cycle;
+  % The later alnico region replaces this part of the iron crosspiece.
+  \filldraw[magnet] (-25,-30) rectangle (25,-15);
+  \filldraw[core] (-40,31) rectangle (40,46);
+  \path[gap mesh] (-40,30) rectangle (-25,31);
+  \path[gap mesh] (25,30) rectangle (40,31);
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,55);
+    \pic[femm/lines=17,femm/arrow spacing=26mm,
+      femm/field style={teal!70!black}] {femm field};
+  \end{scope}
+  \draw[femm/profile={name=magnet-gap,samples=101},
+    violet,dashed,thick,-Stealth] (-48,30.5)--(48,30.5);
+  \draw[femm/profile={name=magnet-arc,samples=101,
+    curve tolerance=.03},orange!85!black,dashed,thick,-Stealth]
+    (-18,-8) .. controls (-22,22) and (22,22) .. (18,-8);
+  \node[fill=gray!15,font=\small] at (0,39) {Armature};
+  \node[fill=red!25,font=\small] at (0,-20) {Alnico 5};
+  \draw[red!70!black,thick,-Stealth] (12,-25)--(-12,-25);
+  \node[fill=white,font=\small] at (0,5) {Air: $J_z=0$};
+  \node[fill=white,inner sep=1pt] at (-32.5,27) {N};
+  \node[fill=white,inner sep=1pt] at (32.5,27) {S};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \femmplot[profile=magnet-gap,component=B,abscissa=x,
+    plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=magnet-gap,component=Bx,abscissa=x,
+    plot options={blue}]
+  \addlegendentry{$B_x$}
+  \femmplot[profile=magnet-gap,component=By,abscissa=x,
+    plot options={red}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+  xlabel={Arc length $s$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \femmplot[profile=magnet-arc,component=B,
+    plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=magnet-arc,component=Bt,
+    plot options={orange!85!black}]
+  \addlegendentry{$B_t$}
+  \femmplot[profile=magnet-arc,component=Bn,
+    plot options={teal!70!black}]
+  \addlegendentry{$B_n$}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Draft mesh: \femmstat{triangles} triangles.
+Gap-centre magnitudes: \femmB{-32.5}{30.5}\,T and
+\femmB{32.5}{30.5}\,T.
+\end{document}

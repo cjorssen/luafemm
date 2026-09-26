@@ -1,0 +1,64 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[a4paper,11pt]{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{fontspec}
+\usepackage{luafemm}
+\pagestyle{empty}
+\begin{document}
+\noindent{\LARGE\bfseries From TikZ paths to a finite-element mesh}\par\medskip
+\noindent A rounded core, a tilted armature and field lines: the same paths
+serve drawing and computation. The constrained mesh is built entirely in Lua.
+\tikzset{
+  femm/materials/iron/.style={bh={0/0,.5/80,1/180,1.3/350,
+    1.5/900,1.65/2500,1.8/7000,2/20000}},
+  core/.style={femm/region={material=iron},fill=black!8,draw=black!65},
+  coil/.style={femm/region,fill=orange!25,draw=orange!70!black}
+}
+\begin{center}
+\begin{tikzpicture}[femm/problem={xmin=-85,xmax=85,ymin=-65,ymax=85,
+  mesh size=2,curve tolerance=.05}]
+  \filldraw[core,rounded corners=2mm]
+    (-40,-30)--(40,-30)--(40,30)--(25,30)--(25,-15)
+    --(-25,-15)--(-25,30)--(-40,30)--cycle;
+  \filldraw[core,rotate around={2:(0,40.5)}]
+    (-40,33) rectangle (40,48);
+  \filldraw[coil,femm/current density=6000/(6*26)*1000000]
+    (-48,-10) rectangle (-42,16);
+  \filldraw[coil,femm/current density=-6000/(6*26)*1000000]
+    (-23,-10) rectangle (-17,16);
+  \begin{scope}
+    \clip (-58,-42) rectangle (60,65);
+    \pic[femm/mesh style={black!13}] {femm mesh};
+    \pic[femm/lines=23,femm/field style={teal!70!black},
+      femm/arrow spacing=28mm] {femm field};
+  \end{scope}
+  \foreach \y in {-6,0,6,12}{
+    \node[fill=orange!25,inner sep=.2pt] at (-45,\y) {$\odot$};
+    \node[fill=orange!25,inner sep=.2pt] at (-20,\y) {$\otimes$};
+  }
+  \node[fill=white,font=\small,inner sep=2pt] at (0,57) {Armature rotated by $2^\circ$};
+  \node[fill=white,font=\small,inner sep=2pt] at (0,-38) {Rounded corners: drawing radius $2\,\mathrm{mm}$};
+\end{tikzpicture}
+\end{center}
+\noindent\textbf{Model syntax.}
+\begin{verbatim}
+\tikzset{
+  femm/materials/iron/.style={bh={0/0,...}},
+  core/.style={femm/region={material=iron},fill=gray!15}
+}
+\filldraw[core,rounded corners=2mm] ... -- cycle;
+\filldraw[core,rotate around={2:(0,40.5)}]
+  (-40,33) rectangle (40,48);
+\pic {femm mesh};
+\pic[femm/lines=23,femm/arrow spacing=28mm] {femm field};
+\end{verbatim}
+\noindent\textbf{Discretization.}
+TikZ's B\'ezier curves are approximated by segments with a geometric tolerance
+of $0.05\,\mathrm{mm}$. The mesh contains \femmstat{nodes} nodes and
+\femmstat{triangles} triangles. The nonlinear solve converges in
+\femmstat{newton} iterations.
+\end{document}

@@ -1,0 +1,448 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Original narrative and examples, following the progressive presentation of
+% the PGF tutorials (a concrete task, small additions, then complete results).
+\clearpage
+\section{Tutorial: Two magnets for Maya}
+\label{sec:tutorial}
+
+Maya is preparing a lesson on magnetic circuits. She has a drawing of a
+U-shaped iron core, a coil, and an armature above the two poles. The drawing
+is quite satisfactory, except for the field lines: she has drawn them by hand,
+and moving the armature means drawing them all again. She would also like to
+answer a question that the drawing alone cannot settle: how strong is the
+field in each air gap?
+
+Her plan is to let the paths in her TikZ picture describe the physical model,
+ask LuaTeX to compute the field, and use PGFPlots to graph measurements along
+a contour. Later she will remove the coil and replace part of the iron with
+alnico. Most of the drawing should survive this change.
+
+We shall follow her through both examples. The complete, compilable sources
+are \nolinkurl{examples/tutorial-coil.tex} and
+\nolinkurl{examples/tutorial-alnico.tex}. They use the same catalogue material,
+|pure-iron|, for the soft iron, so there is no B--H table to type. The earlier
+|u-electromagnet.tex| example instead uses an illustrative iron curve; its
+numerical values need not agree with this tutorial.
+
+\subsection{A useful first decision: do less work}
+
+Before choosing colours, Maya chooses a fairly coarse mesh. She will move
+labels, adjust the drawing, and change her mind about the graph several
+times. Rebuilding a very fine finite-element model after each such change
+would be a poor use of her time.
+
+Her starting value is |mesh size=5|, in millimetres. This is a target spacing,
+not a requested number of triangles. Decreasing it generally increases the
+number of triangles and the cost of the solve; in a fairly uniform planar
+mesh, halving the spacing gives roughly four times as many elements. Geometry
+constraints and local refinement change the actual count. The solution time
+need not scale by the same factor.
+
+\begin{quote}
+\textbf{Draft the picture with a coarse global mesh. Refine the important
+regions as needed, then refine and check the numerical result when the
+geometry and presentation are nearly final.}
+\end{quote}
+
+There is one qualification: coarse must not mean blind to the physics.
+Maya's air gaps are narrow. She keeps them explicitly in the geometry and
+uses smaller elements there, even in a draft. A plausible-looking picture
+on a coarse mesh is useful for composition; it is not yet an accurate
+field measurement. More arrows, smoother plot styling, or more measurement
+samples would not repair an insufficient mesh.
+
+\subsection{Setting up the document}
+
+Maya uses LuaLaTeX and loads two graphics libraries:
+\begin{codeexample}[code only]
+\documentclass{article}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+% The model picture, followed by a separate PGFPlots picture.
+\end{document}
+\end{codeexample}
+Compile with |lualatex --no-shell-escape|. Nothing is sent to an external
+solver. The complete example files use the |standalone| class to crop their
+output; |article| is sufficient for following the steps here. Plain LuaTeX
+and ConTeXt MkIV use the loading commands from Section~\ref{sec:start};
+the physical keys and the plotting commands are the same.
+
+The following code fragments are successive additions to the same document.
+In particular, the physical paths go in one model picture, while the axes
+will go in separate pictures after it. A graph is not a new magnetic problem.
+
+\subsection{First, just draw the iron}
+
+Maya begins with ordinary TikZ paths. The U is a single closed polygon, and
+the armature is a rectangle above it. The top of each pole is at $y=30$ mm;
+the bottom of the armature is at $y=33$ mm, leaving two 3 mm gaps.
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[x=1mm,y=1mm,scale=.5]
+  \filldraw[fill=gray!15]
+    (-40,-30)--(40,-30)--(40,30)--(25,30)
+    --(25,-15)--(-25,-15)--(-25,30)
+    --(-40,30)--cycle;
+  \filldraw[fill=gray!15]
+    (-40,33) rectangle (40,48);
+\end{tikzpicture}
+\end{codeexample}
+
+So far, this is only a drawing. The gray fill does not tell the solver that
+there is iron inside it. To give the drawing that meaning, Maya introduces
+a style that contains both physical and graphical options:
+\begin{codeexample}[code only]
+\tikzset{
+  core/.style={femm/region={material=pure-iron},
+    draw=black!70,fill=gray!15}
+}
+\end{codeexample}
+She replaces |[fill=gray!15]| by |[core]| on both paths. The choice
+|material=pure-iron| now selects a nonlinear material from the FEMM catalogue.
+The colour remains an ordinary TikZ choice; changing it will not change the
+material law.
+
+Next she replaces the options of the enclosing picture:
+\begin{codeexample}[code only]
+\begin{tikzpicture}[femm/problem={xmin=-110,xmax=110,
+  ymin=-95,ymax=115,mesh size=5}]
+  % The two \filldraw[core] paths go here.
+\end{tikzpicture}
+\end{codeexample}
+The |femm/problem| key installs millimetre coordinates and creates a rectangular
+air domain larger than the device. Its outside boundary has $A_z=0$.
+There is no need to draw that rectangle, nor to fill every unassigned part
+with an air region. In fact, a large air region drawn \emph{after} the core
+would replace the iron there: later physical regions take precedence.
+
+Maya removes |scale=.5| for the working picture. A scale applied to the whole
+model picture would only change its displayed size; it would not halve its
+physical dimensions. By contrast, scaling a region inside the picture changes
+the model geometry. Keeping this distinction in mind saves some surprisingly
+unproductive experiments.
+
+\subsection{Giving the coil a current}
+
+In this two-dimensional section, the winding appears as two rectangles on
+opposite sides of the left leg. Current leaves the page through one section
+and enters it through the other. Maya first defines their common appearance
+and material:
+\begin{codeexample}[code only]
+\tikzset{
+  winding/.style={femm/region={material=copper},
+    draw=orange!70!black,fill=orange!25}
+}
+\end{codeexample}
+Then she adds two paths, inside the model picture and after the iron:
+\begin{codeexample}[code only]
+\filldraw[winding,femm/current density=6000/(6*26)*1000000]
+  (-48,-10) rectangle (-42,16);
+\filldraw[winding,femm/current density=-6000/(6*26)*1000000]
+  (-23,-10) rectangle (-17,16);
+\end{codeexample}
+Each section is $6\times26$ mm$^2$. For $NI=6000$ ampere-turns, its imposed
+current density is
+\[
+ J_z=\frac{NI}{S}=\frac{6000}{6\times26}\times10^6\ \mathrm{A/m^2},
+\]
+with the opposite sign in the return section. The factor $10^6$ converts
+A/mm$^2$ to A/m$^2$. The key accepts this PGF expression directly. Copper
+alone does not create this winding excitation; the signed current density does.
+
+These are homogenised winding sections, not a turn-by-turn conductor model.
+If Maya changes their areas but wants to keep $NI$ fixed, she must change
+the current-density expression too. The solver does not infer that intention
+from the picture.
+
+\subsection{Looking at the mesh before asking for the field}
+
+A 5 mm global spacing is quite coarse compared with a 3 mm gap. Maya therefore
+adds two invisible air rectangles with a smaller local spacing:
+\begin{codeexample}[code only]
+\tikzset{
+  gap mesh/.style={femm/region={material=air,mesh size=1}}
+}
+\end{codeexample}
+\begin{codeexample}[code only]
+\path[gap mesh] (-40,30) rectangle (-25,33);
+\path[gap mesh] (25,30) rectangle (40,33);
+\end{codeexample}
+These paths both assign air and request local refinement. Here they occupy
+only the gaps, so placing them after the solids is safe. An invisible path
+still has a physical effect when it carries |femm/region|.
+
+To see what she has asked the mesher to do, she can finish the picture with
+\begin{codeexample}[code only]
+\begin{scope}
+  \clip (-58,-42) rectangle (58,57);
+  \pic[femm/mesh style={black!25}] {femm mesh};
+\end{scope}
+\end{codeexample}
+The clip keeps the distant air out of the illustration. It does not reduce
+the computational domain. A mesh picture builds the triangulation but does
+not solve for the field, which makes it a useful intermediate check.
+
+All material paths must come \emph{before} this request. Once meshing has
+started, it is too late to add the return conductor or a forgotten refinement
+region to that model. Maya now knows where her last physical path belongs.
+
+\subsection{The first computed field lines}
+
+The interesting part is pleasantly short. Maya replaces the mesh picture
+by a field picture, keeping the same clip:
+\begin{codeexample}[code only]
+\begin{scope}
+  \clip (-58,-42) rectangle (58,57);
+  \pic[femm/lines=17,femm/arrow spacing=26mm,
+    femm/field style={teal!70!black}] {femm field};
+\end{scope}
+\end{codeexample}
+This request meshes and solves the model if necessary, then draws contours of
+$A_z$. Their arrows follow $\mathbf B$. Maya may put the mesh picture first
+and the field picture second to see both; the second request reuses the mesh.
+Labels and the $\odot$, $\otimes$ conductor symbols are added afterwards so
+they remain readable.
+
+The 17 in |femm/lines=17| counts potential levels, not triangles. Changing it
+changes the drawing, not the finite-element resolution. Likewise,
+|femm/arrow spacing| controls the displayed arrows. During a compilation,
+further field pictures and profile plots reuse the model already solved;
+a new compilation builds and solves it again. There is no persistent solver
+cache between document runs.
+
+\subsection{Measuring across both gaps}
+
+Field lines show where the flux goes. Maya still needs numbers. She draws a
+straight measurement contour halfway up the gaps:
+\begin{codeexample}[code only]
+\draw[femm/profile={name=coil-gap,samples=101},
+  violet,dashed,thick,-Stealth] (-48,31.5)--(48,31.5);
+\end{codeexample}
+This path belongs inside the model picture. The |femm/profile| key records
+it without creating another medium. It may come after the field picture,
+since it does not change the material geometry. The chosen height, 31.5 mm,
+lies inside the air gaps rather than exactly on an iron/air interface.
+A measurement contour need not be closed and need not follow a field line.
+
+After closing the model picture, Maya opens a new picture containing an axis:
+\begin{codeexample}[code only]
+\begin{tikzpicture}
+\begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \femmplot[profile=coil-gap,component=B,abscissa=x,
+    plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=coil-gap,component=Bx,abscissa=x,
+    plot options={blue}]
+  \addlegendentry{$B_x$}
+  \femmplot[profile=coil-gap,component=By,abscissa=x,
+    plot options={red}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\end{codeexample}
+There is no |femm/problem| option on this graph. Each |\femmplot| names the
+profile to sample; it already knows its source model. The command emits a
+complete PGFPlots plot, including its terminating semicolon, so Maya adds
+only the legend entry afterwards.
+
+|component=B| means the magnitude; |Bx| and |By| retain their signs.
+|abscissa=x| plots physical $x$ in millimetres. With the stated winding signs,
+the dominant vertical component points upwards in the left gap and downwards
+in the right one. The two gaps need not have exactly equal magnitudes:
+the winding is on the left leg and the finite-domain solution includes leakage.
+
+\clearpage
+\subsection{The electromagnet, assembled}
+\label{sec:tutorial-coil-result}
+The complete file \nolinkurl{examples/tutorial-coil.tex} produces the following
+picture and graph. These are computed with the draft settings just introduced. The small jumps in the curves come from the
+piecewise-constant element field; PGFPlots joins the samples with line segments.
+\begin{center}
+  \includegraphics[width=.88\linewidth]{build/examples/tutorial-coil.pdf}
+\end{center}
+
+The triangle count and gap-centre values beneath the graph are printed by
+|\femmstat{triangles}| and |\femmB|. They are useful for checking that a mesh
+change actually took effect. The latter prints only three decimal places;
+use profiles or the Lua API when more numerical precision is needed.
+
+\clearpage
+\subsection{Replacing the coil by a permanent magnet}
+
+Maya would now like a field without supplying a current. She keeps the U,
+removes \emph{both} copper rectangles, and inserts an alnico crosspiece at its
+base. This time the armature will leave 1 mm gaps. She starts a new model
+picture with the same outer air domain and the same 5 mm global mesh.
+
+The |core| style remains unchanged. A new style supplies the hard material
+and its magnetisation direction:
+\begin{codeexample}[code only]
+\tikzset{
+  magnet/.style={femm/region={material=cast-alnico-5-lng37,
+    magnetization angle=180},draw=red!70!black,fill=red!25},
+  gap mesh/.style={femm/region={material=air,mesh size=.5}}
+}
+\end{codeexample}
+After drawing the \emph{same U polygon}, she adds these paths in this order:
+\begin{codeexample}[code only]
+\filldraw[magnet] (-25,-30) rectangle (25,-15);
+\filldraw[core] (-40,31) rectangle (40,46);
+\path[gap mesh] (-40,30) rectangle (-25,31);
+\path[gap mesh] (25,30) rectangle (40,31);
+\end{codeexample}
+The alnico rectangle overlaps the bottom of the original U. That is deliberate:
+because it comes later, it replaces the iron in that part of the crosspiece.
+The armature now extends from $y=31$ to $46$ mm. The gap rectangles must change
+with it; leaving the old 3 mm refinement rectangles would paint air over part
+of the new armature.
+
+There are no current-density declarations in this model. The selected materials
+have zero source current. The alnico record supplies the coercivity and shifted
+B--H table, so there is no need to guess an equivalent coil current or enter a
+second remanence value. The angle $180^\circ$ points the prescribed magnetisation
+to the left. With this orientation, flux rises through the left leg, crosses the
+armature, and returns through the right leg.
+
+The material law describes a prescribed static branch. Changing the drawing
+does not simulate the magnetic history of a real alnico magnet or irreversible
+demagnetisation. Those limits still apply even when the computed field lines
+look convincing.
+
+\subsection{Keeping one contour and bending another}
+
+Maya uses the same field-picture command as before. Her straight profile needs
+a new name and a new height, halfway through the narrower gaps:
+\begin{codeexample}[code only]
+\draw[femm/profile={name=magnet-gap,samples=101},
+  violet,dashed,thick,-Stealth] (-48,30.5)--(48,30.5);
+\end{codeexample}
+She copies the previous axis and replaces |profile=coil-gap| by
+|profile=magnet-gap| in its three plots. Distinct names let both models and
+both graphs coexist in one document. The two devices have different gaps and
+different excitation; their field magnitudes are not expected to match.
+
+She also wonders how the field varies along a curved contour in the central
+air space. The profile key works on a Bezier path too:
+\begin{codeexample}[code only]
+\draw[femm/profile={name=magnet-arc,samples=101,
+  curve tolerance=.03},orange!85!black,dashed,thick,-Stealth]
+  (-18,-8) .. controls (-22,22) and (22,22) .. (18,-8);
+\end{codeexample}
+Again this is inside the model picture, after all physical regions. The
+contour is a measurement path chosen by Maya, not a computed field line.
+For its graph she chooses arc length and components relative to the path:
+\begin{codeexample}[code only]
+\begin{tikzpicture}
+\begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+  xlabel={Arc length $s$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \femmplot[profile=magnet-arc,component=B,
+    plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=magnet-arc,component=Bt,
+    plot options={orange!85!black}]
+  \addlegendentry{$B_t$}
+  \femmplot[profile=magnet-arc,component=Bn,
+    plot options={teal!70!black}]
+  \addlegendentry{$B_n$}
+\end{axis}
+\end{tikzpicture}
+\end{codeexample}
+The default abscissa is |s|, the distance travelled along the flattened path,
+in millimetres. It is not the Bezier parameter. |Bt| is the tangential component
+and |Bn| is the component along the left normal. Reversing the traversal
+reverses those component signs at a common point. Cartesian components remain
+available by using |Bx| or |By| instead.
+
+If Maya needs a closed measurement contour, she can use a path ending in
+|-- cycle| with the same profile key. The first position then appears again
+at the last sample. At a sharp corner the tangent changes, so local components
+can jump even in a smooth physical field. On a material interface the sampling
+side is ambiguous; placing the contour inside the desired medium or using a
+small signed |offset| makes the choice explicit.
+
+\clearpage
+\subsection{The permanent magnet, assembled}
+The file \nolinkurl{examples/tutorial-alnico.tex} combines the device and both
+profiles. The orange curve lies in the central air space, whereas the violet
+line crosses the pole gaps; they sample different parts of the same field.
+\begin{center}
+  \includegraphics[width=.82\linewidth]{build/examples/tutorial-alnico.pdf}
+\end{center}
+
+\clearpage
+\subsection{Finishing the picture: now refine the computation}
+\label{sec:tutorial-refinement}
+
+Maya is happy with the geometry, labels and axes. Now it is worth spending more
+time on the finite-element solution. She first refines the global spacing,
+then the gaps, comparing results after each change instead of assuming that
+one particular setting is sufficient.
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule Setting & Working draft & First refinement & Further gap refinement\\
+\midrule
+Global |mesh size| & 5 & 3 & 2\\
+Coil gap |mesh size| & 1 & .5 & .25\\
+Alnico gap |mesh size| & .5 & .25 & .125\\
+\bottomrule
+\end{tabular}
+\end{center}
+All entries are in millimetres. These are suggested trials, not accuracy
+prescriptions or guaranteed mesh-quality bounds. For example, the first
+refinement of the coil model consists of changing these two settings:
+\begin{codeexample}[code only]
+% In the model picture options:
+femm/problem={xmin=-110,xmax=110,
+  ymin=-95,ymax=115,mesh size=3}
+% In the style definition:
+gap mesh/.style={femm/region={material=air,mesh size=.5}}
+\end{codeexample}
+The physical geometry, material laws and current density stay fixed during
+this comparison. Each trial must construct a new model, normally by recompiling
+the document. Changing a key after |\pic {femm field};| does not remesh the
+model that has already been solved.
+
+She compares the field at fixed positions inside both gaps and the curves as
+a whole. She looks especially at the places where the graph changes rapidly.
+Then, keeping the mesh spacings fixed, she enlarges the outer air domain
+by moving all four boundaries outwards. This separate check tells her whether
+the artificial $A_z=0$ boundary still influences the displayed region.
+A small Newton residual alone answers neither question.
+
+For a direct overlay in one document, Maya can draw two complete model pictures,
+using names such as |coil-coarse| and |coil-fine| for the same physical contour.
+After both pictures, she plots them on one axis:
+\begin{codeexample}[code only]
+\femmplot[profile=coil-coarse,component=By,abscissa=x,
+  plot options={gray,dashed}]
+\addlegendentry{Coarse mesh}
+\femmplot[profile=coil-fine,component=By,abscissa=x,
+  plot options={red}]
+\addlegendentry{Refined mesh}
+\end{codeexample}
+This fragment assumes both profiles have been registered under those names.
+Each keeps its own solved model. Merely changing |samples=101| to |samples=301|
+on the coarse model would sample the same approximate solution more densely;
+it would not produce the fine-mesh comparison.
+
+Once the values of interest are stable enough for her purpose, Maya can increase
+the contour levels or profile samples for the final presentation. She keeps
+the mesh/domain sensitivity in mind and retains the source settings alongside
+the figure. The workflow has been economical: ordinary TikZ while arranging
+the device, a coarse solve while developing the explanation, and more triangles
+when there is a numerical result worth checking carefully.
+
+The remaining sections provide the complete key reference and numerical
+conventions. This tutorial follows the progressive, task-based presentation
+of the PGF tutorials; its narrative and magnetic examples are original.
+\clearpage

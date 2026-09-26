@@ -1,0 +1,62 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\input pgfplots.tex
+\usetikzlibrary{femm,calc}
+\pgfplotsset{compat=1.18}
+\nopagenumbers
+\tikzset{femm/materials/custom/.style={library=copper,mu r=2}}
+\tikzpicture[femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,mesh size=2},scale=.6,rotate=13]
+  \path[femm/region={material=cast-alnico-5-lng37,magnetization angle=180}]
+    (-3,-2) rectangle (3,2);
+  \path[femm/region={material=custom}] (-6,-2) rectangle (-4,2);
+  \scope[femm/material=10awg-15-percent-cca]
+    \path[femm/region] (4,-2) rectangle (5,2);
+    \path[femm/region={current density=0}] (6,-2) rectangle (7,2);
+  \endscope
+  \path[femm/region={material=air}] (-8,-2) rectangle (-7,2);
+  \scope[shift={(1,2)},rotate=90]
+    \draw[femm/profile={name=transformed,samples=11}] (0,0)--(2,0);
+  \endscope
+  \draw[femm/profile={name=bezier,samples=21,curve tolerance=.01}]
+    (-5,4) .. controls (-2,8) and (2,8) .. (5,4);
+  \path[femm/profile={name=loop,samples=21}] (0,0) circle[radius=8];
+  \path[femm/profile={name=leaving,samples=11,outside=nan}] (0,5)--(12,5);
+\endtikzpicture
+\directlua{
+  local m=luafemm.current
+  assert(not m.stats,'profile capture must defer solving')
+  assert(m.materials['cast-alnico-5-lng37'].hc==48600)
+  assert(m.materials.custom.mur==2 and m.materials.custom.library.id=='copper')
+  assert(m.regions[3].current==1e6 and m.regions[4].current==0)
+  assert(m.materials.air.hc==0 and m.regions[5].current==0)
+  local p=require('luafemm-profiles')
+  local a=p.get('transformed').points
+  assert(math.abs(a[1][1]-1)<.002 and math.abs(a[1][2]-2)<.002)
+  assert(math.abs(a[2][1]-1)<.002 and math.abs(a[2][2]-4)<.002)
+  assert(rawlen(p.get('bezier').points)>8)
+  assert(rawlen(p.get('loop').points)>16)
+  luafemm.current=luafemm.new()
+}
+\tikzpicture
+\axis[width=9cm,height=6cm,no markers,legend pos=north east]
+  \femmplot[profile=bezier,component=B,plot options={red,thick}]
+  \addlegendentry{B}
+  \femmplot[profile=bezier,component=Bx,abscissa=x,plot options={blue}]
+  \addlegendentry{Bx}
+  \femmplot[profile=leaving,component=By,plot options={green!50!black}]
+  \addlegendentry{By}
+\endaxis
+\endtikzpicture
+\directlua{
+  local p=require('luafemm-profiles')
+  assert(p.get('bezier').model.stats.residual<1e-7)
+  assert(rawlen(p.sample('bezier'))==21)
+  assert(rawlen(p.sample('loop'))==21)
+  assert(not luafemm.current.stats,'plot solved the wrong model')
+  texio.write_nl('TIKZ MATERIAL CHOICES AND PGFPLOTS PROFILES PASS')
+}
+\bye

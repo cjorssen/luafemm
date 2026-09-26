@@ -1,0 +1,64 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Build from the repository root with make manual. Examples execute on LuaTeX.
+% The PGF documentation environments also used by tikz-ext provide indexed
+% keys, library/command signatures and adjacent source/rendered examples.
+\documentclass[a4paper,11pt]{ltxdoc}
+\usepackage[margin=23mm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb,booktabs,longtable,multicol}
+\usepackage{xkeyval,calc,listings,fp,pifont,xxcolor}
+\usepackage{tikz,pgfplots}
+\usepackage{makeidx}
+\makeindex
+\usepackage[hyperindex=false]{hyperref}
+\usepackage{xurl}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black,
+  pdftitle={The luafemm TikZ and PGFPlots libraries},pdfauthor={Christophe Jorssen}}
+\input{pgfmanual-en-macros.tex}
+\usetikzlibrary{femm,calc}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tracinglostchars=3
+\setlength\emergencystretch{2em}
+\title{The \textsf{luafemm} TikZ and PGFPlots libraries\\
+  \large Generic LuaTeX magnetostatics and field profiles}
+\author{Christophe Jorssen\\
+  \normalsize\href{mailto:christophe.jorssen@gmail.com}{\nolinkurl{christophe.jorssen@gmail.com}}}
+\date{Version \luafemmversion\quad---\quad\luafemmversiondate}
+\begin{document}
+\maketitle
+\begin{abstract}
+Declare magnetic media on ordinary TikZ paths, solve a planar finite-element
+problem entirely in Lua, and draw oriented field lines or PGFPlots profiles.
+The same generic implementation works with plain LuaTeX, LuaLaTeX and
+ConTeXt MkIV. This manual documents every supported public key, the numerical
+conventions, and the limitations of the first release candidate.
+\end{abstract}
+\input{doc/sections/project.tex}
+\clearpage
+\tableofcontents
+\clearpage
+\input{doc/sections/getting-started.tex}
+\input{doc/sections/tutorial.tex}
+\input{doc/sections/model.tex}
+\input{doc/sections/materials.tex}
+\input{doc/sections/field.tex}
+\input{doc/sections/profiles.tex}
+\input{doc/sections/numerics.tex}
+\input{doc/sections/development.tex}
+\appendix
+\input{doc/sections/legacy.tex}
+\section{Complete FEMM material catalogue}
+\label{sec:catalogue}
+The identifiers below are exact choices for |material| and |library|.
+The original names are retained, including the two distinct Supermalloy
+records. The full data and original folder paths are available through
+the Lua catalogue and in \texttt{docs/materials-catalog.md}.
+\input{build/doc/materials-catalog.tex}
+\clearpage
+\printindex
+\end{document}

@@ -1,0 +1,119 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Getting started}
+\label{sec:start}
+\begin{tikzlibrary}{femm}
+  This library gives evaluated TikZ paths a physical meaning. It supplies
+  a planar magnetostatic model, a constrained triangular mesh, material
+  choices, oriented field lines and measurement paths. Computation runs
+  inside LuaTeX; no native solver or shell escape is required.
+\end{tikzlibrary}
+
+\subsection{Requirements and installation}
+Use a LuaTeX engine with Lua 5.3 or later, PGF/TikZ, and optionally PGFPlots
+for axes. The release was tested with LuaTeX/LuaHBTeX 1.24.0, PGF 3.1.12,
+PGFPlots 1.18.3 and ConTeXt MkIV 2026.09.10. It does not support pdfTeX,
+XeTeX, or ConTeXt MkII. ConTeXt LMTX is not part of the release test matrix.
+
+Copy the distribution's |tex| tree into a TEXMF tree; keep all Lua and
+generic TeX files together under |tex/generic/luafemm|. The LaTeX wrapper
+belongs in |tex/latex/luafemm| and the ConTeXt wrapper in
+|tex/context/third/luafemm|. Refresh the filename database if your TeX
+distribution requires it. Keep the supplied licence and provenance files
+with redistributed copies. From a source checkout, |make test|,
+|make examples| and |make manual| set up the search paths for you.
+
+\subsection{LaTeX}
+Either load the convenience package |luafemm| or load the libraries directly:
+\begin{codeexample}[code only]
+\documentclass{article}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+% Place a tikzpicture here.
+\end{document}
+\end{codeexample}
+Compile with |lualatex --no-shell-escape document.tex|.
+The package wrapper only loads TikZ and the generic library; PGFPlots
+remains optional.
+
+\subsection{Plain LuaTeX}
+\begin{codeexample}[code only]
+\input tikz.tex
+\input pgfplots.tex
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzpicture[femm/problem]
+  % Physical paths and field pictures.
+\endtikzpicture
+\bye
+\end{codeexample}
+Use |luatex --no-shell-escape document.tex|. The macros are identical to
+the LaTeX ones; |\tikzpicture|/|\endtikzpicture| and |\axis|/|\endaxis|
+replace the environment syntax.
+
+\subsection{ConTeXt MkIV}
+\begin{codeexample}[code only]
+\usemodule[luafemm]
+\usemodule[pgfplots]
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\starttext
+\starttikzpicture[femm/problem]
+  % Physical paths and field pictures.
+\stoptikzpicture
+\stoptext
+\end{codeexample}
+Compile with |context --luatex document.tex|, explicitly selecting MkIV.
+Use |\startaxis|/|\stopaxis| inside a |\starttikzpicture| for a graph.
+Loading |\usemodule[tikz]| followed by |\usetikzlibrary[femm]| is an
+alternative to the wrapper. Repeated loads are harmless.
+
+\subsection{A complete small model}
+The following example is executed while this manual is built. Its red
+rectangle is a permanent magnet pointing up. Every path declared as a
+region is also used by the mesher.
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[
+  femm/problem={xmin=-15,xmax=15,
+    ymin=-15,ymax=15,mesh size=2}]
+  \filldraw[femm/region={
+    material=cast-alnico-5-lng37,
+    magnetization angle=90},
+    fill=red!20]
+    (-3,-5) rectangle (3,5);
+  \pic[femm/lines=13] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+The workflow is: define any custom materials, create a problem in the
+picture options, declare all physical regions, and then request a mesh,
+field or profile plot. The first such request computes what it needs.
+Once meshed, a model cannot accept additional materials or regions.
+Measurement paths may be registered before or after solving.
+
+\subsection{Notation, scope and stability}
+Options have the usual PGF |key=value| syntax. Most public keys start with
+|/tikz/femm|; lists introduced by |femm/problem|, |femm/region| and
+|femm/profile| have their own documented subkeys. Settings follow TeX
+grouping and may be inherited from styles or scopes. A new named profile
+is a Lua object with document-wide lifetime; this is deliberately different
+from a local TeX option.
+
+The defaults in this manual are initial values unless described as a reset
+performed by a command. A ``number'' means a finite decimal or scientific
+literal without a TeX unit. Only keys explicitly documented as accepting
+PGF expressions evaluate such expressions. Graphic dimensions such as
+|arrow length| follow ordinary TikZ dimension syntax.
+
+The release-candidate public interface comprises the keys and commands
+documented here. Macros containing |\luafemm@|, capture postactions, and
+the internal mesh layout are not extension interfaces. The Lua API is
+documented separately in Section~\ref{sec:development}; its internal
+tables should not be edited after meshing.

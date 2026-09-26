@@ -1,0 +1,94 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[a4paper,11pt]{article}
+\usepackage[margin=19mm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath}
+\usepackage{luafemm}
+\pagestyle{empty}
+\definecolor{alnico}{HTML}{B75046}
+\definecolor{flux}{HTML}{147B83}
+\begin{document}
+\noindent{\LARGE\bfseries A U-shaped alnico and soft-iron magnet}\par
+\smallskip
+\noindent\textsf{luafemm \luafemmversion{} · nonlinear permanent magnet · zero imposed current}
+
+\medskip
+\noindent An alnico crosspiece magnetized to the left drives two pole pieces
+and a soft-iron armature. The flux crosses two $1\,\mathrm{mm}$ gaps,
+with local mesh refinement.
+
+\tikzset{
+  femm/materials/iron/.style={bh={0/0,.5/80,1/180,1.3/350,
+    1.5/900,1.65/2500,1.8/7000,2/20000}},
+  % FEMM matlib.dat: Cast Alnico 5 (LNG37).
+  % SHIFTED H(B) table: the solver subtracts Hc along the magnetization.
+  femm/materials/alnico/.style={coercivity=48600,
+    bh={0/0,.2781/1600,.6383/4100,.8234/6300,.9214/8600,
+      1.013/13400,1.064/18200,1.106/24300,1.149/33000,
+      1.184/42530,1.204/48600}},
+  iron/.style={femm/region={material=iron},draw=black!65,fill=black!9},
+  magnet/.style={femm/region={material=alnico,magnetization angle=180},
+    draw=alnico!80!black,fill=alnico!25}
+}
+\begin{center}
+\begin{tikzpicture}[femm/problem={xmin=-100,xmax=100,ymin=-85,ymax=100,
+  mesh size=2,mesher=delaunay}]
+  \filldraw[iron] (-40,-30)--(40,-30)--(40,30)--(25,30)
+    --(25,-15)--(-25,-15)--(-25,30)--(-40,30)--cycle;
+  \filldraw[magnet] (-25,-30) rectangle (25,-15);
+  \filldraw[iron] (-40,31) rectangle (40,46);
+  % Two air regions also prescribe local mesh refinement.
+  \path[femm/region={mesh size=.5}] (-40,30) rectangle (-25,31);
+  \path[femm/region={mesh size=.5}] (25,30) rectangle (40,31);
+  \begin{scope}
+    \clip (-61,-45) rectangle (62,64);
+    \pic[femm/lines=29,femm/arrow spacing=26mm,
+      femm/field style={flux}] {femm field};
+  \end{scope}
+  \node[fill=white,inner sep=2pt,font=\small] at (0,39) {Soft-iron armature};
+  \node[fill=white,inner sep=2pt,font=\small] at (0,4) {Air: $J_z=0$ everywhere};
+  \node[fill=white,inner sep=2pt,text=flux] at (-32.5,27) {N};
+  \node[fill=white,inner sep=2pt,text=flux] at (32.5,27) {S};
+  \node[fill=alnico!25,inner sep=2pt,font=\small] at (0,-20) {Alnico 5 (LNG37)};
+  \draw[white,line width=2.5pt] (15,-25)--(-15,-25);
+  \draw[-Stealth,line width=1pt,alnico!80!black] (15,-25)--(-15,-25)
+    node[midway,below,fill=alnico!25,inner sep=1pt,font=\scriptsize] {magnetization direction};
+  \draw[thin] (40,30)--(50,30) (40,31)--(50,31);
+  \draw[thin,-Stealth] (48,25)--(48,30);
+  \draw[thin,-Stealth] (48,36)--(48,31);
+  \node[anchor=west,fill=white,font=\small,inner sep=1pt] at (50,30.5) {$e=1\,\mathrm{mm}$};
+  \draw[thin] (-25,-30)--(-25,-38) (25,-30)--(25,-38);
+  \draw[Stealth-Stealth,thin] (-25,-36)--(25,-36)
+    node[midway,fill=white,font=\small,inner sep=2pt] {$50\,\mathrm{mm}$};
+  \node[fill=white,font=\small,text=flux,inner sep=2pt] at (0,58) {$\mathbf B$ contours, oriented from N to S in air};
+\end{tikzpicture}
+\end{center}
+
+\noindent\textbf{Computed result.}
+At the gap centres, $|\mathbf B|=\femmB{-32.5}{30.5}\,\mathrm T$
+on the left and $\femmB{32.5}{30.5}\,\mathrm T$ on the right.
+The mesh contains \femmstat{nodes} nodes and \femmstat{triangles} triangles;
+Newton converges in \femmstat{newton} iterations.
+
+\medskip
+\noindent\textbf{Magnet law.}
+The model uses $\mathbf H=\nu(|\mathbf B|)\mathbf B-H_c\mathbf m$,
+where $\mathbf m$ is the prescribed direction and $H_c=48.6\,\mathrm{kA\,m^{-1}}$.
+The shifted FEMM material table gives a remanence of
+$B_r=1.204\,\mathrm T$. It describes a demagnetization branch,
+without hysteresis history or irreversible demagnetization.
+
+\medskip
+\noindent\textbf{TikZ declaration.}
+\begin{verbatim}
+femm/materials/alnico/.style={coercivity=48600,bh={...}}
+femm/region={material=alnico,magnetization angle=180}
+femm/region={material=air,mesh size=.5}
+\end{verbatim}
+\noindent\small Material data and model limits: \texttt{docs/permanent-magnets.md}.
+The mesher uses filtered geometric predicates with exact Lua fallbacks.
+\end{document}

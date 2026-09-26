@@ -1,0 +1,135 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Native TikZ keys, evaluated soft paths, and field/mesh pictures.
+% Internal file: loaded by luafemm.tex with @ a letter.
+% Physical paths are captured in a postaction, after PGF has resolved nodes,
+% transformations and rounded corners. All dimensional conventions live in
+% the manual; numerical values cross the Lua boundary as escaped strings.
+\newif\ifluafemm@arrows\luafemm@arrowstrue
+\pgfkeys{/femm/problem/.is family,/femm/problem,
+  xmin/.initial=-90,xmax/.initial=90,ymin/.initial=-75,ymax/.initial=95,
+  mesh size/.initial=2,mesher/.initial=delaunay,
+  mesh tolerance/.initial=0,
+  tolerance/.initial=0.0000001,curve tolerance/.initial=.03,
+  max iterations/.initial=60,
+  /femm/region/.is family,/femm/region,
+  material/.initial=air,library/.initial=,current density/.initial=material,curve tolerance/.initial=.03,
+  magnetization angle/.initial=0,mesh size/.initial=0}
+\def\luafemm@problemvalue#1{\pgfkeysvalueof{/femm/problem/#1}}
+\def\luafemm@regionvalue#1{\pgfkeysvalueof{/femm/region/#1}}
+\tikzset{
+  femm/problem/.code={%
+    \pgfqkeys{/femm/problem}{#1}%
+    \tikzset{x=1mm,y=1mm,execute at begin picture={\luafemm@starttikz}}},
+  femm/problem/.default={},
+  femm/materials/.is family,
+  femm/materials/mu r/.initial=,
+  femm/materials/bh/.initial={},
+  femm/materials/remanence/.initial=,
+  femm/materials/coercivity/.initial=,
+  femm/materials/library/.is choice,
+  femm/materials/air/.style={mu r=1},
+  femm/region/.code={%
+    \pgfqkeys{/femm/region}{#1}%
+    \tikzset{postaction={femm/capture}}},
+  femm/region/.default={},
+  femm/material/.code={\pgfkeys{/femm/region/material={#1}}},
+  femm/current density/.code={\pgfkeyssetvalue{/femm/region/current density}{#1}},
+  femm/magnetization angle/.code={\pgfkeyssetvalue{/femm/region/magnetization angle}{#1}},
+  femm/mesh size/.code={\pgfkeyssetvalue{/femm/region/mesh size}{#1}},
+  femm/curve tolerance/.code={\pgfkeyssetvalue{/femm/region/curve tolerance}{#1}},
+  % This private postaction sees only the evaluated physical path, even
+  % when the original path has nodes or additional drawing postactions.
+  femm/capture/.code={\tikz@addmode{\luafemm@capturetikz}},
+  femm/solve/.code={\tikz@addmode{\femmsolve}},
+  femm/lines/.initial=29,
+  femm/arrows/.is if=luafemm@arrows,
+  femm/arrow spacing/.initial=22mm,
+  femm/arrow length/.initial=1.3mm,
+  femm/arrow width/.initial=.85mm,
+  femm oriented field/.code={\ifluafemm@arrows
+    % Nearly coincident contour vertices can overflow fixed-point veclen.
+    % Keep the exact contour geometry and use PGF's floating length here.
+    \tikzset{/pgf/fpu/install only={veclen},postaction={decorate},decoration={markings,
+      mark=between positions .12 and .95 step \pgfkeysvalueof{/tikz/femm/arrow spacing}
+        with {\arrow{Stealth[length=\pgfkeysvalueof{/tikz/femm/arrow length},
+          width=\pgfkeysvalueof{/tikz/femm/arrow width}]}}}}\fi},
+  femm field/.style={blue!65!black,line width=.32pt,femm oriented field},
+  femm/field style/.code={\tikzset{femm current field/.style={#1}}},
+  femm/mesh style/.code={\tikzset{femm current mesh/.style={#1}}},
+  femm current field/.style={},femm current mesh/.style={},
+  femm mesh/.style={draw=black!25,line width=.12pt},
+  pics/femm field/.style={code={%
+    \begingroup\pgftransformreset
+    \directlua{luafemm.tex.tikz_field_picture(luafemm.current,
+      luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/tikz/femm/lines}}','lines'))}%
+    \endgroup}},
+  pics/femm mesh/.style={code={%
+    \begingroup\pgftransformreset
+    \directlua{luafemm.tex.tikz_mesh_picture(luafemm.current)}%
+    \endgroup}}
+}
+% Catalogue choices and existing user material styles share the selector.
+\def\luafemm@selectlibrary#1{%
+  \pgfkeyssetvalue{/femm/region/material}{#1}%
+  \pgfkeyssetvalue{/femm/region/library}{#1}}
+\pgfkeys{/femm/region/material/.is choice,
+  /femm/region/material/.unknown/.code={%
+    \edef\luafemm@selected{\pgfkeyscurrentname}%
+    \pgfkeysifdefined{/tikz/femm/materials/\luafemm@selected/.@cmd}{%
+      \pgfkeyslet{/femm/region/material}\luafemm@selected
+      \pgfkeyssetvalue{/femm/region/library}{}%
+    }{\pgfkeys@error{Unknown luafemm material '\luafemm@selected'. See docs/materials-catalog.md}}}}
+\directlua{luafemm.tex.register_material_choices()}%
+% Capture the picture frame only after TikZ has installed all its options.
+\def\luafemm@starttikz{%
+  \pgfgettransform\luafemm@roottransform
+  \pgfkeyssetvalue{/femm/region/curve tolerance}{\luafemm@problemvalue{curve tolerance}}%
+  \directlua{
+    luafemm.tex.new_problem({
+      xmin='\luaescapestring{\luafemm@problemvalue{xmin}}',xmax='\luaescapestring{\luafemm@problemvalue{xmax}}',
+      ymin='\luaescapestring{\luafemm@problemvalue{ymin}}',ymax='\luaescapestring{\luafemm@problemvalue{ymax}}',
+      h='\luaescapestring{\luafemm@problemvalue{mesh size}}',mesher='\luaescapestring{\luafemm@problemvalue{mesher}}',
+      mesh_tolerance='\luaescapestring{\luafemm@problemvalue{mesh tolerance}}',
+      tolerance='\luaescapestring{\luafemm@problemvalue{tolerance}}',max_newton='\luaescapestring{\luafemm@problemvalue{max iterations}}'},
+      '\luaescapestring{\luafemm@roottransform}',
+      {'\the\pgf@xx','\the\pgf@xy','\the\pgf@yx','\the\pgf@yy'})}%
+}
+\def\luafemm@capturetikz{%
+  \begingroup
+  \pgfsyssoftpath@getcurrentpath\luafemm@capturedpath
+  \pgfprocessround{\luafemm@capturedpath}{\luafemm@capturedpath}%
+  \edef\luafemm@library{\luafemm@regionvalue{library}}%
+  \pgfqkeys{/tikz/femm/materials}{mu r={},bh={},remanence={},coercivity={}}%
+  \ifx\luafemm@library\pgfutil@empty
+    \pgfqkeys{/tikz/femm/materials}{\luafemm@regionvalue{material}}%
+  \fi
+  \directlua{luafemm.tex.material('\luaescapestring{\luafemm@regionvalue{material}}',
+    '\luaescapestring{\luafemm@library}',
+    '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/mu r}}',
+    '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/bh}}',
+    '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/remanence}}',
+    '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/coercivity}}')}%
+  \edef\luafemm@currentinput{\luafemm@regionvalue{current density}}\def\luafemm@frommaterial{material}%
+  \ifx\luafemm@currentinput\luafemm@frommaterial
+    \edef\luafemm@current{\directlua{tex.sprint(luafemm.current.materials['\luaescapestring{\luafemm@regionvalue{material}}'].current)}}%
+  \else
+    \pgfkeys{/pgf/fpu=true}%
+    \pgfmathparse{\luafemm@currentinput}%
+    \pgfmathfloattofixed{\pgfmathresult}\let\luafemm@current\pgfmathresult
+    \pgfkeys{/pgf/fpu=false}%
+  \fi
+  \pgfmathparse{\luafemm@regionvalue{magnetization angle}}\let\luafemm@angle\pgfmathresult
+  \directlua{luafemm.tex.capture_path(luafemm.current,
+    '\luaescapestring{\meaning\luafemm@capturedpath}',
+    '\luaescapestring{\luafemm@regionvalue{material}}',
+    luafemm.tex.number('\luaescapestring{\luafemm@current}','current density'),
+    luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{curve tolerance}}','curve tolerance'),
+    luafemm.tex.number('\luaescapestring{\luafemm@angle}','magnetization angle'),
+    luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{mesh size}}','mesh size'))}%
+  \endgroup
+}
+\endinput

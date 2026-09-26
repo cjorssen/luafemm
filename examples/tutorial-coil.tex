@@ -1,0 +1,75 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+% Start with a coarse global mesh; refine the two gaps separately.
+\tikzset{
+  core/.style={femm/region={material=pure-iron},
+    draw=black!70,fill=gray!15},
+  winding/.style={femm/region={material=copper},
+    draw=orange!70!black,fill=orange!25},
+  gap mesh/.style={femm/region={material=air,mesh size=1}}
+}
+\begin{tikzpicture}[femm/problem={xmin=-110,xmax=110,
+  ymin=-95,ymax=115,mesh size=5}]
+  \filldraw[core]
+    (-40,-30)--(40,-30)--(40,30)--(25,30)
+    --(25,-15)--(-25,-15)--(-25,30)--(-40,30)--cycle;
+  \filldraw[core] (-40,33) rectangle (40,48);
+  % Two sections of the same winding: equal and opposite current.
+  \filldraw[winding,femm/current density=6000/(6*26)*1000000]
+    (-48,-10) rectangle (-42,16);
+  \filldraw[winding,femm/current density=-6000/(6*26)*1000000]
+    (-23,-10) rectangle (-17,16);
+  \path[gap mesh] (-40,30) rectangle (-25,33);
+  \path[gap mesh] (25,30) rectangle (40,33);
+  % All media must precede the first mesh or solve request.
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,57);
+    % Uncomment while inspecting the mesh:
+    % \pic[femm/mesh style={black!15}] {femm mesh};
+    \pic[femm/lines=17,femm/arrow spacing=26mm,
+      femm/field style={teal!70!black}] {femm field};
+  \end{scope}
+  \draw[femm/profile={name=coil-gap,samples=101},
+    violet,dashed,thick,-Stealth] (-48,31.5)--(48,31.5);
+  \node[fill=white,font=\small] at (0,40.5) {Armature};
+  \node[fill=white,font=\small] at (0,-23) {Soft iron};
+  \node[fill=white,inner sep=2pt,font=\small,align=center] at (0,4)
+    {$NI=6000\,\mathrm{A\,turns}$\\Two $3\,\mathrm{mm}$ gaps};
+  \foreach \y in {-6,0,6,12}{
+    \node[fill=orange!25,inner sep=.2pt] at (-45,\y) {$\odot$};
+    \node[fill=orange!25,inner sep=.2pt] at (-20,\y) {$\otimes$};
+  }
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \femmplot[profile=coil-gap,component=B,abscissa=x,
+    plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=coil-gap,component=Bx,abscissa=x,
+    plot options={blue}]
+  \addlegendentry{$B_x$}
+  \femmplot[profile=coil-gap,component=By,abscissa=x,
+    plot options={red}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Draft mesh: \femmstat{triangles} triangles.
+Gap-centre magnitudes: \femmB{-32.5}{31.5}\,T and
+\femmB{32.5}{31.5}\,T.
+\end{document}
