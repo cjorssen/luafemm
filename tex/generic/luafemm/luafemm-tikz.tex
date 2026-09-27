@@ -21,7 +21,7 @@
   mode/frozen/.code={\pgfkeyssetvalue{/femm/cache/mode}{frozen}}}
 \pgfkeys{/femm/problem/.is family,/femm/problem,
   xmin/.initial=-90,xmax/.initial=90,ymin/.initial=-75,ymax/.initial=95,
-  mesh size/.initial=2,mesher/.initial=delaunay,
+  mesh size/.initial=2,mesher/.initial=delaunay,field model/.initial=open,
   mesh tolerance/.initial=0,
   minimum angle/.initial=0,maximum area/.initial=0,max Steiner points/.initial=5000,
   tolerance/.initial=0.0000001,curve tolerance/.initial=.03,
@@ -29,7 +29,7 @@
   interpolation/.initial=linear,
   /femm/region/.is family,/femm/region,
   material/.initial=air,library/.initial=,current density/.initial=material,curve tolerance/.initial=.03,
-  magnetization angle/.initial=0,mesh size/.initial=0}
+  magnetization angle/.initial=0,mesh size/.initial=0,ideal domain/.initial=false}
 \def\luafemm@problemvalue#1{\pgfkeysvalueof{/femm/problem/#1}}
 \def\luafemm@regionvalue#1{\pgfkeysvalueof{/femm/region/#1}}
 \tikzset{
@@ -109,6 +109,7 @@
     luafemm.tex.new_problem({
       xmin='\luaescapestring{\luafemm@problemvalue{xmin}}',xmax='\luaescapestring{\luafemm@problemvalue{xmax}}',
       ymin='\luaescapestring{\luafemm@problemvalue{ymin}}',ymax='\luaescapestring{\luafemm@problemvalue{ymax}}',
+      field_model='\luaescapestring{\luafemm@problemvalue{field model}}',
       h='\luaescapestring{\luafemm@problemvalue{mesh size}}',mesher='\luaescapestring{\luafemm@problemvalue{mesher}}',
       mesh_tolerance='\luaescapestring{\luafemm@problemvalue{mesh tolerance}}',
       min_angle='\luaescapestring{\luafemm@problemvalue{minimum angle}}',
@@ -126,6 +127,8 @@
       '\luaescapestring{\luafemm@explicitproblem}',
       '\luaescapestring{\luafemm@problemvalue{name}}')}%
   \luafemm@modelstartedtrue
+  \luafemm@pendingexcitations
+  \let\luafemm@pendingexcitations\pgfutil@empty
   \luafemm@pendingboundaries
   \let\luafemm@pendingboundaries\pgfutil@empty
   \fi
@@ -163,7 +166,8 @@
     luafemm.tex.number('\luaescapestring{\luafemm@angle}','magnetization angle'),
     luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{mesh size}}','mesh size'),
     '\luaescapestring{\luafemm@componentturns}',
-    '\ifpgfsys@eorule even odd\else nonzero\fi')}%
+    '\ifpgfsys@eorule even odd\else nonzero\fi',
+    '\luaescapestring{\luafemm@regionvalue{ideal domain}}')}%
   \endgroup
 }
 \endinput

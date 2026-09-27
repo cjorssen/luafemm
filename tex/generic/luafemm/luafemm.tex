@@ -16,9 +16,9 @@
 % Restore the incoming catcode even when this file is loaded by a format wrapper.
 \edef\luafemmRestoreAt{\catcode64=\the\catcode64\relax}%
 \catcode64=11\relax
-\def\luafemmversion{0.7.0-dev}%
+\def\luafemmversion{0.8.0-dev}%
 \def\luafemmversiondate{2026-09-27}%
-\def\luafemmversionnumber{70000}%
+\def\luafemmversionnumber{80000}%
 % The only Lua global owned by the package. Numerical modules return tables.
 \directlua{luafemm = require('luafemm'); luafemm.tex = require('luafemm-tex')}%
 % Public result commands are expandable so that numeric output can be reused.
@@ -30,6 +30,7 @@
 \input luafemm-tikz.tex\relax
 \input luafemm-boundary.tex\relax
 \input luafemm-interchange.tex\relax
+\input luafemm-ideal.tex\relax
 \input luafemm-components.tex\relax
 \input luafemm-profiles.tex\relax
 \luafemmRestoreAt

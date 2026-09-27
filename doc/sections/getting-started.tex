@@ -111,10 +111,10 @@ essential, including when the calculation comes from a cache:
 \item Put |femm/problem| and any |femm/cache| options on the magnetic
   |tikzpicture|. TikZ first reads its options and styles. luafemm then
   creates one model in its begin-picture hook, using the final problem
-  options, and applies queued |femm/boundary| declarations in order.
+  options, and applies queued |femm/excitation| and |femm/boundary| declarations.
   Boundary keys may occur before or after |femm/problem| in the option list.
 \item In the picture body, declare \emph{all} physical paths and component
-  nodes, and any additional boundary conditions. A physical path is
+  nodes, and any additional boundary conditions or ideal-window excitations. A physical path is
   registered when its capture postaction runs, after TikZ has resolved
   its geometry. Later regions take precedence wherever their filled
   portions overlap (Section~\ref{sec:domains}).
@@ -138,6 +138,8 @@ essential, including when the calculation comes from a cache:
 |\pic {femm mesh};| & Mesh if needed; freeze physical declarations \\
 |\femmsolve| or |\path[femm/solve];| & Mesh if needed, then solve \\
 |\pic {femm field};| & Solve if needed, then draw contours \\
+|\pic {femm mean path};| & Solve if needed, draw and optionally register a profile \\
+|\femmflux[profile=...]| & Solve the profile's model if needed, integrate section flux \\
 |\femmplot| inside an axis & Solve the profile's model if needed, then sample \\
 |\femmB|, |\femmstat| & Read an already solved model \\
 \bottomrule

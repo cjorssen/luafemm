@@ -11,7 +11,7 @@
 local C = {}
 -- Bump this revision for incompatible data changes OR numerical changes
 -- within a development series whose public version string is unchanged.
-local format_version = 5
+local format_version = 6
 local max_bytes = 256 * 1024 * 1024
 local modes = { off = true, auto = true, refresh = true, frozen = true }
 local function check(value, message)
@@ -146,10 +146,12 @@ end
 local function descriptors(m)
     local o = m.options
     local mesh = { regions = {} }
-    for _, key in ipairs({ "unit", "h", "xmin", "xmax", "ymin", "ymax", "mesher" }) do
+    for _, key in ipairs({ "unit", "h", "xmin", "xmax", "ymin", "ymax", "mesher", "field_model" }) do
         mesh[key] = o[key]
     end
-    mesh.topology = m.topology
+    -- Native ideal topology is derived from the region geometry below. Its
+    -- face currents/materials are physical data, not reasons to remesh.
+    mesh.topology = o.field_model ~= "ideal" and m.topology or nil
     if m.import_document then
         mesh.import_document = {}
         for key, value in pairs(m.import_document) do
@@ -167,6 +169,7 @@ local function descriptors(m)
         tolerance = o.tolerance,
         max_newton = o.max_newton,
         boundary = m.boundaries,
+        ideal_sources = m.ideal_sources,
     }
     local function material(name)
         local p = m.materials[name]
@@ -178,6 +181,7 @@ local function descriptors(m)
         mesh.regions[i] = {
             contours = r.contours,
             fill_rule = r.fill_rule,
+            ideal_domain = r.ideal_domain,
             mesh_size = r.mesh_size,
             curve_tolerance = r.source and r.source.tolerance,
         }
@@ -358,8 +362,12 @@ local function validate(record, m, same_physics)
             "invalid solution"
         )
         local fixed = same_physics
+                and o.field_model ~= "ideal"
                 and require("luafemm-boundary").prepare(m, mesh.nodes, mesh.elements, mesh.boundary)
             or {}
+        if same_physics and o.field_model == "ideal" then
+            require("luafemm-ideal").validate_potential(m, mesh.nodes, mesh.elements, solution.A)
+        end
         for id, value in ipairs(solution.A) do
             check(finite(value) and (fixed[id] == nil or value == fixed[id]), "invalid potential")
         end

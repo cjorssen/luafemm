@@ -8,12 +8,29 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Development-version validation
 
-Version **0.6.0-dev**, verified on 2026-09-27. Local environment: TeX Live 2026,
+Version **0.8.0-dev**, verified on 2026-09-27. Local environment: TeX Live 2026,
 LuaTeX/LuaHBTeX 1.24.0, PGF 3.1.12, PGFPlots 1.18.3 (`compat=1.18`),
 ConTeXt MkIV 2026.09.10 10:02. Test commands and detailed logs are produced by
 `make test`, `make examples`, `make manual` and `make dist` under `build/`.
 A remote CI workflow is supplied; local verification does not imply a completed
 GitHub Actions run.
+
+## Ideal-circuit evidence
+
+`tests/test_ideal.lua` compares a confined linear annulus against
+`Phi = mu NI depth log(rout/rin)/(2 pi)` and checks its Ampere contour.
+Across different full sections, flux agrees to a relative tolerance of 1e-9.
+The same conservation checks cover a nonlinear unequal-section U, iron-to-gap
+passage, a nonlinear asymmetric E (`Phi_center = Phi_left + Phi_right`) and a
+tapered toroid with an alnico arc. The annulus accuracy assertions allow 1.2%
+on flux and 2.5% on circulation on the selected polygonal mesh; these are
+regression tolerances, not general error bounds.
+
+The generic-format matrix additionally compiles an asymmetric ideal E,
+its mean contour and integrated H profile with cold, warm and shared frozen
+caches. Mesh, flux, profile and field calculations remain pure Lua. The new
+shapes represent planar constant-depth geometry. They do not implement a 3D
+conical-pole model, infinite permeability or irreversible demagnetisation.
 
 ## Automated evidence
 

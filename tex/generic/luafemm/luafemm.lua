@@ -7,7 +7,7 @@
 -- This module is usable by texlua without a running TeX interpreter.
 -- Public lengths use options.unit metres per model unit; assembly uses SI.
 -- @module luafemm
-local M = { version = "0.7.0-dev", mu0 = 4 * math.pi * 1e-7 }
+local M = { version = "0.8.0-dev", mu0 = 4 * math.pi * 1e-7 }
 local boundary_conditions = require("luafemm-boundary")
 local geometry = require("luafemm-geometry")
 local abs, sqrt, max = math.abs, math.sqrt, math.max
@@ -54,6 +54,8 @@ end
 function M.new(o)
     o = copy(o or {})
     local m = { materials = {}, regions = {}, options = o }
+    o.field_model = o.field_model or "open"
+    check(o.field_model == "open" or o.field_model == "ideal", "unknown field model")
     o.unit = o.unit or 0.001
     o.h = o.h or 2
     check(o.depth == nil or (finite(o.depth) and o.depth > 0), "depth must be positive")
@@ -252,6 +254,7 @@ function M.region_contours(m, material, contours, current, angle, mesh_size, fil
         my = math.sin(math.rad(angle)),
         mesh_size = mesh_size,
     }
+    return m.regions[#m.regions]
 end
 
 local function axis(a, b, h, anchors)
@@ -281,6 +284,7 @@ function M.mesh(m)
     if m.nodes then
         return m
     end
+    require("luafemm-ideal").compile(m)
     local cache = require("luafemm-cache")
     if cache.restore(m, false) then
         return m
@@ -395,16 +399,35 @@ end
 -- @tparam table boundary Set of exterior node indices.
 function M.prepare_mesh(m, nodes, elements, boundary)
     local o = m.options
-    local fixed, edges, gauge, gauges, components =
-        boundary_conditions.prepare(m, nodes, elements, boundary)
+    local fixed, edges, gauge, gauges, components, representatives, loads
+    if o.field_model == "ideal" then
+        fixed, representatives, loads, m.ideal_loops =
+            require("luafemm-ideal").prepare(m, nodes, elements)
+        edges = {}
+    else
+        fixed, edges, gauge, gauges, components =
+            boundary_conditions.prepare(m, nodes, elements, boundary)
+    end
     local tri, free, A = {}, {}, {}
     for id, p in ipairs(nodes) do
         p.dof = nil
-        if fixed[id] == nil then
+        if
+            fixed[id] == nil
+            and (not representatives or not representatives[id] or representatives[id] == id)
+        then
             free[#free + 1] = id
             p.dof = #free
         end
         A[id] = fixed[id] or 0
+    end
+    if representatives then
+        for id, first in pairs(representatives) do
+            nodes[id].dof = nodes[first].dof
+        end
+        m.ideal_loads = {}
+        for id, value in pairs(loads) do
+            m.ideal_loads[nodes[id].dof] = value
+        end
     end
     local function triangle(ids)
         local p, q, r = nodes[ids[1]], nodes[ids[2]], nodes[ids[3]]
@@ -505,7 +528,13 @@ local function assemble(m, A, tangent)
             end
         end
     end
-    boundary_conditions.assemble(m, A, R, K, M.mu0)
+    if m.ideal_loads then
+        for row, value in pairs(m.ideal_loads) do
+            R[row] = R[row] - M.mu0 * value
+        end
+    else
+        boundary_conditions.assemble(m, A, R, K, M.mu0)
+    end
     return R, K
 end
 
@@ -630,6 +659,7 @@ function M.solve(m)
     if m.stats then
         return m
     end
+    require("luafemm-ideal").compile(m)
     local cache = require("luafemm-cache")
     if cache.restore(m, true) then
         return m
@@ -677,8 +707,10 @@ function M.solve(m)
             for i = 1, #A do
                 trial[i] = A[i]
             end
-            for i, id in ipairs(m.free) do
-                trial[id] = A[id] + alpha * delta[i]
+            for id, node in ipairs(m.nodes) do
+                if node.dof then
+                    trial[id] = A[id] + alpha * delta[node.dof]
+                end
             end
             local r = assemble(m, trial, false)
             if norm(r) < residual * (1 - 1e-4 * alpha) then
@@ -755,9 +787,13 @@ function M.contours(m, count, levels)
             "line count must be a positive integer"
         )
         local lo, hi = math.huge, -math.huge
-        for _, a in ipairs(m.A) do
-            lo = math.min(lo, a)
-            hi = max(hi, a)
+        for id, a in ipairs(m.A) do
+            -- Confined circuits use the transported-flux range. Permanent
+            -- magnets can also create local recirculation extrema inside a part.
+            if m.options.field_model ~= "ideal" or m.exterior_nodes[id] then
+                lo = math.min(lo, a)
+                hi = max(hi, a)
+            end
         end
         levels = {}
         if hi - lo < 1e-20 then
@@ -863,6 +899,21 @@ function M.parse_pairs(s)
         out[#out + 1] = { a, b }
     end
     return out
+end
+
+--- Add an ideal-window excitation in model coordinates, with signed NI in amperes.
+function M.excitation(m, x, y, turns)
+    return require("luafemm-ideal").excitation(m, x, y, turns)
+end
+
+--- Flux through an oriented section, along its right normal, in webers.
+-- A positive constant problem depth is required; lengths use model units.
+-- @tparam table m Source model, solved on demand.
+-- @tparam table points Section polyline, left unchanged.
+-- @tparam[opt=0] number snap_tolerance Endpoint projection distance in model units.
+-- @treturn number Signed flux in Wb.
+function M.flux(m, points, snap_tolerance)
+    return require("luafemm-ideal").flux(m, points, snap_tolerance)
 end
 
 --- Import a magnetic FEMM problem without solving it.

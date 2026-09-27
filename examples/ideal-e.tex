@@ -1,0 +1,44 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{
+  femm component gap/.append style={fill=cyan!20},
+  femm mean path/.append style={line width=.6pt}
+}
+\begin{tikzpicture}[femm/problem={field model=ideal,
+  depth=10,mesh size=3},scale=1.1]
+  \node[femm/e electromagnet={ampere turns=900,
+    coil width=3,left gap=1,center gap=2,right gap=4,
+    gap mesh size=1}] (M) {};
+  \pic[femm/lines=19] {femm field};
+  \pic[femm/mean={component=M,cycle=left,profile=left},
+    femm/mean style={red!75!black}] {femm mean path};
+  \pic[femm/mean={component=M,cycle=right,profile=right},
+    femm/mean style={green!45!black}] {femm mean path};
+  \node[fill=white,font=\small] at (M.left window) {$\Phi_L$};
+  \node[fill=white,font=\small] at (M.right window) {$\Phi_R$};
+  \node[above] at (M.armature center) {$\Phi_C=\Phi_L+\Phi_R$};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+    xlabel={$s$ (mm)},ylabel={$H_t$ (A/m)},
+    legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+    \femmplot[profile=left,component=Ht,plot options={red!75!black}]
+    \addlegendentry{Left cycle}
+    \femmplot[profile=right,component=Ht,plot options={green!45!black}]
+    \addlegendentry{Right cycle}
+  \end{axis}
+\end{tikzpicture}
+\end{document}

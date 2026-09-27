@@ -1,0 +1,63 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Confined-domain choices, explicit excitation seeds and component mean contours.
+\pgfkeys{/femm/problem/field model/.is choice,
+  /femm/problem/field model/open/.code={%
+    \pgfkeyssetvalue{/femm/problem/field model}{open}},
+  /femm/problem/field model/ideal/.code={%
+    \pgfkeyssetvalue{/femm/problem/field model}{ideal}},
+  /femm/region/ideal domain/.is choice,
+  /femm/region/ideal domain/true/.code={\pgfkeyssetvalue{/femm/region/ideal domain}{true}},
+  /femm/region/ideal domain/false/.code={\pgfkeyssetvalue{/femm/region/ideal domain}{false}},
+  /femm/mean/.is family,/femm/mean,
+  component/.initial=,cycle/.initial=main,kind/.initial=geometric,
+  kind/.is choice,
+  kind/geometric/.code={\pgfkeyssetvalue{/femm/mean/kind}{geometric}},
+  kind/flux/.code={\pgfkeyssetvalue{/femm/mean/kind}{flux}},
+  profile/.initial=,samples/.initial=201,
+  /femm/excitation/.is family,/femm/excitation,
+  x/.initial=0,y/.initial=0,ampere turns/.initial=0,
+  /femm/flux/.is family,/femm/flux,profile/.initial=,snap tolerance/.initial=.003}
+\let\luafemm@pendingexcitations\pgfutil@empty
+\def\luafemm@excitation#1{%
+  \begingroup\pgfqkeys{/femm/excitation}{x=0,y=0,ampere turns=0,#1}%
+  \directlua{luafemm.excitation(luafemm.current,
+    luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/excitation/x}}','excitation x'),
+    luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/excitation/y}}','excitation y'),
+    luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/excitation/ampere turns}}','ampere turns'))}%
+  \endgroup}
+\tikzset{
+  femm/excitation/.code={%
+    \ifluafemm@modelstarted
+      \luafemm@excitation{#1}%
+    \else
+      \expandafter\def\expandafter\luafemm@pendingexcitations\expandafter{%
+        \luafemm@pendingexcitations\luafemm@excitation{#1}}%
+    \fi},
+  femm/mean/.code={\pgfqkeys{/femm/mean}{#1}},
+  femm mean path/.style={draw=red!75!black,thick,dashed,femm oriented field},
+  femm current mean/.style={},
+  femm/mean style/.code={\tikzset{femm current mean/.style={#1}}},
+  pics/femm mean path/.style={code={%
+    \begingroup\pgftransformreset
+    \directlua{luafemm.tex.mean_picture(luafemm.current,{
+      component='\luaescapestring{\pgfkeysvalueof{/femm/mean/component}}',
+      cycle='\luaescapestring{\pgfkeysvalueof{/femm/mean/cycle}}',
+      kind='\luaescapestring{\pgfkeysvalueof{/femm/mean/kind}}',
+      profile='\luaescapestring{\pgfkeysvalueof{/femm/mean/profile}}',
+      samples=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/mean/samples}}','mean samples')})}%
+    \endgroup}}
+}
+% Use PGF's number printer, including its normal number-format styles.
+\protected\def\femmflux{\pgfutil@ifnextchar[{\luafemm@flux}{\luafemm@flux[]}}
+\def\luafemm@flux[#1]{%
+  \begingroup\pgfqkeys{/femm/flux}{profile=,#1}%
+  \edef\luafemm@fluxnumber{\directlua{
+    luafemm.tex.flux_number('\luaescapestring{\pgfkeysvalueof{/femm/flux/profile}}',
+      luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/flux/snap tolerance}}','snap tolerance'))}}%
+  \pgfmathprintnumber{\luafemm@fluxnumber}%
+  \endgroup}
+\endinput

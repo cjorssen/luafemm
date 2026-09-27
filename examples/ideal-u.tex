@@ -1,0 +1,57 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{
+  ideal circuit/.style={femm/problem={field model=ideal,
+    depth=10,mesh size=3}},
+  femm mean path/.append style={red!75!black},
+  femm component gap/.append style={fill=cyan!15}
+}
+\begin{tikzpicture}[ideal circuit,scale=.8]
+  \node[femm/u electromagnet={ampere turns=1200,
+    gap mesh size=1.5}] (M) {};
+  \pic[femm/lines=11] {femm field};
+  \pic[femm/mean={component=M,profile=uniform}] {femm mean path};
+  \node[align=center] at (M.window center)
+    {Constant section\\$NI=1200\,\mathrm{A}$};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}[ideal circuit,scale=.8]
+  \node[femm/u electromagnet={ampere turns=1200,
+    left thickness=12,right thickness=20,yoke thickness=10,
+    gap mesh size=1.5}] (M) {};
+  \pic[femm/lines=11] {femm field};
+  \pic[femm/mean={component=M,profile=variable}] {femm mean path};
+  \node[align=center] at (M.window center)
+    {Variable section\\Same branch flux};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+    xlabel={$s$ (mm)},ylabel={$|\mathbf B|$ (T)},
+    legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+    \femmplot[profile=uniform,component=B]
+    \addlegendentry{Constant section}
+    \femmplot[profile=variable,component=B]
+    \addlegendentry{Variable section}
+  \end{axis}
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+    xlabel={$s$ (mm)},ylabel={$\int_0^s\mathbf H\cdot d\boldsymbol\ell$ (A)}]
+    \femmplot[profile=variable,component=circulation]
+  \end{axis}
+\end{tikzpicture}
+\end{document}

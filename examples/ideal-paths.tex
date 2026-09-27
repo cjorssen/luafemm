@@ -1,0 +1,45 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{
+  ideal iron/.style={draw,fill=gray!15,even odd rule,
+    femm/region={material=pure-iron,ideal domain=true}},
+  ideal gap/.style={draw,fill=cyan!20,
+    femm/region={material=air,ideal domain=true,mesh size=1}}
+}
+\begin{tikzpicture}[femm/problem={field model=ideal,
+  depth=10,mesh size=3}]
+  \path[ideal iron,rounded corners=4mm]
+    (-30,-22) rectangle (30,22)
+    (-18,-10) rectangle (18,10);
+  \path[ideal gap] (-1.5,10) rectangle (1.5,22);
+  \tikzset{femm/excitation={x=0,y=0,ampere turns=1000}}
+  \path[femm/profile={name=gap-section}] (0,22)--(0,10);
+  \pic[femm/lines=13] {femm field};
+  \draw[femm mean path,rounded corners=4mm,
+    femm/profile={name=custom-mean,samples=151}]
+    (-24,-16)--(24,-16)--(24,16)--(-24,16)--cycle;
+  \node[align=center] at (0,0)
+    {Native TikZ paths\\$NI=1000\,\mathrm{A}$};
+\end{tikzpicture}
+\par\smallskip
+$\Phi=\femmflux[profile=gap-section]\,\mathrm{Wb}$
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=12cm,height=5cm,grid=major,no markers,
+    xlabel={$s$ (mm)},ylabel={$H_t$ (A/m)}]
+    \femmplot[profile=custom-mean,component=Ht]
+  \end{axis}
+\end{tikzpicture}
+\end{document}

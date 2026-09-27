@@ -5,6 +5,9 @@
 % This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 \section{FEMM problem and solution interchange}
 \label{sec:interchange}
+The interchange described here applies to |field model=open|. Ideal-mode
+floating-window constraints cannot be represented by this subset; FEM/ANS
+export and FEM import in ideal mode report an error.
 
 A drawing can now travel between your TeX document and a magnetic FEMM problem.
 There are three distinct operations: read a preprocessor |.fem| file, write a

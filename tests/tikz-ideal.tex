@@ -1,0 +1,51 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\input pgfplots.tex
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzset{confined iron/.style={draw,even odd rule,
+  femm/region={material=pure-iron,ideal domain=true}}}
+% Excitation precedes the problem key: it must be queued for this picture.
+\tikzpicture[femm/excitation={ampere turns=200},
+  femm/problem={field model=ideal,depth=10,mesh size=3},scale=.6]
+  \path[confined iron] (-20,-20) rectangle (20,20)
+    (-10,-10) rectangle (10,10);
+  \path[femm/profile={name=ideal-section}] (10,0)--(20,0);
+  \pic[femm/lines=7] {femm field};
+  \directlua{assert(luafemm.current.ideal_sources[1][3]==200)}
+\endtikzpicture
+\par
+\femmflux[profile=ideal-section]
+\par
+\tikzpicture[femm/problem={field model=ideal,depth=10,mesh size=4},scale=.65]
+  \node[femm/tapered toroid={ampere turns=0,magnet span=30,
+    magnet material=ndfeb-40-mgoe},rotate=13,anchor=core center] (Ring) at (3,2) {};
+  \path[femm/profile={name=pole-section}]
+    (Ring.upper pole inner)--(Ring.upper pole outer);
+  \pic[femm/lines=9] {femm field};
+  \pic[femm/mean={component=Ring,kind=flux,profile=ring,samples=29}]
+    {femm mean path};
+  \directlua{
+    local p=require('luafemm-profiles').sample('ring')
+    assert(rawlen(p)==29 and p[1].B>0)
+    local m=luafemm.current
+    assert(rawlen(m.ideal_loops)==2)
+  }
+\endtikzpicture
+\par
+\femmflux[profile=pole-section]
+\par
+% The first profile still refers to the preceding model, after a new solve.
+\femmflux[profile=ideal-section]
+\par
+\tikzpicture
+\axis[width=7cm,height=4cm]
+\femmplot[profile=ring,component=circulation]
+\endaxis
+\endtikzpicture
+\bye

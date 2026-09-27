@@ -8,6 +8,23 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Changelog
 
+## 0.8.0-dev — 2026-09-27
+
+- Add confined planar magnetic domains with one floating potential per window.
+  Enforce zero wall flux, exact discrete flux conservation and junction balance;
+  retain nonlinear materials and permanent-magnet sources.
+- Add ideal-domain membership and queued window-excitation keys, exact section
+  flux output, geometric/half-flux mean contours and cumulative H circulation
+  in PGFPlots. Preserve native TikZ paths and generic-format support.
+- Add E core/electromagnet and toroidal/tapered-toroidal node shapes, unequal
+  U/E section widths, independent E gaps and optional toroidal magnet arcs.
+- Expand the English manual with all new keys, conventions, numerical limits
+  and four complete examples paired with their compiled output.
+- Upgrade private caches to format 6; test ideal cold/warm/frozen snapshots
+  across plain LuaTeX, LuaLaTeX and ConTeXt MkIV.
+- Reject ideal-mode FEMM interchange explicitly: floating-window constraints
+  are outside the existing FEM/ANS subset. Ordinary interchange is unchanged.
+
 ## 0.7.0-dev — 2026-09-27
 
 - Remove the prototype command compatibility layer and its manual appendix.

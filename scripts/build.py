@@ -91,7 +91,7 @@ def formats():
     for name, engine in (("plain", "luatex"), ("latex", "lualatex"), ("context", None)):
         folder = BUILD / "formats" / name
         folder.mkdir(parents=True, exist_ok=True)
-        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex"):
+        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex", "ideal.tex"):
             shutil.copy2(ROOT / "tests" / "formats" / filename, folder / filename)
         shutil.copy2(ROOT / "tests/fixtures/uniform.fem", folder / "uniform.fem")
         if engine:
@@ -105,6 +105,7 @@ def formats():
         boundary_file = folder / "boundary-cache.lfc"
         boundary_file.unlink(missing_ok=True)
         (folder / "exchange-cache.lfc").unlink(missing_ok=True)
+        (folder / "ideal-cache.lfc").unlink(missing_ok=True)
         passes = {}
         for stage, mode, expected in (("cold", "auto", "miss"),
                                       ("warm", "auto", "solution"),
@@ -116,6 +117,7 @@ def formats():
                 component_file.write_bytes(shared_component)
                 boundary_file.write_bytes(shared_boundary)
                 (folder / "exchange-cache.lfc").write_bytes(shared_exchange)
+                (folder / "ideal-cache.lfc").write_bytes(shared_ideal)
             settings = {"CacheMode": mode, "ExpectedCache": expected,
                         "CacheScale": "1" if stage == "cold" else "2",
                         "CacheColor": "blue" if stage == "cold" else "red",
@@ -155,16 +157,22 @@ def formats():
             values["INTERCHANGE"] = float(exchange.group(1))
             if (folder / "exchange-solution.ans").read_bytes() != (folder / "exchange-delayed.ans").read_bytes():
                 raise SystemExit("Delayed export differs from the picture-bound solution")
+            ideal = re.search(r"LUAFEMM-IDEAL: ([+\d.eE-]+)", log)
+            if not ideal:
+                raise SystemExit(f"Missing ideal result in {name}/{stage}")
+            values["IDEAL"] = float(ideal.group(1))
             passes[stage] = values
             if name == "plain" and stage == "cold":
                 shared_cache = cache_file.read_bytes()
                 shared_component = component_file.read_bytes()
                 shared_boundary = boundary_file.read_bytes()
                 shared_exchange = (folder / "exchange-cache.lfc").read_bytes()
+                shared_ideal = (folder / "ideal-cache.lfc").read_bytes()
             if stage == "frozen" and (cache_file.read_bytes() != shared_cache
                                       or component_file.read_bytes() != shared_component
                                       or boundary_file.read_bytes() != shared_boundary
-                                      or (folder / "exchange-cache.lfc").read_bytes() != shared_exchange):
+                                      or (folder / "exchange-cache.lfc").read_bytes() != shared_exchange
+                                      or (folder / "ideal-cache.lfc").read_bytes() != shared_ideal):
                 raise SystemExit("Frozen mode modified its input cache")
             if name == "context":
                 output = console.read_text(errors="replace")
@@ -290,12 +298,19 @@ def manual():
     run(["texlua", "scripts/manual-catalog.lua"])
     source = ROOT / "doc" / "luafemm-manual.tex"
     compile_tex(source, directory=out)
-    run(["makeindex", "luafemm-manual.idx"], cwd=out, log=out / "makeindex-console.log")
-    compile_tex(source, directory=out)
-    compile_tex(source, directory=out)
-    log = (out / "luafemm-manual.log").read_text()
-    if "undefined references" in log or "Label(s) may have changed" in log:
-        raise SystemExit("Manual references need another pass")
+    # New chapters can change both the table of contents and index pagination.
+    # Require stable index input as well as stable cross-references; do not keep
+    # the page numbers from the first pass after the document has grown.
+    for _ in range(5):
+        index = (out / "luafemm-manual.idx").read_bytes()
+        run(["makeindex", "luafemm-manual.idx"], cwd=out, log=out / "makeindex-console.log")
+        compile_tex(source, directory=out)
+        log = (out / "luafemm-manual.log").read_text()
+        if (index == (out / "luafemm-manual.idx").read_bytes()
+                and "undefined references" not in log and "Label(s) may have changed" not in log):
+            break
+    else:
+        raise SystemExit("Manual references/index did not stabilize after five passes")
 
 
 if __name__ == "__main__":

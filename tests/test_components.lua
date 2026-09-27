@@ -64,3 +64,42 @@ end
 assert(not pcall(C.make, "rotor"))
 assert(not pcall(C.current, { { 0, 0 }, { 1, 0 }, { 2, 0 } }, 0.001, 1))
 print("Component areas, anchors, signed ampere-turns, transformations and validation passed.")
+
+-- Extended shapes must retain valid simple part polygons and explicit cycles.
+local mesh = require("luafemm-mesh")
+for _, kind in ipairs({ "e core", "e electromagnet", "toroid", "tapered toroid" }) do
+    local c = C.make(kind, { ideal = 1, magnet_span = 30 })
+    for _, r in ipairs(c.regions) do
+        mesh.validate(r.points)
+        assert(area(r.points) > 0)
+    end
+    for _, cycle in pairs(c.cycles) do
+        near(cycle[1][1], cycle[#cycle][1])
+        near(cycle[1][2], cycle[#cycle][2])
+    end
+end
+for _, options in ipairs({
+    { radius = 4 },
+    { gap_angle = -1 },
+    { gap_angle = 90 },
+    { pole_thickness = 11 },
+    { taper_angle = 90 },
+    { magnet_span = 180 },
+    { arc_step = 1e-12 },
+}) do
+    assert(not pcall(C.make, "tapered toroid", options), "invalid toroid accepted")
+end
+for _, options in ipairs({
+    { width = 25 },
+    { left_gap = -0.5 },
+    { height = 10 },
+    { left_thickness = -1 },
+    { coil_width = 50 },
+}) do
+    assert(not pcall(C.make, "e electromagnet", options), "invalid E accepted")
+end
+local closed = C.make("e electromagnet", { gap = 0 })
+assert(#closed.regions == 4)
+local permanent = C.make("toroid", { ampere_turns = 0, magnet_span = 30 })
+assert(not permanent.anchors["coil positive"])
+print("Extended E/toroid polygons, closed cycles, magnet-only shapes and bounds passed.")

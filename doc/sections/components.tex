@@ -8,8 +8,10 @@
 A component is a genuine PGF node with a fixed physical geometry and named
 anchors. One node can declare several material regions. Its text and labels
 are annotations: their font, width and padding never resize its magnetic
-parts. Components use the same region, mesh, solver and cache infrastructure
-as explicitly drawn paths; they introduce no new topology or boundary condition.
+parts. Additional E and toroidal shapes, independent section widths and ideal-mode
+mean contours are described in Section~\ref{sec:ideal}.
+Components use the same region, mesh, solver and cache infrastructure
+as explicitly drawn paths; the chosen field model determines their computational boundary conditions.
 
 \begin{key}{/tikz/femm/u core=\marg{options} (default \normalfont empty)}
 Select a U-shaped core open towards local $+y$. The node registers one
@@ -130,8 +132,9 @@ Mesh lengths are model-frame values; node scaling does not scale these keys.
 \end{key}
 \begin{key}{/femm/component/gap mesh size=\meta{nonnegative number} (initially 1)}
 Local spacing in both air gaps; electromagnet only. A positive value adds
-two air refinement rectangles. Zero omits these two declarations and uses
-the ordinary global mesh in the gaps.
+two air refinement rectangles. In open mode zero omits these two declarations and uses
+the ordinary global mesh in the gaps. In ideal mode the two gaps remain
+part of the confined domain, using the global mesh spacing.
 \end{key}
 
 \subsection{Anchors and placement}

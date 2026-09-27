@@ -8,6 +8,20 @@
 % anchor lookup, border intersection and text layout have no physical effects.
 \pgfkeys{/femm/component/.is family,/femm/component,
   width/.initial=80,
+  left thickness/.initial=0,
+  right thickness/.initial=0,
+  yoke thickness/.initial=0,
+  center thickness/.initial=0,
+  left gap/.initial=-1,
+  right gap/.initial=-1,
+  center gap/.initial=-1,
+  radius/.initial=30,
+  core thickness/.initial=10,
+  pole thickness/.initial=6,
+  gap angle/.initial=8,
+  taper angle/.initial=25,
+  magnet span/.initial=0,
+  arc step/.initial=5,
   height/.initial=60,
   leg thickness/.initial=15,
   gap/.initial=3,
@@ -21,7 +35,8 @@
   gap mesh size/.initial=1,
   magnetization angle/.initial=0,
   core material/.initial=pure-iron,armature material/.initial=pure-iron,
-  coil material/.initial=copper,
+  coil material/.initial=copper,magnet material/.initial=cast-alnico-5-lng37,
+  magnet style/.code={\tikzset{femm component magnet/.append style={#1}}},
   core style/.code={\tikzset{femm component core/.append style={#1}}},
   armature style/.code={\tikzset{femm component armature/.append style={#1}}},
   coil style/.code={\tikzset{femm component coil/.append style={#1}}},
@@ -36,6 +51,23 @@
     \def\luafemm@componentkind{u electromagnet}%
     \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
   femm/u electromagnet/.default={},
+  femm/e core/.code={\pgfqkeys{/femm/component}{#1}%
+    \def\luafemm@componentkind{e core}%
+    \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+  femm/e core/.default={},
+  femm/e electromagnet/.code={\pgfqkeys{/femm/component}{#1}%
+    \def\luafemm@componentkind{e electromagnet}%
+    \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+  femm/e electromagnet/.default={},
+  femm/toroid/.code={\pgfqkeys{/femm/component}{#1}%
+    \def\luafemm@componentkind{toroid}%
+    \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+  femm/toroid/.default={},
+  femm/tapered toroid/.code={\pgfqkeys{/femm/component}{#1}%
+    \def\luafemm@componentkind{tapered toroid}%
+    \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+  femm/tapered toroid/.default={},
+  femm component magnet/.style={draw=red!70!black,fill=red!20},
   femm component core/.style={draw=black!70,fill=gray!15},
   femm component armature/.style={femm component core},
   femm component coil/.style={draw=orange!70!black,fill=orange!25},
@@ -52,7 +84,11 @@
   \else
     \edef\luafemm@partmaterial{\luafemm@componentvalue{#1 material}}%
   \fi
+  \def\luafemm@coilrole{coil}%
+  \def\luafemm@partideal{true}%
+  \ifx\luafemm@partrole\luafemm@coilrole\def\luafemm@partideal{false}\fi
   \path[femm component #1,femm/region={material=\luafemm@partmaterial,
+    ideal domain=\luafemm@partideal,
     current density=0,magnetization angle=#4,mesh size=#3}] #5;
   \endgroup
 }
@@ -63,6 +99,20 @@
     \edef\luafemm@componentid{\directlua{
       luafemm.tex.component_new('\luaescapestring{\luafemm@componentkind}',{
         width='\luaescapestring{\luafemm@componentvalue{width}}',
+        left_thickness='\luaescapestring{\luafemm@componentvalue{left thickness}}',
+        right_thickness='\luaescapestring{\luafemm@componentvalue{right thickness}}',
+        yoke_thickness='\luaescapestring{\luafemm@componentvalue{yoke thickness}}',
+        center_thickness='\luaescapestring{\luafemm@componentvalue{center thickness}}',
+        left_gap='\luaescapestring{\luafemm@componentvalue{left gap}}',
+        right_gap='\luaescapestring{\luafemm@componentvalue{right gap}}',
+        center_gap='\luaescapestring{\luafemm@componentvalue{center gap}}',
+        radius='\luaescapestring{\luafemm@componentvalue{radius}}',
+        core_thickness='\luaescapestring{\luafemm@componentvalue{core thickness}}',
+        pole_thickness='\luaescapestring{\luafemm@componentvalue{pole thickness}}',
+        gap_angle='\luaescapestring{\luafemm@componentvalue{gap angle}}',
+        taper_angle='\luaescapestring{\luafemm@componentvalue{taper angle}}',
+        magnet_span='\luaescapestring{\luafemm@componentvalue{magnet span}}',
+        arc_step='\luaescapestring{\luafemm@componentvalue{arc step}}',
         height='\luaescapestring{\luafemm@componentvalue{height}}',
         leg_thickness='\luaescapestring{\luafemm@componentvalue{leg thickness}}',
         gap='\luaescapestring{\luafemm@componentvalue{gap}}',
@@ -108,6 +158,19 @@
   \anchor{armature center}{\luafemm@componentanchor{armature center}}
   \anchor{coil positive}{\luafemm@componentanchor{coil positive}}
   \anchor{coil negative}{\luafemm@componentanchor{coil negative}}
+  \anchor{center pole}{\luafemm@componentanchor{center pole}}
+  \anchor{center gap}{\luafemm@componentanchor{center gap}}
+  \anchor{center armature}{\luafemm@componentanchor{center armature}}
+  \anchor{left window}{\luafemm@componentanchor{left window}}
+  \anchor{right window}{\luafemm@componentanchor{right window}}
+  \anchor{upper pole}{\luafemm@componentanchor{upper pole}}
+  \anchor{lower pole}{\luafemm@componentanchor{lower pole}}
+  \anchor{upper pole inner}{\luafemm@componentanchor{upper pole inner}}
+  \anchor{upper pole outer}{\luafemm@componentanchor{upper pole outer}}
+  \anchor{lower pole inner}{\luafemm@componentanchor{lower pole inner}}
+  \anchor{lower pole outer}{\luafemm@componentanchor{lower pole outer}}
+  \anchor{gap center}{\luafemm@componentanchor{gap center}}
+  \anchor{magnet center}{\luafemm@componentanchor{magnet center}}
   \anchorborder{%
     \directlua{luafemm.tex.component_border(\luafemm@componentid,'\the\pgf@x','\the\pgf@y')}%
   }
@@ -122,7 +185,8 @@
         \pgfinterruptpath
         \pgfgettransform\luafemm@componenttransform
         \directlua{luafemm.tex.component_paths(\luafemm@componentid,
-          '\luaescapestring{\luafemm@componenttransform}')}%
+          '\luaescapestring{\luafemm@componenttransform}',
+          '\luaescapestring{\tikz@fig@name}')}%
         \endpgfinterruptpath
       \fi
     \fi

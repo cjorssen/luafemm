@@ -13,12 +13,15 @@ models inside the same picture are unsupported. Separate pictures create
 independent models.
 \end{key}
 
+The confined |field model=ideal| and its domain membership keys are documented
+in Section~\ref{sec:ideal}. The defaults below describe |field model=open|.
+
 The following subkeys belong to |/femm/problem| and are normally supplied
 inside |femm/problem={...}|. All lengths in this list are numbers in
 \emph{model millimetres}, not graphic dimensions.
 
 \begin{key}{/femm/problem/xmin=\meta{number} (initially -90)}
-Left boundary of the rectangular air domain.
+Left boundary of the rectangular air domain or ideal-mode staging mesh.
 \end{key}
 \begin{key}{/femm/problem/xmax=\meta{number} (initially 90)}
 Right boundary; must exceed |xmin|. All material vertices must lie within

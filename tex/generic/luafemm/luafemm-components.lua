@@ -10,6 +10,10 @@
 local C = {}
 local defaults = {
     width = 80,
+    left_thickness = 0,
+    right_thickness = 0,
+    yoke_thickness = 0,
+    ideal = 0,
     height = 60,
     leg_thickness = 15,
     gap = 3,
@@ -23,6 +27,9 @@ local defaults = {
     gap_mesh_size = 1,
     magnetization_angle = 0,
 }
+for key, value in pairs(require("luafemm-shapes").defaults) do
+    defaults[key] = value
+end
 local function check(value, message)
     assert(value, "luafemm component: " .. message)
 end
@@ -37,7 +44,9 @@ end
 -- @tparam[opt] table options Numeric geometry, mesh and excitation parameters.
 -- @treturn table Independent options, regions, anchors and centred bounds.
 function C.make(kind, options)
-    check(kind == "u core" or kind == "u electromagnet", "unknown component " .. tostring(kind))
+    if kind ~= "u core" and kind ~= "u electromagnet" then
+        return require("luafemm-shapes").make(kind, options)
+    end
     local o = {}
     for key, value in pairs(options or {}) do
         check(defaults[key] ~= nil, "unknown option " .. tostring(key))
@@ -50,13 +59,20 @@ function C.make(kind, options)
         o[key] = options and options[key] or value
     end
     local w, h, t = o.width, o.height, o.leg_thickness
+    local tl = o.left_thickness > 0 and o.left_thickness or t
+    local tr = o.right_thickness > 0 and o.right_thickness or t
+    local tb = o.yoke_thickness > 0 and o.yoke_thickness or t
     check(
-        t > 0 and w > 2 * t and h > t,
+        o.left_thickness >= 0 and o.right_thickness >= 0 and o.yoke_thickness >= 0,
+        "section thickness overrides must be nonnegative"
+    )
+    check(
+        t > 0 and w > tl + tr and h > tb,
         "require leg thickness > 0, width > 2*thickness and height > thickness"
     )
     check(o.mesh_size >= 0 and o.gap_mesh_size >= 0, "mesh sizes must be nonnegative")
     local x0, x1, y0, y1 = -w / 2, w / 2, -h / 2, h / 2
-    local left, right = x0 + t / 2, x1 - t / 2
+    local left, right = x0 + tl / 2, x1 - tr / 2
     local regions = {
         {
             role = "core",
@@ -65,10 +81,10 @@ function C.make(kind, options)
                 { x0, y0 },
                 { x1, y0 },
                 { x1, y1 },
-                { x1 - t, y1 },
-                { x1 - t, y0 + t },
-                { x0 + t, y0 + t },
-                { x0 + t, y1 },
+                { x1 - tr, y1 },
+                { x1 - tr, y0 + tb },
+                { x0 + tl, y0 + tb },
+                { x0 + tl, y1 },
                 { x0, y1 },
             },
         },
@@ -79,10 +95,10 @@ function C.make(kind, options)
         ["left pole"] = { left, y1 },
         ["right pole"] = { right, y1 },
         ["left pole outer"] = { x0, y1 },
-        ["left pole inner"] = { x0 + t, y1 },
-        ["right pole inner"] = { x1 - t, y1 },
+        ["left pole inner"] = { x0 + tl, y1 },
+        ["right pole inner"] = { x1 - tr, y1 },
         ["right pole outer"] = { x1, y1 },
-        ["yoke center"] = { 0, y0 + t / 2 },
+        ["yoke center"] = { 0, y0 + tb / 2 },
     }
     if kind == "u electromagnet" then
         local g, a = o.gap, o.armature_thickness
@@ -93,10 +109,10 @@ function C.make(kind, options)
             "coil dimensions must be positive; clearance must be nonnegative"
         )
         check(
-            cy - ch / 2 >= y0 + t and cy + ch / 2 <= y1,
+            cy - ch / 2 >= y0 + tb and cy + ch / 2 <= y1,
             "coil must fit along the free part of the left leg"
         )
-        check(c + cw <= w - 2 * t, "inner coil section does not fit in the window")
+        check(c + cw <= w - tl - tr, "inner coil section does not fit in the window")
         regions[#regions + 1] = {
             role = "armature",
             mesh_size = o.mesh_size,
@@ -112,25 +128,25 @@ function C.make(kind, options)
             role = "coil",
             mesh_size = o.mesh_size,
             turns = -o.ampere_turns,
-            points = rectangle(x0 + t + c, cy - ch / 2, x0 + t + c + cw, cy + ch / 2),
+            points = rectangle(x0 + tl + c, cy - ch / 2, x0 + tl + c + cw, cy + ch / 2),
         }
-        if o.gap_mesh_size > 0 then
+        if o.gap_mesh_size > 0 or o.ideal == 1 then
             regions[#regions + 1] = {
                 role = "gap",
                 mesh_size = o.gap_mesh_size,
-                points = rectangle(x0, y1, x0 + t, y1 + g),
+                points = rectangle(x0, y1, x0 + tl, y1 + g),
             }
             regions[#regions + 1] = {
                 role = "gap",
                 mesh_size = o.gap_mesh_size,
-                points = rectangle(x1 - t, y1, x1, y1 + g),
+                points = rectangle(x1 - tr, y1, x1, y1 + g),
             }
         end
         anchors["left armature"], anchors["right armature"] = { left, y1 + g }, { right, y1 + g }
         anchors["left gap"], anchors["right gap"] = { left, y1 + g / 2 }, { right, y1 + g / 2 }
         anchors["armature center"] = { 0, y1 + g + a / 2 }
         anchors["coil positive"] = { x0 - c - cw / 2, cy }
-        anchors["coil negative"] = { x0 + t + c + cw / 2, cy }
+        anchors["coil negative"] = { x0 + tl + c + cw / 2, cy }
         x0, y1 = x0 - c - cw, y1 + g + a
     end
     -- Standard compass anchors describe the envelope of all component parts.
@@ -141,6 +157,21 @@ function C.make(kind, options)
     anchors.east, anchors.west = { x1, cy }, { x0, cy }
     anchors["north east"], anchors["north west"] = { x1, y1 }, { x0, y1 }
     anchors["south east"], anchors["south west"] = { x1, y0 }, { x0, y0 }
+    local cycles = {}
+    if kind == "u electromagnet" then
+        cycles.main = {
+            { left, y0 + tb / 2 },
+            { left, h / 2 + o.gap + o.armature_thickness / 2 },
+            { right, h / 2 + o.gap + o.armature_thickness / 2 },
+            { right, y0 + tb / 2 },
+            { left, y0 + tb / 2 },
+        }
+    end
+    for _, points in pairs(cycles) do
+        for _, p in ipairs(points) do
+            p[1], p[2] = p[1] - cx, p[2] - cy
+        end
+    end
     for _, r in ipairs(regions) do
         for _, p in ipairs(r.points) do
             p[1], p[2] = p[1] - cx, p[2] - cy
@@ -153,6 +184,7 @@ function C.make(kind, options)
         kind = kind,
         options = o,
         regions = regions,
+        cycles = cycles,
         anchors = anchors,
         half_width = (x1 - x0) / 2,
         half_height = (y1 - y0) / 2,

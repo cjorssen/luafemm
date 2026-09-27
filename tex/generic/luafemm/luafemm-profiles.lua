@@ -43,7 +43,7 @@ function P.register(m, name, points, o)
         check(finite(v[1]) and finite(v[2]), "invalid coordinate")
         local last = p[#p]
         local l = last and sqrt((v[1] - last[1]) ^ 2 + (v[2] - last[2]) ^ 2) or 0
-        if not last or l > 0 then
+        if not last or (l > 0 and total + l > total) then
             p[#p + 1] = { v[1], v[2] }
             total = total + l
             lengths[#p] = total
@@ -130,7 +130,14 @@ function P.sample(name)
                 row[k] = 0 / 0
             end
         else
-            local bx, by, az, hx, hy = f.sample(m, x, y)
+            local ok, bx, by, az, hx, hy = pcall(f.sample, m, x, y)
+            if not ok then
+                check(
+                    p.outside == "nan" and tostring(bx):find("sample outside domain", 1, true),
+                    tostring(bx)
+                )
+                bx, by, az, hx, hy = 0 / 0, 0 / 0, 0 / 0, 0 / 0, 0 / 0
+            end
             row.B, row.Bx, row.By = sqrt(bx * bx + by * by), bx, by
             row.H, row.Hx, row.Hy = sqrt(hx * hx + hy * hy), hx, hy
             row.Bt, row.Bn = bx * tx + by * ty, -bx * ty + by * tx
@@ -154,6 +161,7 @@ local components = {
     Ht = true,
     Hn = true,
     Az = true,
+    circulation = true,
 }
 local abscissas = { s = true, t = true, x = true, y = true }
 --- Format a chosen component for the pgfplots coordinates input handler.
@@ -166,8 +174,25 @@ function P.coordinates(name, component, abscissa)
     abscissa = abscissa or "s"
     check(components[component], "unknown component " .. component)
     check(abscissas[abscissa], "unknown abscissa " .. abscissa)
+    local rows = P.sample(name)
+    if component == "circulation" then
+        local p = P.get(name)
+        check(p.offset == 0, "circulation requires offset=0; declare the displaced path explicitly")
+        if not p.integrals then
+            local integrate = require("luafemm-integrals").segment
+            local base, j = 0, 2
+            for _, row in ipairs(rows) do
+                while j < #p.points and row.s >= p.lengths[j] do
+                    base = base + integrate(p.model, p.points[j - 1], p.points[j])
+                    j = j + 1
+                end
+                row.circulation = base + integrate(p.model, p.points[j - 1], { row.x, row.y })
+            end
+            p.integrals = true
+        end
+    end
     local out = {}
-    for _, r in ipairs(P.sample(name)) do
+    for _, r in ipairs(rows) do
         out[#out + 1] = string.format(
             "(%.12g,%s)",
             r[abscissa],

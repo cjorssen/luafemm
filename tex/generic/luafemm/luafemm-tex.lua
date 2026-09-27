@@ -44,7 +44,7 @@ function T.new_problem(options, transform, basis, cache, import_file, explicit, 
     for key, value in pairs(options) do
         if value == "" then
             options[key] = nil
-        elseif key ~= "mesher" and key ~= "interpolation" then
+        elseif key ~= "mesher" and key ~= "interpolation" and key ~= "field_model" then
             options[key] = T.number(value, key)
         end
     end
@@ -66,6 +66,7 @@ function T.new_problem(options, transform, basis, cache, import_file, explicit, 
     end
     options.cache = cache
     if import_file and import_file ~= "" then
+        check(options.field_model ~= "ideal", "FEM import cannot be combined with ideal mode")
         local overrides = { cache = cache, log = options.log }
         for key in (explicit or ""):gmatch("[^,]+") do
             check(
@@ -165,7 +166,18 @@ end
 -- @tparam number mesh_size Local spacing, zero for inheritance.
 -- @tparam[opt] string turns Component winding ampere-turns (single contour only).
 -- @tparam[opt="nonzero"] string fill_rule Evaluated native PGF fill rule.
-function T.capture_path(m, s, material, current, tolerance, angle, mesh_size, turns, fill_rule)
+function T.capture_path(
+    m,
+    s,
+    material,
+    current,
+    tolerance,
+    angle,
+    mesh_size,
+    turns,
+    fill_rule,
+    ideal_domain
+)
     check(m and m.frame, "set femm/problem on the tikzpicture first")
     local contours = require("luafemm-path").read_contours(s, m.frame, tolerance)
     -- Round below the useful precision of PGF fixed-point coordinates.
@@ -193,7 +205,12 @@ function T.capture_path(m, s, material, current, tolerance, angle, mesh_size, tu
             T.number(turns, "ampere turns")
         )
     end
+    check(
+        ideal_domain == nil or ideal_domain == "true" or ideal_domain == "false",
+        "invalid ideal domain flag"
+    )
     M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
+    m.regions[#m.regions].ideal_domain = ideal_domain == "true"
     -- The evaluated soft path is passive PGF token data, never executed on reload.
     -- Retain it before flattening so a later geometry compilation can reproduce
     -- the same primitives independently of the drawn approximation.
@@ -218,6 +235,7 @@ function T.component_new(kind, options)
     for key, value in pairs(options) do
         options[key] = T.number(value, key)
     end
+    options.ideal = M.current.options.field_model == "ideal" and 1 or 0
     local c = require("luafemm-components").make(kind, options)
     c.basis = M.current.component_basis
     components[#components + 1] = c
@@ -260,17 +278,36 @@ end
 --- Draw/capture each part once, at the final node transform, before its text.
 -- A component-local magnetization direction is mapped into the model frame.
 -- Coil ampere-turns are converted after capture, using the rounded polygon.
-function T.component_paths(id, transform)
+function T.component_paths(id, transform, name)
     local c = assert(components[id])
     local n = require("luafemm-path").frame(transform, { "1pt", "0pt", "0pt", "1pt" })
     local f = M.current.frame
-    local theta = math.rad(c.options.magnetization_angle)
-    local vx, vy = component_point(c, { math.cos(theta), math.sin(theta) })
-    vx, vy = n[1] * vx + n[3] * vy, n[2] * vx + n[4] * vy
     local det = f[1] * f[4] - f[2] * f[3]
-    local mx, my = (f[4] * vx - f[3] * vy) / det, (-f[2] * vx + f[1] * vy) / det
-    check(mx * mx + my * my > 0, "singular component transform")
-    local angle = math.deg(math.atan(my, mx))
+    local function mapped(p, vector)
+        local x, y = component_point(c, p)
+        x, y = n[1] * x + n[3] * y, n[2] * x + n[4] * y
+        if not vector then
+            x, y = x + n[5] - f[5], y + n[6] - f[6]
+        end
+        return { (f[4] * x - f[3] * y) / det, (-f[2] * x + f[1] * y) / det }
+    end
+    local function angle_value(degrees)
+        local theta = math.rad(degrees)
+        local v = mapped({ math.cos(theta), math.sin(theta) }, true)
+        check(v[1] ^ 2 + v[2] ^ 2 > 0, "singular component transform")
+        return math.deg(math.atan(v[2], v[1]))
+    end
+    if name and name ~= "" then
+        M.current.component_cycles = M.current.component_cycles or {}
+        local cycles = {}
+        for cycle, points in pairs(c.cycles or {}) do
+            cycles[cycle] = {}
+            for _, p in ipairs(points) do
+                cycles[cycle][#cycles[cycle] + 1] = mapped(p)
+            end
+        end
+        M.current.component_cycles[name] = cycles
+    end
     for _, r in ipairs(c.regions) do
         local points = {}
         for i, p in ipairs(r.points) do
@@ -283,7 +320,7 @@ function T.component_paths(id, transform)
                 r.role,
                 r.turns and string.format("%.17g", r.turns) or "",
                 r.mesh_size,
-                angle,
+                angle_value(r.angle or c.options.magnetization_angle),
                 table.concat(points, "--")
             )
         )
@@ -293,6 +330,32 @@ end
 local function canvas(m, x, y)
     local f = m.frame
     return string.format("(%.7fpt,%.7fpt)", f[1] * x + f[3] * y + f[5], f[2] * x + f[4] * y + f[6])
+end
+
+--- Print an exact section flux for PGF's generic number formatter.
+function T.flux_number(name, snap_tolerance)
+    local p = require("luafemm-profiles").get(name)
+    check(p.offset == 0, "flux requires offset=0; declare the displaced section explicitly")
+    tex.sprint(string.format("%.12g", M.flux(p.model, p.points, snap_tolerance)))
+end
+
+--- Draw a component mean contour and optionally register its PGFPlots profile.
+function T.mean_picture(m, options)
+    local points = require("luafemm-ideal").mean(m, options.component, options.cycle, options.kind)
+    if options.profile ~= "" then
+        require("luafemm-profiles").register(
+            m,
+            options.profile,
+            points,
+            { samples = options.samples }
+        )
+    end
+    local out = { "\\draw[femm mean path,femm current mean] " }
+    for i, p in ipairs(points) do
+        out[#out + 1] = (i > 1 and "--" or "") .. canvas(m, p[1], p[2])
+    end
+    out[#out + 1] = ";"
+    tex.sprint(table.concat(out))
 end
 
 --- Solve if needed and emit contours in the original picture frame.

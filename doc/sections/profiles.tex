@@ -47,7 +47,8 @@ offsets follow the chosen segment normal, not a rounded offset curve.
 \end{key}
 \begin{key}{/femm/profile/outside=\meta{error or nan} (initially error)}
 PGF choice controlling samples outside the rectangular domain. |error|
-stops with the offending point. |nan| supplies missing values, creating
+stops with the offending point. In ideal mode the excluded air and windows
+also count as outside. |nan| supplies missing values, creating
 gaps in the graph. It does not hide a mesher or solver failure.
 \end{key}
 
@@ -66,7 +67,8 @@ Every call resets the following plot options, in family |/femm/plot|:
 Required name of a previously registered profile.
 \end{key}
 \begin{key}{/femm/plot/component=\meta{choice} (initially B)}
-PGF choice: |B|, |Bx|, |By|, |Bt|, |Bn|, |H|, |Hx|, |Hy|, |Ht|, |Hn| or |Az|.
+The additional |circulation| choice integrates $\mathbf H$ along a zero-offset
+path; see Section~\ref{sec:ideal}. Standard choices are |B|, |Bx|, |By|, |Bt|, |Bn|, |H|, |Hx|, |Hy|, |Ht|, |Hn| or |Az|.
 Unsubscripted B and H mean the magnitudes. B components are in T, H
 components in A/m and Az in T\,m. Cartesian components refer to the model
 frame. Tangential and normal components follow the path direction.

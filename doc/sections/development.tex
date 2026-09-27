@@ -18,6 +18,11 @@ hold the loaded module and current model. Numerical scripts can use
   preconditioning, field evaluation and contour topology.
 \item[luafemm-boundary.lua] Side/tagged conditions, corner constraints, component gauge
   compatibility and exact P1 boundary integrals.
+\item[luafemm-ideal.lua] Confined-domain compilation, floating boundary
+  degrees of freedom, exact section flux and component mean contours.
+\item[luafemm-integrals.lua] Segment/triangle intersection and exact integration
+  of the discrete field along profiles.
+\item[luafemm-shapes.lua] E and toroidal geometries, tapered poles and magnet slices.
 \item[luafemm-components.lua] Pure component geometry, physical anchors and
   area-based winding currents; no TeX or solver state.
 \item[luafemm-fem.lua] Passive magnetic file codec, supported-physics checks,
@@ -69,7 +74,8 @@ local bx, by, az, hx, hy = femm.sample(model, 0, 8)
 
 |new(options)| accepts the numerical counterparts of problem keys:
 |h|, |xmin|, |xmax|, |ymin|, |ymax|, |mesher|, |mesh_tolerance|,
-|min_angle|, |max_area|, |max_steiner|, |tolerance| and |max_newton|.
+|min_angle|, |max_area|, |max_steiner|, |tolerance|, |max_newton|,
+|depth| and |field_model| (default |open|).
 Quality options use degrees, model units squared and additional vertex counts,
 with defaults 0, 0 and 5000 respectively. |unit| is metres per model coordinate unit,
 default .001. Optional |boundary(x,y)| and |source(x,y)| callbacks receive
@@ -83,6 +89,15 @@ uses model coordinates, A/m$^2$, degrees and model-unit local spacing.
 Omitted current inherits the material source; omitted angle and local
 spacing are zero. |mesh(model)| prepares the discrete model, and
 |solve(model)| meshes if needed and returns the same solved model.
+
+Region declarations return the owned region record. Set its |ideal_domain=true|
+before meshing to include it in |field_model='ideal'|. Use
+|excitation(model,x,y,NI)| for an ideal-window seed, and
+|flux(model,points)| for signed right-normal section flux in Wb; the latter
+requires |depth| and validates that the section stays in the active domain.
+|require('luafemm-ideal').mean(model,node,cycle,kind)| returns a model-coordinate
+polyline for a registered component cycle. The numerical module does not create
+TeX nodes or profile names. See Section~\ref{sec:ideal} for units and limitations.
 
 For compound regions, use
 \nolinkurl{region_contours(model,name,contours,current,angle,mesh_size,fill_rule)}.
@@ -204,7 +219,7 @@ Expandable semantic version, currently |0.6.0-dev|.
 Expandable release date, currently |2026-09-27|.
 \end{command}
 \begin{command}{\luafemmversionnumber}
-Expandable integer for simple compatibility comparisons, currently |70000|.
+Expandable integer for simple compatibility comparisons, currently |80000|.
 It increases when a release changes the public interface; it is not the
 number of commits.
 \end{command}

@@ -346,6 +346,10 @@ end
 -- @tparam[opt] table options Explicit model-unit, mesh and solver overrides.
 -- @treturn table Unmeshed model with tagged polygonal topology.
 function F.model(d, options)
+    check(
+        not options or options.field_model ~= "ideal",
+        "FEM import cannot be combined with ideal mode"
+    )
     local M = require("luafemm")
     local o = copy(options or {})
     local h = d.header
@@ -538,6 +542,7 @@ end
 -- @tparam table m Native or imported model with positive planar depth.
 -- @return Passive FEM document, computational topology, face-to-label map.
 function F.document(m)
+    check(m.options.field_model ~= "ideal", "ideal floating boundaries cannot be exported to FEMM")
     check(not m.options.source and not m.options.boundary, "callbacks cannot be exported exactly")
     local o = m.options
     check(finite(o.depth) and o.depth > 0, "set a positive problem depth before export")

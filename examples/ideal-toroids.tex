@@ -1,0 +1,62 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{
+  ideal toroid/.style={femm/problem={field model=ideal,
+    depth=10,mesh size=2.5}},
+  femm component gap/.append style={fill=cyan!20}
+}
+\begin{tikzpicture}[ideal toroid,scale=.7]
+  \node[femm/toroid={ampere turns=300,gap angle=0}] (M) {};
+  \pic[femm/lines=9] {femm field};
+  \pic[femm/mean={component=M}] {femm mean path};
+  \node[below] at (M.south) {Closed toroid};
+\end{tikzpicture}
+\quad
+\begin{tikzpicture}[ideal toroid,scale=.7]
+  \node[femm/toroid={ampere turns=1200,gap angle=8}] (M) {};
+  \pic[femm/lines=9] {femm field};
+  \pic[femm/mean={component=M}] {femm mean path};
+  \node[below] at (M.south) {Confined gap};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}[ideal toroid,scale=.7]
+  \node[femm/tapered toroid={ampere turns=1200,
+    pole thickness=6,taper angle=25}] (M) {};
+  \pic[femm/lines=9] {femm field};
+  \pic[femm/mean={component=M,profile=taper-coil}] {femm mean path};
+  \node[below] at (M.south) {Tapered poles and winding};
+\end{tikzpicture}
+\quad
+\begin{tikzpicture}[ideal toroid,scale=.7]
+  \node[femm/tapered toroid={ampere turns=0,
+    pole thickness=6,taper angle=25,magnet span=30,
+    magnet material=ndfeb-40-mgoe}] (M) {};
+  \pic[femm/lines=9] {femm field};
+  \pic[femm/mean={component=M,kind=flux,profile=taper-magnet},
+    femm/mean style={violet}] {femm mean path};
+  \node[below] at (M.south) {NdFeB and half-flux line};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+    xlabel={$s$ (mm)},ylabel={$|\mathbf B|$ (T)},
+    legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+    \femmplot[profile=taper-coil,component=B]
+    \addlegendentry{Winding, geometric contour}
+    \femmplot[profile=taper-magnet,component=B,plot options={violet}]
+    \addlegendentry{NdFeB, half-flux line}
+  \end{axis}
+\end{tikzpicture}
+\end{document}

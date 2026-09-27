@@ -16,6 +16,10 @@ local A = {}
 function A.write(m, path)
     assert(m and m.stats, "luafemm ANS: a converged solution is required")
     assert(
+        m.options.field_model ~= "ideal",
+        "luafemm ANS: ideal floating boundaries cannot be exported"
+    )
+    assert(
         m.solution_signature == require("luafemm-cache").signature(m),
         "luafemm ANS: stale solution; rebuild and solve the changed model"
     )

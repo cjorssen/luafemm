@@ -222,12 +222,13 @@ local function with_payload(payload)
     end
     return string.format("LUAFEMM-CACHE %d %08x\n", #payload, b * 65536 + a) .. payload
 end
+local version_pattern = f.version:gsub("(%W)", "%%%1")
 local payload = baseline:match("^[^\n]+\n(.*)$")
-write((baseline:gsub("0%.7%.0%-dev", "0.8.0-dev")))
+write((baseline:gsub(version_pattern, "9.9.9-dev")))
 fails(function()
     f.solve(model("frozen"))
 end, "checksum mismatch")
-write(with_payload((payload:gsub("0%.7%.0%-dev", "0.8.0-dev"))))
+write(with_payload((payload:gsub(version_pattern, "9.9.9-dev"))))
 fails(function()
     f.solve(model("frozen"))
 end, "incompatible package version")

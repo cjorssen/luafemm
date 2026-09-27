@@ -39,6 +39,7 @@ upstream exceptions and the planned CTAN distribution.
 - `doc/sections/field.tex`
 - `doc/sections/format-examples.tex`
 - `doc/sections/getting-started.tex`
+- `doc/sections/ideal.tex`
 - `doc/sections/interchange.tex`
 - `doc/sections/materials.tex`
 - `doc/sections/mesh-quality.tex`
@@ -62,6 +63,10 @@ upstream exceptions and the planned CTAN distribution.
 - `examples/formats/latex.tex`
 - `examples/formats/plain.tex`
 - `examples/formats/scene.tex`
+- `examples/ideal-e.tex`
+- `examples/ideal-paths.tex`
+- `examples/ideal-toroids.tex`
+- `examples/ideal-u.tex`
 - `examples/interchange-alnico.tex`
 - `examples/interchange-coil.tex`
 - `examples/interchange-curves.tex`
@@ -88,6 +93,7 @@ upstream exceptions and the planned CTAN distribution.
 - `tests/formats/boundaries.tex`
 - `tests/formats/components.tex`
 - `tests/formats/context.tex`
+- `tests/formats/ideal.tex`
 - `tests/formats/interchange.tex`
 - `tests/formats/latex.tex`
 - `tests/formats/plain.tex`
@@ -98,6 +104,7 @@ upstream exceptions and the planned CTAN distribution.
 - `tests/test_cache.lua`
 - `tests/test_components.lua`
 - `tests/test_domains.lua`
+- `tests/test_ideal.lua`
 - `tests/test_interchange.lua`
 - `tests/test_magnets.lua`
 - `tests/test_materials.lua`
@@ -109,6 +116,7 @@ upstream exceptions and the planned CTAN distribution.
 - `tests/tikz-boundaries.tex`
 - `tests/tikz-components.tex`
 - `tests/tikz-domains.tex`
+- `tests/tikz-ideal.tex`
 - `tests/tikz-interchange.tex`
 - `tests/tikz-interface.tex`
 - `tests/tikz-profiles.tex`
@@ -125,6 +133,9 @@ upstream exceptions and the planned CTAN distribution.
 - `tex/generic/luafemm/luafemm-components.tex`
 - `tex/generic/luafemm/luafemm-fem.lua`
 - `tex/generic/luafemm/luafemm-geometry.lua`
+- `tex/generic/luafemm/luafemm-ideal.lua`
+- `tex/generic/luafemm/luafemm-ideal.tex`
+- `tex/generic/luafemm/luafemm-integrals.lua`
 - `tex/generic/luafemm/luafemm-interchange.tex`
 - `tex/generic/luafemm/luafemm-materials.lua`
 - `tex/generic/luafemm/luafemm-mesh.lua`
@@ -133,6 +144,7 @@ upstream exceptions and the planned CTAN distribution.
 - `tex/generic/luafemm/luafemm-profiles.lua`
 - `tex/generic/luafemm/luafemm-profiles.tex`
 - `tex/generic/luafemm/luafemm-refine.lua`
+- `tex/generic/luafemm/luafemm-shapes.lua`
 - `tex/generic/luafemm/luafemm-tex.lua`
 - `tex/generic/luafemm/luafemm-tikz.tex`
 - `tex/generic/luafemm/luafemm-topology.lua`

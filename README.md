@@ -8,7 +8,7 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # luafemm
 
-**0.7.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
+**0.8.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
 written entirely in Lua and TeX. Declare materials on ordinary TikZ paths,
 solve a finite-element model inside LuaTeX, and draw oriented field lines or
 sample the field along a path. Works with **plain LuaTeX, LuaLaTeX and
@@ -61,6 +61,37 @@ For ConTeXt MkIV, use `\usemodule[luafemm]`, optionally
 `\usemodule[pgfplots]`, and `\starttikzpicture` / `\stoptikzpicture`.
 Run ConTeXt explicitly with `--luatex`. Complete format examples are in
 [`examples/formats/`](examples/formats/).
+
+## Ideal magnetic circuits
+
+Choose `field model=ideal` to confine flux to iron, magnets and explicitly
+included air gaps. Flux is conserved within every branch and balances at
+junctions. This retains finite, potentially nonlinear material laws.
+
+```tex
+\begin{tikzpicture}[femm/problem={field model=ideal,depth=10,mesh size=3}]
+  \node[femm/e electromagnet={ampere turns=900,coil width=3,
+    left gap=1,center gap=2,right gap=4}] (M) {};
+  \pic[femm/lines=19] {femm field};
+  \pic[femm/mean={component=M,cycle=left,profile=left}] {femm mean path};
+  \pic[femm/mean={component=M,cycle=right}] {femm mean path};
+\end{tikzpicture}
+```
+
+The U shapes accept unequal leg/yoke widths. New shapes include `femm/e core`,
+`femm/e electromagnet`, `femm/toroid` and `femm/tapered toroid`, with an optional
+permanent-magnet arc. Mean contours can follow section centres or an isolated
+half-flux field line. Use `\femmplot[profile=left,component=circulation]` to plot
+the accumulated integral of H along a mean contour, or `\femmflux[profile=cut]`
+to print a named section's exact discrete flux in webers.
+
+Native paths use `femm/region={material=...,ideal domain=true}`. Excitation seeds
+can be declared with `femm/excitation={x=0,y=0,ampere turns=1000}`. The manual
+explains declaration order, signs, reference contours and current counting.
+See the complete `examples/ideal-*.tex` documents and their rendered results.
+Tapered toroids are **planar, constant-depth sections**, not a 3D or axisymmetric
+calculation of conical bodies. Ideal models use the Lua Delaunay mesher and
+private caches; their floating constraints are not exported to FEMM files.
 
 ## FEMM interchange
 
@@ -128,7 +159,7 @@ MkIV script launcher needed by some installations with a LuaMetaTeX launcher.
 | [nested-domains.tex](examples/nested-domains.tex) | Alnico magnet inside an air cavity and a nonlinear iron shell |
 | [tutorial-coil.tex](examples/tutorial-coil.tex) | Tutorial: winding, field lines and a profile across both gaps |
 | [tutorial-alnico.tex](examples/tutorial-alnico.tex) | Tutorial: permanent magnet, straight and curved profiles |
-| [plain.tex](examples/plain.tex) | Original command interface in plain LuaTeX |
+| [plain.tex](examples/plain.tex) | Native TikZ interface in plain LuaTeX |
 
 ## Declaration order and nested domains
 
@@ -221,7 +252,8 @@ change. `refresh` recomputes, `off` leaves files untouched, and `frozen` require
 a compatible saved result. Drawing styles and measurement profiles do not
 invalidate the solution. `\femmcachestatus` reports the reuse outcome.
 
-Files use the private `.lfc` format; FEMM `.fem`/`.ans` exchange is future work.
+Files use the private `.lfc` format (version 6). FEMM `.fem`/`.ans` interchange
+is available separately for ordinary open-air models.
 Relative names follow TeX's output directory, if set. Parent directories must
 exist, and distinct problems need distinct filenames. The tutorial examples
 enable caching. The manual's “Saving and reusing computations” chapter documents

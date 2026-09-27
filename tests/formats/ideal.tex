@@ -1,0 +1,38 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% The ideal solve and its mean profile must survive cross-format frozen caches.
+\par
+\tikzpicture[femm/problem={field model=ideal,depth=10,mesh size=5},
+  femm/cache={file=ideal-cache,mode=\CacheMode},scale=.55]
+  \node[femm/e electromagnet={coil width=3,ampere turns=600,
+    gap mesh size=2,left gap=1,center gap=2,right gap=4},
+    anchor=core center] (Ideal) {};
+  \path[femm/profile={name=ideal-cut}]
+    (Ideal.left pole outer)--(Ideal.left pole inner);
+  \pic[femm/arrows=false,femm/lines=7] {femm field};
+  \pic[femm/arrows=false,femm/mean={component=Ideal,
+    cycle=left,profile=ideal-test,samples=\CacheSamples}] {femm mean path};
+  \directlua{
+    local m=luafemm.current
+    assert(m.options.field_model=='ideal')
+    assert(m.cache_info.status=='\ExpectedCache')
+    local p=m.regions[1].contours[1]
+    local a=luafemm.flux(m,{{p[1][1],0},{p[10][1],0}})
+    local b=luafemm.flux(m,{{p[4][1],0},{p[2][1],0}})
+    local c=luafemm.flux(m,{{p[6][1],0},{p[8][1],0}})
+    assert(math.abs(c-a-b)<1e-12)
+    texio.write_nl('LUAFEMM-IDEAL: '..c)
+  }
+\endtikzpicture
+\par
+\femmflux[profile=ideal-cut]
+\par
+\tikzpicture
+\axis[width=7cm,height=4cm,no markers]
+  \femmplot[profile=ideal-test,component=circulation]
+\endaxis
+\endtikzpicture
+\par
