@@ -1,0 +1,162 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Saving and reusing computations}
+\label{sec:cache}
+The mesh and converged solution can be reused across compilations. This is
+particularly useful while editing labels, field-line styles or a PGFPlots
+axis. The document still declares its physical paths: they identify the
+requested calculation and let luafemm detect outdated results.
+
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[
+  femm/problem={xmin=-20,xmax=20,ymin=-20,ymax=20,mesh size=2},
+  femm/cache={file=magnet-field,mode=auto}]
+  \filldraw[femm/region={material=cast-alnico-5-lng37,
+    magnetization angle=90},fill=red!20]
+    (-4,-6) rectangle (4,6);
+  \draw[femm/profile={name=probe,samples=101},dashed]
+    (-12,9)--(12,9);
+  \pic[femm/lines=17] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+On the first compilation the field request meshes and solves the problem,
+then saves the result. Later compilations restore the nodal potential and
+derive the element fields from the current material declarations. Profiles
+and field lines are regenerated on demand, so their graphical and sampling
+options remain independent of the saved calculation.
+
+\subsection{Picture options}
+\begin{key}{/tikz/femm/cache=\marg{options} (default \normalfont empty)}
+Configure persistent reuse for a model. Like |femm/problem|, this key
+belongs in the picture options, before the model's begin-picture hook
+runs. It may precede or follow |femm/problem|. Without this key, caching
+is off. Invoking it sets |mode=auto| before processing its subkeys.
+Thus |femm/cache| alone enables automatic reuse with the default filename.
+Normal PGF grouping and inherited styles apply.
+\end{key}
+\begin{key}{/femm/cache/file=\meta{filename stem} (initially \string\jobname-femm)}
+The package appends |.lfc|. For example, |file=results/u-magnet| uses
+\nolinkurl{results/u-magnet.lfc}. Macros are expanded and passed as escaped
+strings. Spaces in filenames are supported.
+
+Relative names are resolved under TeX's output directory when one is set,
+otherwise under the compilation's working directory. With
+|--output-directory=build|, |file=magnet| therefore writes
+\nolinkurl{build/magnet.lfc}. Absolute names are used as supplied.
+Any parent directory must already exist; luafemm does not create directories.
+Use a distinct stem for each physical problem and for concurrent writers.
+The default is convenient for a document containing one magnetic model.
+\end{key}
+\begin{key}{/femm/cache/mode=\meta{choice} (initially off)}
+A PGF |.is choice| selector. Unknown choices are errors. The enclosing
+|femm/cache| key selects |auto| unless explicitly overridden.
+\end{key}
+\begin{key}{/femm/cache/mode/auto}
+Restore a matching solution. If only the mesh matches, restore and
+reclassify it with the current materials and excitations, then solve.
+Otherwise generate a new mesh and solve. Missing, damaged or incompatible
+records produce a logged miss and are replaced after successful preparation.
+\end{key}
+\begin{key}{/femm/cache/mode/refresh}
+Ignore disk contents, generate a new mesh and solution when requested,
+and replace the cache. Repeated requests within the same model reuse its
+in-memory data; refresh does not mean solving for every field picture.
+\end{key}
+\begin{key}{/femm/cache/mode/off}
+Neither read nor write cache files. Existing files are left untouched.
+This is the behaviour of documents that do not enable |femm/cache|.
+\end{key}
+\begin{key}{/femm/cache/mode/frozen}
+Require compatible saved data and never write a file. A mesh picture
+requires a matching mesh; a field picture, explicit solve or sampled
+profile requires a matching converged solution. A missing, damaged,
+incompatible or outdated record raises an error before numerical work.
+It never silently displays an outdated field or falls back to a solve.
+Changing presentation options remains allowed.
+\end{key}
+
+\subsection{What invalidates the result?}
+\begin{center}
+\begin{tabular}{p{.57\linewidth}p{.34\linewidth}}
+\toprule Change & Work in |auto| mode \\
+\midrule
+Domain, contours, fill rule, units, mesher, spacing, mesh tolerance or quality controls
+  & Generate mesh and solve \\
+Material law, coercivity, region current, magnetisation or boundary data
+  & Reuse mesh; solve again \\
+Solver tolerance or iteration limit & Reuse mesh; solve again \\
+Colour, stroke, arrows, field-line count, clip, labels
+  & Reuse solution \\
+Profile path, sample count, component, offset or PGFPlots options
+  & Reuse solution; sample again \\
+Incompatible package or cache-format version & Generate mesh and solve \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The geometry descriptor uses the evaluated, flattened and rounded model
+coordinates, not the source text. A curve-tolerance change invalidates the
+mesh when it changes those coordinates. Whole-picture transformations
+normally affect only presentation; transformations inside a physical path
+affect the model. The current picture frame is always retained. Precision
+effects that change captured coordinates can cause a conservative cache miss.
+Region order matters because later filled regions take material precedence.
+Every subcontour and the native fill rule are included, even when a hole
+contains only background air. A fill-rule change can alter local refinement
+and therefore invalidates the mesh as well as the solution.
+
+The solution descriptor contains the actual constitutive data, including
+B--H points and effective coercivity, rather than just catalogue identifiers.
+Unused materials, log callbacks, frames and profile definitions are excluded.
+Descriptors are compared in full; a short checksum collision cannot cause a
+stale model to match. This is a single-record cache, not a history of parameter
+sets: changing a model back may require another solve.
+
+\subsection{Diagnostics and saved statistics}
+\begin{command}{\femmcachestatus}
+Print the current model's cache outcome without starting a calculation:
+|off|, |pending|, |miss|, |mesh|, |solution| or |refresh|.
+|pending| means caching is enabled but no mesh or solve has been requested.
+|mesh| means only the mesh was restored; after an automatic solve it still
+records that reuse outcome. |solution| means a converged solution was restored.
+|miss| and |refresh| describe how the current calculation was obtained, even
+after it has been saved successfully. A current model must exist.
+\end{command}
+
+The log gives the resolved filename and the reason for a miss or partial
+reuse. Lua scripts can inspect |model.cache_info|. A restored solution
+retains the original Newton/CG counts, residual and solution time in
+|\femmstat|; the mesh diagnostics likewise describe its original generation.
+In particular, |seconds| is \emph{not} the current cache-loading time.
+All material and region declarations must precede the first mesh or solve.
+
+\subsection{File handling and scope}
+The private |.lfc| format stores passive, versioned data with lossless
+binary64 round trips: geometry and physical descriptors, SI mesh vertices,
+connectivity, exterior tags, diagnostics and, when available, nodal potential.
+It is parsed without |load|, |loadfile| or |dofile|. Size, integrity and
+structural checks run before restoration. A checksum detects accidental
+damage; it is not an authentication mechanism.
+
+Writes use a neighbouring temporary file and a final rename. A failed write
+or replacement leaves the previous target intact and raises an error. If
+the filesystem cannot replace an existing target through rename, the
+operation fails explicitly. File-access errors on writing are not silently
+ignored. Only a converged solution is saved; an unsuccessful solve may
+leave a valid mesh-only cache. Interrupted processes can leave temporary
+files, which are not considered cache records.
+
+The current format supports both luafemm meshers and can be shared among
+plain LuaTeX, LuaLaTeX and ConTeXt MkIV using the same package version.
+Lua-only source and boundary closures require caching to be off, because
+their captured state cannot be fingerprinted reliably.
+
+These files are disposable computational caches, not FEMM |.fem| or |.ans|
+files and not a replacement for the document source. FEMM exchange and
+loading a foreign model without TeX declarations are outside this version.
+Keep the source, material data and package version to reproduce a result;
+use |frozen| to prevent an unintended recomputation while editing.

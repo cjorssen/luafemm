@@ -11,7 +11,14 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 The complete reference is in `doc/luafemm-manual.tex` (build with `make manual`).
 
 The planar potential is **A = Az ez**, with **B = (∂y Az, −∂x Az)**.
-The outer rectangular boundary carries Az = 0 in the TikZ interface.
+The outer rectangular boundary carries Az = 0 by default. `\femmboundary`
+sets Dirichlet, Neumann or nonnegative Robin data on each complete side.
+With the counterclockwise tangent, Neumann specifies Ht = g and Robin
+specifies Ht = c Az + g. The weak residual adds the integral of `(c Az + g) Ni`
+on these edges, including the coercive contribution in the definition of H.
+Affine boundary data use SI coordinates and consistent P1 edge integration.
+An all-Neumann problem requires net current equal to the boundary integral
+of Ht; only after checking this does the solver fix one gauge node.
 The weak equation is discretized with continuous linear triangular elements;
 B is constant in each triangle. Coordinates are converted from model units
 to SI before assembly. The default model unit is 0.001 m (one millimetre).

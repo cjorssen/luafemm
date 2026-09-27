@@ -16,9 +16,19 @@ hold the loaded module and current model. Numerical scripts can use
 \begin{description}
 \item[luafemm.lua] Material laws, model ownership, assembly, Newton,
   preconditioning, field evaluation and contour topology.
+\item[luafemm-boundary.lua] Side conditions, corner constraints, gauge
+  compatibility and exact P1 boundary integrals.
+\item[luafemm-components.lua] Pure component geometry, physical anchors and
+  area-based winding currents; no TeX or solver state.
+\item[luafemm-cache.lua] Passive versioned disk records, exact mesh/solution
+  descriptors, validation, atomic replacement and on-demand restoration.
 \item[luafemm-mesh.lua] PSLG subdivision, constrained Delaunay meshing,
   local density and final mesh audit.
-\item[luafemm-predicates.lua] Filtered orientation/incircle signs with
+\item[luafemm-refine.lua] Bounded segment-first quality refinement, a triangle
+  priority queue and protected circumcentre insertion.
+\item[luafemm-geometry.lua] Winding/parity membership shared by refinement
+  and element material classification.
+\item[luafemm-predicates.lua] Filtered orientation/incircle/disk signs with
   expansion fallback; diagnostic fallback counters.
 \item[luafemm-path.lua] Affine frames and soft-path polygonalisation.
 \item[luafemm-materials.lua] Catalogue lookup and static interpretation;
@@ -51,7 +61,9 @@ local bx, by, az, hx, hy = femm.sample(model, 0, 8)
 
 |new(options)| accepts the numerical counterparts of problem keys:
 |h|, |xmin|, |xmax|, |ymin|, |ymax|, |mesher|, |mesh_tolerance|,
-|tolerance| and |max_newton|. |unit| is metres per model coordinate unit,
+|min_angle|, |max_area|, |max_steiner|, |tolerance| and |max_newton|.
+Quality options use degrees, model units squared and additional vertex counts,
+with defaults 0, 0 and 5000 respectively. |unit| is metres per model coordinate unit,
 default .001. Optional |boundary(x,y)| and |source(x,y)| callbacks receive
 SI coordinates and return $A_z$ in T\,m and $J_z$ in A/m$^2$, respectively.
 The source callback replaces region currents. |log(message)| receives
@@ -64,6 +76,15 @@ Omitted current inherits the material source; omitted angle and local
 spacing are zero. |mesh(model)| prepares the discrete model, and
 |solve(model)| meshes if needed and returns the same solved model.
 
+For compound regions, use
+\nolinkurl{region_contours(model,name,contours,current,angle,mesh_size,fill_rule)}.
+Each contour is an array of vertex pairs without a repeated closing vertex.
+The fill rule is |'nonzero'| (default) or |'even odd'|. Other arguments use
+the same units and defaults as |region|. Inputs are copied; every contour
+must be individually simple. The |points| field remains a compatibility
+alias for the first contour; new geometry code should use |contours|.
+This API defines material holes, never exclusions from the PDE domain.
+
 |sample(model,x,y)| returns |Bx,By,Az,Hx,Hy| in SI; inputs use model
 coordinates. |contours(model,count,levels)| returns oriented path arrays
 with |x| and |y| in model units and a |level| in T\,m. Optional explicit
@@ -75,8 +96,66 @@ Solved |model.stats| has the names listed in Section~\ref{sec:field}.
 |model.A| is the nodal potential in T\,m, |model.nodes| contains SI positions,
 and |model.triangles| contains P1 connectivity, material references and
 element fields. Treat these implementation structures as read-only.
-|import_mesh| and |update_fields| are internal preparation hooks, not a
+|import_mesh|, |prepare_mesh| and |update_fields| are internal preparation hooks, not a
 stable foreign-mesh import interface in this release.
+
+\subsection{Boundary data}
+|boundary(model,side,condition)| replaces one side or |all| sides before
+meshing. The condition table has |type| (|dirichlet|, |neumann| or |robin|),
+|value|, |dx|, |dy| and |coefficient|. Omitted type means Dirichlet; omitted
+numbers mean zero. The affine data are |value+dx*x+dy*y|, with $x,y$ in
+metres, independently of |options.unit|. Their physical units and signs
+are given in Section~\ref{sec:boundaries}. Numeric side conditions support
+persistent caching. They cannot be combined with the older |boundary(x,y)|
+callback, which remains a prescribed potential on the entire exterior.
+
+The independent module |luafemm-boundary.lua| owns validation, reconstruction
+of exterior edge data, gauge compatibility and consistent P1 edge assembly.
+The geometric set |model.exterior_nodes| is distinct from |model.fixed_values|,
+the prescribed potential map. |model.gauge_node| is present only when a
+reference was needed. These prepared structures are internal and read-only.
+
+The generic TeX layer queues |femm/boundary| options until the model's
+begin-picture hook runs. A picture-local flag prevents repeated
+|femm/problem| keys from replacing that model. After initialisation,
+the key uses the command directly. The queue and flag follow TeX grouping;
+the resulting physical declarations belong to the Lua model.
+
+\subsection{Component geometry}
+|require('luafemm-components').make(kind,options)| constructs |u core| or
+|u electromagnet| geometry without a running TeX interpreter. Option names
+use underscores, for example |leg_thickness|, |ampere_turns| and |gap_mesh_size|.
+The result owns its options, polygon regions, named anchors and envelope
+half-dimensions. It does not register a model, resolve materials or solve.
+The component key reference gives the corresponding dimensions and defaults.
+
+|current(points,unit,turns)| returns uniform current density from signed
+ampere-turns and the area of a transformed polygon. The TeX bridge calls it
+after capture and rounding. The PGF shape saves a geometry identifier; anchor
+lookup does not depend on the current model and has no registration effects.
+Only its drawing hook emits physical paths, once at the final transform.
+
+\subsection{Persistent cache options}
+Pass |cache={file='results/magnet',mode='auto'}| to |new| to enable disk
+reuse. Lua filenames are relative to the process working directory; the
+TeX bridge additionally honours the engine's output directory.
+Omitting |cache| disables disk access. An explicit table defaults to
+|mode='auto'| and requires a filename stem unless its mode is |off|.
+The four modes and validation rules are described in Section~\ref{sec:cache}.
+
+The model's |cache_info.status| is |off|, |pending|, |miss|, |mesh|,
+|solution| or |refresh|. |cache_info.file| contains the resolved filename;
+|cache_info.reason| gives a diagnostic when applicable. The constructor
+copies cache options just like other input tables. Cache configuration
+and physical model data must be treated as immutable after meshing.
+Calling |mesh| or |solve| again on an already prepared model is idempotent.
+Create a new model to change physical inputs or to refresh a calculation.
+
+Persistent caching rejects |source| and |boundary| callbacks: a closure's
+captured state cannot be inferred safely from its function body. These
+Lua-only callbacks remain supported with |mode='off'|. Logging callbacks
+are allowed and excluded from cache descriptors. Cache records contain
+no executable code and never reconstruct functions.
 
 \subsection{Catalogue and profile calls}
 |require('luafemm-materials').get(id)| returns an independent record with
@@ -102,20 +181,22 @@ format checking; installed documents need none of those development tools.
 
 |make test| runs numerical tests, the rational predicate oracle and the
 three-format integration matrix. |make examples| compiles the full examples.
-|make manual| executes the manual examples, builds the key index and
+|make manual| checks that all distributed examples have source/output pairs,
+compiles them, crops their empty paper margins with |pdfcrop| and Ghostscript,
+executes the inline examples, builds the key index and
 resolves cross-references. |make materials| deterministically regenerates
 the material module and catalogue from the preserved source file.
 |make dist| creates local source and TDS archives; it does not publish,
 commit or tag a release. The contributor guide documents the release checks.
 
 \begin{command}{\luafemmversion}
-Expandable semantic version, currently |0.5.0-rc.1|.
+Expandable semantic version, currently |0.6.0-dev|.
 \end{command}
 \begin{command}{\luafemmversiondate}
-Expandable release date, currently |2026-09-25|.
+Expandable release date, currently |2026-09-27|.
 \end{command}
 \begin{command}{\luafemmversionnumber}
-Expandable integer for simple compatibility comparisons, currently |50001|.
+Expandable integer for simple compatibility comparisons, currently |60000|.
 It increases when a release changes the public interface; it is not the
 number of commits.
 \end{command}

@@ -1,0 +1,131 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Parametric physical components implemented as genuine PGF node shapes.
+% Geometry is saved once. Only the behind-background hook emits physical paths;
+% anchor lookup, border intersection and text layout have no physical effects.
+\pgfkeys{/femm/component/.is family,/femm/component,
+  width/.initial=80,
+  height/.initial=60,
+  leg thickness/.initial=15,
+  gap/.initial=3,
+  armature thickness/.initial=15,
+  coil width/.initial=6,
+  coil height/.initial=26,
+  coil clearance/.initial=2,
+  coil center y/.initial=3,
+  ampere turns/.initial=6000,
+  mesh size/.initial=0,
+  gap mesh size/.initial=1,
+  magnetization angle/.initial=0,
+  core material/.initial=pure-iron,armature material/.initial=pure-iron,
+  coil material/.initial=copper,
+  core style/.code={\tikzset{femm component core/.append style={#1}}},
+  armature style/.code={\tikzset{femm component armature/.append style={#1}}},
+  coil style/.code={\tikzset{femm component coil/.append style={#1}}},
+  gap style/.code={\tikzset{femm component gap/.append style={#1}}}}
+\def\luafemm@componentvalue#1{\pgfkeysvalueof{/femm/component/#1}}
+\tikzset{
+  femm/u core/.code={\pgfqkeys{/femm/component}{#1}%
+    \def\luafemm@componentkind{u core}%
+    \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+  femm/u core/.default={},
+  femm/u electromagnet/.code={\pgfqkeys{/femm/component}{#1}%
+    \def\luafemm@componentkind{u electromagnet}%
+    \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+  femm/u electromagnet/.default={},
+  femm component core/.style={draw=black!70,fill=gray!15},
+  femm component armature/.style={femm component core},
+  femm component coil/.style={draw=orange!70!black,fill=orange!25},
+  femm component gap/.style={}
+}
+% Called in the final shape frame. Graphic styles act on individual parts;
+% component dimensions, materials and excitations remain explicitly assigned.
+\def\luafemm@componentpart#1#2#3#4#5{%
+  \begingroup
+  \def\luafemm@componentturns{#2}%
+  \def\luafemm@partrole{#1}\def\luafemm@gaprole{gap}%
+  \ifx\luafemm@partrole\luafemm@gaprole
+    \def\luafemm@partmaterial{air}%
+  \else
+    \edef\luafemm@partmaterial{\luafemm@componentvalue{#1 material}}%
+  \fi
+  \path[femm component #1,femm/region={material=\luafemm@partmaterial,
+    current density=0,magnetization angle=#4,mesh size=#3}] #5;
+  \endgroup
+}
+\def\luafemm@componentanchor#1{%
+  \directlua{luafemm.tex.component_anchor(\luafemm@componentid,'#1')}}
+\pgfdeclareshape{femm component}{%
+  \savedmacro\luafemm@componentid{%
+    \edef\luafemm@componentid{\directlua{
+      luafemm.tex.component_new('\luaescapestring{\luafemm@componentkind}',{
+        width='\luaescapestring{\luafemm@componentvalue{width}}',
+        height='\luaescapestring{\luafemm@componentvalue{height}}',
+        leg_thickness='\luaescapestring{\luafemm@componentvalue{leg thickness}}',
+        gap='\luaescapestring{\luafemm@componentvalue{gap}}',
+        armature_thickness='\luaescapestring{\luafemm@componentvalue{armature thickness}}',
+        coil_width='\luaescapestring{\luafemm@componentvalue{coil width}}',
+        coil_height='\luaescapestring{\luafemm@componentvalue{coil height}}',
+        coil_clearance='\luaescapestring{\luafemm@componentvalue{coil clearance}}',
+        coil_center_y='\luaescapestring{\luafemm@componentvalue{coil center y}}',
+        ampere_turns='\luaescapestring{\luafemm@componentvalue{ampere turns}}',
+        mesh_size='\luaescapestring{\luafemm@componentvalue{mesh size}}',
+        gap_mesh_size='\luaescapestring{\luafemm@componentvalue{gap mesh size}}',
+        magnetization_angle='\luaescapestring{\luafemm@componentvalue{magnetization angle}}'})}}%
+  }
+  \savedanchor\luafemm@componenttext{%
+    \luafemm@componentanchor{window center}%
+    \advance\pgf@x by-.5\wd\pgfnodeparttextbox
+    \advance\pgf@y by-.5\ht\pgfnodeparttextbox
+    \advance\pgf@y by .5\dp\pgfnodeparttextbox
+  }
+  \anchor{text}{\luafemm@componenttext}
+  \anchor{center}{\luafemm@componentanchor{center}}
+  \anchor{north}{\luafemm@componentanchor{north}}
+  \anchor{south}{\luafemm@componentanchor{south}}
+  \anchor{east}{\luafemm@componentanchor{east}}
+  \anchor{west}{\luafemm@componentanchor{west}}
+  \anchor{north east}{\luafemm@componentanchor{north east}}
+  \anchor{north west}{\luafemm@componentanchor{north west}}
+  \anchor{south east}{\luafemm@componentanchor{south east}}
+  \anchor{south west}{\luafemm@componentanchor{south west}}
+  \anchor{core center}{\luafemm@componentanchor{core center}}
+  \anchor{window center}{\luafemm@componentanchor{window center}}
+  \anchor{yoke center}{\luafemm@componentanchor{yoke center}}
+  \anchor{left pole}{\luafemm@componentanchor{left pole}}
+  \anchor{right pole}{\luafemm@componentanchor{right pole}}
+  \anchor{left pole outer}{\luafemm@componentanchor{left pole outer}}
+  \anchor{left pole inner}{\luafemm@componentanchor{left pole inner}}
+  \anchor{right pole inner}{\luafemm@componentanchor{right pole inner}}
+  \anchor{right pole outer}{\luafemm@componentanchor{right pole outer}}
+  \anchor{left armature}{\luafemm@componentanchor{left armature}}
+  \anchor{right armature}{\luafemm@componentanchor{right armature}}
+  \anchor{left gap}{\luafemm@componentanchor{left gap}}
+  \anchor{right gap}{\luafemm@componentanchor{right gap}}
+  \anchor{armature center}{\luafemm@componentanchor{armature center}}
+  \anchor{coil positive}{\luafemm@componentanchor{coil positive}}
+  \anchor{coil negative}{\luafemm@componentanchor{coil negative}}
+  \anchorborder{%
+    \directlua{luafemm.tex.component_border(\luafemm@componentid,'\the\pgf@x','\the\pgf@y')}%
+  }
+  \behindbackgroundpath{%
+    % Delayed node placement (e.g. matrices) has no final model position yet.
+    \ifpgfmatrix
+      \pgferror{luafemm: component inside matrix}%
+    \else
+      \ifpgflatenodepositioning
+        \pgferror{luafemm components require immediate node placement}%
+      \else
+        \pgfinterruptpath
+        \pgfgettransform\luafemm@componenttransform
+        \directlua{luafemm.tex.component_paths(\luafemm@componentid,
+          '\luaescapestring{\luafemm@componenttransform}')}%
+        \endpgfinterruptpath
+      \fi
+    \fi
+  }
+}
+\endinput

@@ -60,8 +60,10 @@ for the finite-element vector potential; TikZ overlays oriented field lines.
   \draw[thin] (-40,-30)--(-40,-39) (40,-30)--(40,-39);
   \draw[Stealth-Stealth,thin] (-40,-37)--(40,-37)
     node[midway,fill=white,inner sep=2pt,font=\small] {$80\,\mathrm{mm}$};
-  \node[anchor=west,font=\small,text=field,fill=white,inner sep=2pt] at (-60,61) {\bfseries Contours $A_z=\mathrm{constant}$, oriented along $\mathbf B$};
-  \node[anchor=west,font=\small,fill=white,inner sep=2pt] at (-60,-44) {$\odot\ J_z>0$ (outward)\qquad $\otimes\ J_z<0$ (inward)};
+  \node[anchor=west,font=\small,text=field,fill=white,inner sep=2pt]
+    at (-60,61) {\bfseries Contours $A_z=\mathrm{constant}$, oriented along $\mathbf B$};
+  \node[anchor=west,font=\small,fill=white,inner sep=2pt]
+    at (-60,-44) {$\odot\ J_z>0$ (outward)\qquad $\otimes\ J_z<0$ (inward)};
 \end{tikzpicture}
 \end{center}
 % The solved model stays available in Lua after the TeX group closes.

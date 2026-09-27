@@ -8,7 +8,7 @@
 -- Filtered geometric predicates with exact floating-point expansions.
 -- Original Lua implementation of error-free sum/product arithmetic.
 -- References and numerical range assumptions: docs/meshing.md.
-local P = { stats = { orientation = 0, incircle = 0 } }
+local P = { stats = { orientation = 0, incircle = 0, diametral = 0 } }
 local abs = math.abs
 local function two_sum(a, b)
     local s = a + b
@@ -116,6 +116,28 @@ function P.incircle(a, b, c, d)
         sum(
             sum(product(al, determinant(bx, by, cx, cy)), product(bl, determinant(cx, cy, ax, ay))),
             product(cl, determinant(ax, ay, bx, by))
+        )
+    )
+end
+--- Sign of (p-a) dot (p-b), negative inside the open diametral disk of ab.
+-- A filtered dot product with exact expansion fallback for binary inputs.
+-- Points on the circle, including the endpoints, do not encroach a segment.
+-- @tparam table a Segment start {x,y}.
+-- @tparam table b Segment end {x,y}.
+-- @tparam table p Query point {x,y}.
+-- @treturn number Negative inside, zero on the circle, positive outside.
+function P.diametral(a, b, p)
+    local x = (p[1] - a[1]) * (p[1] - b[1])
+    local y = (p[2] - a[2]) * (p[2] - b[2])
+    local value = x + y
+    if abs(value) > 8.881784197001252e-16 * (abs(x) + abs(y)) then
+        return value
+    end
+    P.stats.diametral = P.stats.diametral + 1
+    return leading(
+        sum(
+            product(diff(p[1], a[1]), diff(p[1], b[1])),
+            product(diff(p[2], a[2]), diff(p[2], b[2]))
         )
     )
 end

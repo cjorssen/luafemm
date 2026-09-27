@@ -1,0 +1,51 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=140mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzset{iron shell/.style={even odd rule,
+  femm/region={material=pure-iron,mesh size=1},draw,fill=gray!25}}
+\begin{document}
+\centering
+% 1. Create the model; picture options precede every physical declaration.
+\begin{tikzpicture}[femm/problem={
+    xmin=-55,xmax=55,ymin=-45,ymax=45,mesh size=3},
+    femm/cache={file=\jobname-field,mode=auto}]
+  % 2. Declare all media. The subsequent shell preserves this inner magnet.
+  \filldraw[femm/region={material=cast-alnico-5-lng37,
+    magnetization angle=90,mesh size=1},fill=red!25]
+    (-5,-9) rectangle (5,9);
+  \path[iron shell] (-25,-20) rectangle (25,20)
+    (-18,-13) rectangle (18,13);
+  % 3. Registering a probe does not freeze or solve the model.
+  \draw[femm/profile={name=across-media,samples=161},red,dashed,-Stealth]
+    (-32,0)--(32,0);
+  % 4. The first field request meshes and solves; no further media may follow.
+  \begin{scope}
+    \clip (-35,-27) rectangle (35,27);
+    \pic[femm/lines=19,femm/arrow spacing=20mm] {femm field};
+  \end{scope}
+  \node[fill=white,font=\small] at (0,16.5) {Iron shell};
+  \node[fill=white,font=\small] at (11,8) {Air};
+  \node[fill=red!15,font=\small,rotate=90] at (0,0) {Alnico};
+\end{tikzpicture}
+\par\medskip
+% 5. Plot the registered probe; it retains its source model.
+\begin{tikzpicture}
+\begin{axis}[width=12cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmplot[profile=across-media,component=B,abscissa=x,plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=across-media,component=By,abscissa=x,plot options={blue}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip\small
+The cavity remains meshed. Draft mesh: \femmstat{triangles} triangles.
+\end{document}

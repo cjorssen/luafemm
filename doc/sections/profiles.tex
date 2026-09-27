@@ -17,6 +17,10 @@ connected open or closed path is required; arcs, circles, Bézier curves,
 rounded corners, named coordinates and local transformations are accepted.
 Do not combine |femm/region| and |femm/profile| on the same path.
 Capture itself does not mesh or solve the model.
+It may precede or follow physical declarations; only the first sampling
+or plotting request requires those declarations to be complete. See
+Section~\ref{sec:workflow}. Each profile remains one connected curve;
+compound material paths require separate profiles for their separate contours.
 \end{key}
 
 The profile subkeys belong to |/femm/profile|:
@@ -113,6 +117,13 @@ executed during the manual build.
 \end{axis}
 \end{tikzpicture}
 \end{codeexample}
+
+\subsection{Complete example: straight and curved scans}
+This example combines catalogue iron, alnico and passive copper. The first
+scan traverses both air gaps and plots Cartesian components. The second
+follows a cubic curve and plots tangent and normal components. Both graphs
+retain the finite-element jumps rather than applying graphical smoothing.
+\luafemmexample{materials-profiles}
 
 \subsection{Tangents, interfaces and plotting conventions}
 For unit tangent $\hat{\mathbf t}$, the left normal is

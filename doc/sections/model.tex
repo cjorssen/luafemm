@@ -28,8 +28,9 @@ the domain, including its boundary.
 Bottom boundary of the air domain.
 \end{key}
 \begin{key}{/femm/problem/ymax=\meta{number} (initially 95)}
-Top boundary; must exceed |ymin|. The potential is zero on the entire
-outer rectangle. This finite boundary is an approximation to the exterior,
+Top boundary; must exceed |ymin|. By default, the potential is zero on the
+entire outer rectangle. Use |\femmboundary| to change individual sides
+(Section~\ref{sec:boundaries}). A finite exterior boundary is an approximation,
 so enlarge the domain when testing the sensitivity of a result.
 \end{key}
 \begin{key}{/femm/problem/mesh size=\meta{positive number} (initially 2)}
@@ -56,6 +57,32 @@ copied to the region options when the picture starts. It does not change
 the original TikZ drawing and is distinct from mesh spacing. Measurement
 profiles have a separate |curve tolerance| option.
 \end{key}
+\begin{key}{/femm/problem/minimum angle=\meta{number} (initially 0)}
+Optional quality target in degrees, between 0 and 30 inclusive; zero disables
+the angle criterion. Requires |mesher=delaunay| when nonzero. After constructing
+the initial constrained mesh, split encroached segments and insert triangle
+circumcentres until every angle meets the target, within floating-point audit
+tolerance. Start with 20 degrees. A request that cannot be completed raises an
+error; acute input corners may make the target impossible. See
+Section~\ref{sec:mesh-quality} for the algorithm, limits and a complete example.
+\end{key}
+\begin{key}{/femm/problem/maximum area=\meta{nonnegative number} (initially 0)}
+Optional upper bound on each triangle's area, in model millimetres squared.
+Zero disables the area criterion. A nonzero value requires |mesher=delaunay|
+and enables quality refinement even when |minimum angle=0|. Both criteria
+apply together when enabled. This bound applies to the entire rectangular
+domain, including background air; it is independent of local |mesh size|.
+The Lua counterpart uses model-coordinate units squared, not SI units.
+\end{key}
+\begin{key}{/femm/problem/max Steiner points=\meta{nonnegative integer} (initially 5000)}
+Maximum number of vertices added by quality refinement, counting both segment
+midpoints and circumcentres. Initial constraint subdivision and lattice seeds
+do not count towards this budget; the overall limit of 40000 mesh vertices
+still applies. Zero permits no additional vertices. Exhausting the budget
+raises an error, rather than accepting an under-refined mesh. The key has no
+effect when both quality criteria are zero. Quality targets and this budget
+are part of the persistent mesh descriptor; changes invalidate a saved mesh.
+\end{key}
 \begin{key}{/femm/problem/tolerance=\meta{positive number} (initially 1e-7)}
 Target relative Newton residual, normalised by the initial residual. This
 is an algebraic stopping criterion, not an estimate of the physical error.
@@ -67,7 +94,8 @@ the package does not silently use the last iterate.
 
 \subsection{Declaring regions}
 \begin{key}{/tikz/femm/region=\marg{options} (default \normalfont empty)}
-Attach physical properties to one evaluated closed path. Use |\path|,
+Attach physical properties to one evaluated path with one or more closed
+subcontours. Use |\path|,
 |\draw| or |\filldraw| with |rectangle|, |circle|, |ellipse|, or |-- cycle|.
 The capture happens after TikZ evaluates coordinates, transformations,
 arcs, Bézier curves and rounded corners. Nodes on the path are annotations
@@ -95,7 +123,7 @@ not automatically rotate its magnetisation. Rotating the entire picture
 rotates both the rendered geometry and the displayed field.
 \end{key}
 \begin{key}{/femm/region/mesh size=\meta{nonnegative number} (initially 0)}
-Local spacing inside this polygon and along its edges. Zero inherits the
+Local spacing inside the filled region and along every contour edge. Zero inherits the
 global spacing; a positive value refines but does not coarsen that value.
 Where refinement regions overlap, the smallest spacing wins. The region
 still paints a material: declare a broad air refinement region before
@@ -132,12 +160,20 @@ global spacing inside |femm/problem|.
 \end{codeexample}
 
 \subsection{Geometry and overlap rules}
-A region must be a simple closed contour. Self-intersections, touching
-parts of the same contour, backtracking edges and multiple subcontours
-are errors. Declare a material hole as a separate later air region.
+A region may contain several individually simple closed contours.
+Self-intersections, self-contact and backtracking within one contour are
+errors. Native |even odd rule| and |nonzero rule| determine which portions
+of a compound path receive its material; see Section~\ref{sec:domains}.
 Distinct regions may overlap or intersect: \emph{the last declared
-region determines material and current}. The mesher splits their
-interfaces first, then classifies triangles by their centroids.
+region whose fill contains a point determines material and current}.
+The mesher splits all contour interfaces first, then classifies triangles
+by their centroids. Air cavities remain part of the computed domain.
+
+Simple node shapes with one closed background contour can also carry
+|femm/region|. Their ordinary TikZ text sizing affects that contour.
+For components whose dimensions must be independent of text, use the
+node interfaces in Section~\ref{sec:components}. A pic may group several
+physical paths, each with its own region declaration.
 
 Use |femm/region| only on physical paths, not as |every path|. A clip
 changes the visible part of a field or mesh, never the computed domain.
@@ -151,3 +187,17 @@ as the radius of |rounded corners|, retain TikZ's ordinary meaning.
 Captured coordinates are rounded to $0.0001$ model unit, and points within
 $0.001$ unit of a domain side are snapped to that side. Finer geometric
 features cannot be recovered by reducing the mesh tolerance.
+
+\subsection{Complete example: a nonlinear electromagnet}
+This explicit-path example assembles a U core, its armature and the two
+sections of a winding. Material and drawing options are collected into
+TikZ styles. The displayed field and numeric diagnostics come from the
+same physical paths; their declarations all precede the solve request.
+\luafemmexample{u-electromagnet}
+
+\subsection{Complete example: curved and transformed interfaces}
+The next source rounds the core corners and tilts the armature with native
+TikZ options. The mesh overlay exposes the flattened interfaces used by
+the solver. Graphic clipping limits the displayed area without removing
+any part of the computational domain.
+\luafemmexample{curved-core}

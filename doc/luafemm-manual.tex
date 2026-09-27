@@ -19,6 +19,7 @@
 \hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black,
   pdftitle={The luafemm TikZ and PGFPlots libraries},pdfauthor={Christophe Jorssen}}
 \input{pgfmanual-en-macros.tex}
+\input{doc/manual-examples.tex}
 \usetikzlibrary{femm,calc}
 \usepgfplotslibrary{femm}
 \pgfplotsset{compat=1.18}
@@ -36,7 +37,7 @@ Declare magnetic media on ordinary TikZ paths, solve a planar finite-element
 problem entirely in Lua, and draw oriented field lines or PGFPlots profiles.
 The same generic implementation works with plain LuaTeX, LuaLaTeX and
 ConTeXt MkIV. This manual documents every supported public key, the numerical
-conventions, and the limitations of the first release candidate.
+conventions, and the limitations of this development version.
 \end{abstract}
 \input{doc/sections/project.tex}
 \clearpage
@@ -45,13 +46,19 @@ conventions, and the limitations of the first release candidate.
 \input{doc/sections/getting-started.tex}
 \input{doc/sections/tutorial.tex}
 \input{doc/sections/model.tex}
+\input{doc/sections/mesh-quality.tex}
+\input{doc/sections/domains.tex}
+\input{doc/sections/boundaries.tex}
+\input{doc/sections/components.tex}
 \input{doc/sections/materials.tex}
 \input{doc/sections/field.tex}
+\input{doc/sections/cache.tex}
 \input{doc/sections/profiles.tex}
 \input{doc/sections/numerics.tex}
 \input{doc/sections/development.tex}
 \appendix
 \input{doc/sections/legacy.tex}
+\input{doc/sections/format-examples.tex}
 \section{Complete FEMM material catalogue}
 \label{sec:catalogue}
 The identifiers below are exact choices for |material| and |library|.

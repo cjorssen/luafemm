@@ -1,0 +1,98 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\usetikzlibrary{femm}
+\nopagenumbers
+\tikzset{test box/.style={femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,mesh size=4}},
+  imposed field/.style={femm/boundary={y coefficient=#1}},
+  imposed field/.default=.2,
+  imposed field/.append style={femm/boundary={side=left,type=neumann}}}
+% Parameterised styles, append style, and multiple problem keys. The begin
+% hook after the first problem key must already see the complete setup.
+\tikzpicture[imposed field,test box,
+  execute at begin picture={\directlua{
+    assert(luafemm.current.boundaries.left.type=='neumann')
+    assert(luafemm.current.boundaries.top.dy==.2)
+  }},femm/problem={mesh size=3}]
+  \femmsolve
+  \directlua{luafemm.boundary_reference=luafemm.current}
+\endtikzpicture
+% Key setup and command setup must give exactly the same discrete result.
+\tikzpicture[test box,femm/problem={mesh size=3}]
+  \femmboundary[y coefficient=.2]
+  \femmboundary[side=left,type=neumann]
+  \femmsolve
+  \directlua{
+    local old=luafemm.boundary_reference
+    local m=luafemm.current
+    assert(rawlen(old.A)==rawlen(m.A))
+    for i,a in ipairs(old.A) do assert(a==m.A[i]) end
+  }
+\endtikzpicture
+% Defaults declared outside a picture apply independently to every new model.
+\begingroup
+\tikzset{femm/boundary={y coefficient=.1}}
+\tikzpicture[test box]
+  \directlua{assert(luafemm.current.boundaries.top.dy==.1)}
+  \scope[femm/boundary={side=left,type=neumann}]
+  \endscope
+  % A physical declaration survives the graphical scope that applied it.
+  \directlua{assert(luafemm.current.boundaries.left.type=='neumann')}
+  \path[femm/boundary={side=right,type=neumann}] (0,0)--(1,0);
+  \directlua{assert(luafemm.current.boundaries.right.type=='neumann')}
+  \femmsolve
+\endtikzpicture
+\tikzpicture[test box]
+  \directlua{
+    assert(luafemm.current.boundaries.top.dy==.1)
+    assert(luafemm.current.boundaries.left.type=='dirichlet')
+    assert(luafemm.current.boundaries.right.type=='dirichlet')
+  }
+\endtikzpicture
+\endgroup
+% An every-picture style is inherited normally, including its parameter.
+\begingroup
+\tikzset{every picture/.append style={imposed field=.4}}
+\tikzpicture[test box]
+  \directlua{
+    assert(luafemm.current.boundaries.top.dy==.4)
+    assert(luafemm.current.boundaries.left.type=='neumann')
+  }
+\endtikzpicture
+\endgroup
+% Neither pending declarations nor the ready flag leak between pictures.
+\tikzpicture[test box]
+  \directlua{
+    for _,p in pairs(luafemm.current.boundaries) do
+      assert(p.type=='dirichlet' and p.dy==0)
+    end
+  }
+  \tikzset{femm/boundary={y coefficient=.7},femm/boundary}
+  \femmsolve
+  \directlua{assert(luafemm.current.stats.peak==0)}
+\endtikzpicture
+% Exercise the actual TeX key after meshing. The expected Lua rejection is
+% intercepted at the bridge so that this positive compilation can assert it.
+\tikzpicture[test box]
+  \femmsolve
+  \directlua{
+    luafemm.saved_boundary_bridge=luafemm.tex.boundary
+    luafemm.tex.boundary=function(...)
+      local ok,message=pcall(luafemm.saved_boundary_bridge,...)
+      assert(not ok and tostring(message):find('declare boundary conditions before meshing',1,true))
+      luafemm.boundary_rejection_seen=true
+    end
+  }
+  \tikzset{femm/boundary={side=left,type=neumann}}
+  \directlua{
+    luafemm.tex.boundary=luafemm.saved_boundary_bridge
+    luafemm.saved_boundary_bridge=nil
+    assert(luafemm.boundary_rejection_seen)
+    assert(luafemm.current.boundaries.left.type=='dirichlet')
+  }
+\endtikzpicture
+\directlua{texio.write_nl('PASS: boundary keys, styles, timing, grouping and command equivalence')}
+\bye

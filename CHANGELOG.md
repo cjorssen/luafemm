@@ -8,6 +8,81 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Changelog
 
+## 0.6.0-dev — 2026-09-27
+
+Development series following the first public release candidate.
+
+- Optional `minimum angle`, `maximum area` and `max Steiner points` problem
+  keys for bounded, pure-Lua Delaunay quality refinement. Encroached constraints
+  are bisected before circumcentre insertion; local flips and a final audit
+  preserve interfaces, exterior tags, topology and requested quality bounds.
+- Exact diametral-disk predicate, deterministic triangle priority, insertion
+  diagnostics, and explicit failure at budgets or geometric precision limits.
+  This is not a full Triangle port or an acute-corner protection algorithm.
+- Before/after U-electromagnet mesh example with full source/output in the
+  manual, quality reference chapter, independent quality/Robin/cache tests,
+  and 4,530 rational predicate comparisons. Three-format cold/warm/frozen tests
+  include quality refinement; cache format 4 records its controls and statistics.
+
+- Complete source and actual output for every distributed example in the manual,
+  using PGF's native code highlighter and including the three format wrappers.
+  Manual builds compile all examples and reject missing source/output pairs;
+  short standalone lifecycle and cache examples execute beside their code.
+
+- Compound physical paths use native TikZ `even odd rule` and `nonzero rule`.
+  Nested holes preserve existing media or background air; all subcontours are
+  constrained on both meshers. Local Delaunay refinement follows the filled area.
+- Shared winding classification, a compound-region Lua API, complete contour
+  cache descriptors (revision 3), and preserved single-curve profile semantics.
+- Explicit lifecycle documentation covering styles, picture hooks, physical
+  declarations, mesh freezing, deferred solving, profile registration and caches.
+- Nested alnico/air/iron example and tests for material areas, current integrals,
+  fill rules, local refinement, cache changes and analytic circular-shell shielding.
+
+- Native `femm/boundary` TikZ key, usable in picture options, reusable styles
+  and setup scopes. Picture declarations are deferred until model creation,
+  independently of their order relative to `femm/problem`; body declarations
+  share the command implementation. Scoped defaults do not leak across models.
+- Repeated `femm/problem` keys in composed styles initialise one model with
+  the final options and apply its boundary declarations once.
+
+- Key-based exterior Dirichlet, Neumann and nonnegative Robin conditions,
+  independently selectable on all four sides, with affine SI data and PGF
+  expressions. Default zero potential remains unchanged.
+- Consistent edge assembly, conflicting-corner diagnostics, all-Neumann current
+  compatibility and a deterministic potential reference. Boundary changes
+  reuse geometry but invalidate the solution (cache revision 2).
+- Boundary reference chapter, symmetric half-U example and analytic tests on
+  both meshers, including nonlinear magnets, convergence and three-format caches.
+
+- Genuine PGF component nodes: U core and complete U electromagnet, with fixed
+  dimensions independent of text, named physical anchors, configurable parts
+  and per-part graphic styles. Components use existing simple region paths.
+- Winding ampere-turns normalized by captured section area, including local
+  scaling; component-local magnetization directions follow transformations.
+- Pure Lua component geometry shared by paths and anchors, single registration
+  during drawing, and clear errors for invalid geometry or delayed placement.
+- Complete node-based field/profile example, generic-format cache coverage and
+  regression tests for anchors, text independence, transforms and positioning.
+
+- Opt-in persistent cache with `femm/cache={file=...,mode=auto}` and PGF
+  choice modes `auto`, `refresh`, `off` and `frozen`.
+- Separate exact descriptors for meshing and physical/solver inputs: changing
+  excitations or material laws reuses the mesh; presentation and measurement
+  changes reuse the converged solution. Current picture frames are retained.
+- Passive, versioned `.lfc` records with round-trip numeric precision, integrity
+  checks, structural validation and replacement through a neighbouring temporary
+  file. Missing or stale frozen results are errors. Cache files are not FEMM
+  `.fem` or `.ans` files; exchange with FEMM remains future work.
+- Relative TikZ cache paths respect TeX's output directory. `\femmcachestatus`
+  and Lua `model.cache_info` report reuse; numerical statistics retain the
+  original calculation's iteration counts and timings.
+- Idempotent mesh/solve requests, a shared mesh-preparation path and English
+  cache reference documentation. Tutorial sources enable automatic reuse.
+- Regression coverage for both meshers, physical/geometric invalidation,
+  damaged records, interrupted writes, callback rejection, and cold/warm/frozen
+  compilations across plain LuaTeX, LuaLaTeX and ConTeXt MkIV.
+
 ## 0.5.0-rc.1 — 2026-09-25
 
 First release candidate of the generic TikZ and PGFPlots libraries.

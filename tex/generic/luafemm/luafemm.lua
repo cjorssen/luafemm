@@ -7,7 +7,9 @@
 -- This module is usable by texlua without a running TeX interpreter.
 -- Public lengths use options.unit metres per model unit; assembly uses SI.
 -- @module luafemm
-local M = { version = "0.5.0-rc.1", mu0 = 4 * math.pi * 1e-7 }
+local M = { version = "0.6.0-dev", mu0 = 4 * math.pi * 1e-7 }
+local boundary_conditions = require("luafemm-boundary")
+local geometry = require("luafemm-geometry")
 local abs, sqrt, max = math.abs, math.sqrt, math.max
 local function check(x, message)
     assert(x, "luafemm: " .. message)
@@ -61,6 +63,8 @@ function M.new(o)
     o.tolerance = o.tolerance or 1e-7
     o.max_newton = o.max_newton or 60
     o.mesher = o.mesher or "grid"
+    o.min_angle, o.max_area, o.max_steiner =
+        o.min_angle or 0, o.max_area or 0, o.max_steiner or 5000
     for _, k in ipairs({ "unit", "h", "xmin", "xmax", "ymin", "ymax", "tolerance", "max_newton" }) do
         check(finite(o[k]), "non-finite problem option " .. k)
     end
@@ -70,6 +74,19 @@ function M.new(o)
     )
     check(o.mesher == "grid" or o.mesher == "delaunay", "unknown mesher")
     check(
+        finite(o.min_angle) and o.min_angle >= 0 and o.min_angle <= 30,
+        "minimum angle must be between 0 and 30 degrees"
+    )
+    check(finite(o.max_area) and o.max_area >= 0, "invalid maximum area")
+    check(
+        finite(o.max_steiner) and o.max_steiner >= 0 and o.max_steiner % 1 == 0,
+        "max Steiner points must be a nonnegative integer"
+    )
+    check(
+        o.mesher == "delaunay" or (o.min_angle == 0 and o.max_area == 0),
+        "quality refinement requires the delaunay mesher"
+    )
+    check(
         o.unit > 0 and o.h > 0 and o.xmax > o.xmin and o.ymax > o.ymin,
         "invalid domain or mesh size"
     )
@@ -77,8 +94,19 @@ function M.new(o)
         o.tolerance > 0 and o.max_newton >= 1 and o.max_newton % 1 == 0,
         "invalid solver tolerance or iteration limit"
     )
+    boundary_conditions.configure(m)
+    require("luafemm-cache").configure(m)
     M.material(m, "air", { mur = 1 })
     return m
+end
+
+--- Declare Dirichlet, Neumann or Robin data on one side of the rectangle.
+-- All values use SI units; see luafemm-boundary.set for the option table.
+-- @tparam table m Unmeshed model.
+-- @tparam string side left, right, bottom, top or all.
+-- @tparam[opt] table condition Boundary type and affine coefficients.
+function M.boundary(m, side, condition)
+    boundary_conditions.set(m, side, condition)
 end
 
 --- Define a material before meshing; explicit properties override a library base.
@@ -163,19 +191,37 @@ end
 -- @tparam[opt=0] number angle Magnetisation direction in model-frame degrees.
 -- @tparam[opt=0] number mesh_size Local target spacing; zero inherits the global value.
 function M.region(m, material, points, current, angle, mesh_size)
+    return M.region_contours(m, material, { points }, current, angle, mesh_size, "nonzero")
+end
+
+--- Add one compound region; holes preserve the previously declared material.
+-- Contours are individually simple, closed implicitly and copied on input.
+-- @tparam table m Unmeshed model.
+-- @tparam string material Previously defined material name.
+-- @tparam table contours Array of vertex arrays in model units.
+-- @tparam[opt] number current Signed Jz in A/m^2; nil inherits the material source.
+-- @tparam[opt=0] number angle Magnetisation direction in model-frame degrees.
+-- @tparam[opt=0] number mesh_size Local target spacing; zero inherits the global value.
+-- @tparam[opt="nonzero"] string fill_rule "nonzero" or "even odd", as in PGF.
+function M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
     check(not m.nodes, "declare regions before meshing")
     check(m.materials[material], "unknown material " .. material)
-    for _, p in ipairs(points) do
-        check(finite(p[1]) and finite(p[2]), "invalid vertex")
-        check(
-            p[1] >= m.options.xmin
-                and p[1] <= m.options.xmax
-                and p[2] >= m.options.ymin
-                and p[2] <= m.options.ymax,
-            "region outside domain"
-        )
+    fill_rule = fill_rule or "nonzero"
+    check(fill_rule == "nonzero" or fill_rule == "even odd", "unknown fill rule")
+    check(type(contours) == "table" and #contours > 0, "a region needs at least one contour")
+    for _, points in ipairs(contours) do
+        for _, p in ipairs(points) do
+            check(finite(p[1]) and finite(p[2]), "invalid vertex")
+            check(
+                p[1] >= m.options.xmin
+                    and p[1] <= m.options.xmax
+                    and p[2] >= m.options.ymin
+                    and p[2] <= m.options.ymax,
+                "region outside domain"
+            )
+        end
+        require("luafemm-mesh").validate(points)
     end
-    require("luafemm-mesh").validate(points)
     if current == nil then
         current = m.materials[material].current
     end
@@ -184,26 +230,18 @@ function M.region(m, material, points, current, angle, mesh_size)
     check(finite(angle), "invalid magnetization angle")
     mesh_size = mesh_size or 0
     check(finite(mesh_size) and mesh_size >= 0, "invalid local mesh size")
+    local owned = copy(contours)
     m.regions[#m.regions + 1] = {
         material = material,
-        points = copy(points),
+        points = owned[1], -- Compatibility alias for simple-region clients.
+        contours = owned,
+        fill_rule = fill_rule,
         current = current or 0,
         angle = angle,
         mx = math.cos(math.rad(angle)),
         my = math.sin(math.rad(angle)),
         mesh_size = mesh_size,
     }
-end
-
-local function inside(x, y, points)
-    local yes = false
-    for i, p in ipairs(points) do
-        local q = points[i % #points + 1]
-        if (p[2] > y) ~= (q[2] > y) and x < (q[1] - p[1]) * (y - p[2]) / (q[2] - p[2]) + p[1] then
-            yes = not yes
-        end
-    end
-    return yes
 end
 
 local function axis(a, b, h, anchors)
@@ -230,73 +268,51 @@ end
 -- @tparam table m Model.
 -- @treturn table The same model with nodes, triangles, free degrees and potential.
 function M.mesh(m)
+    if m.nodes then
+        return m
+    end
+    local cache = require("luafemm-cache")
+    if cache.restore(m, false) then
+        return m
+    end
     if m.options.mesher == "delaunay" then
         local points, elements, stats = require("luafemm-mesh").generate(m.options, m.regions)
         m.mesh_stats = stats
-        return M.import_mesh(m, points, elements)
+        M.import_mesh(m, points, elements)
+        cache.store(m)
+        return m
     end
     local o = m.options
     local xs, ys = {}, {}
     for _, r in ipairs(m.regions) do
-        for i, p in ipairs(r.points) do
-            local q = r.points[i % #r.points + 1]
-            check(
-                abs(p[1] - q[1]) < 1e-8 or abs(p[2] - q[2]) < 1e-8,
-                "grid mesher requires axis-aligned edges; choose mesher=delaunay"
-            )
-            xs[#xs + 1] = p[1]
-            ys[#ys + 1] = p[2]
+        for _, points in ipairs(r.contours) do
+            for i, p in ipairs(points) do
+                local q = points[i % #points + 1]
+                check(
+                    abs(p[1] - q[1]) < 1e-8 or abs(p[2] - q[2]) < 1e-8,
+                    "grid mesher requires axis-aligned edges; choose mesher=delaunay"
+                )
+                xs[#xs + 1] = p[1]
+                ys[#ys + 1] = p[2]
+            end
         end
     end
     xs = axis(o.xmin, o.xmax, o.h, xs)
     ys = axis(o.ymin, o.ymax, o.h, ys)
-    local nodes, tri, free, A = {}, {}, {}, {}
+    local nodes, tri, boundary = {}, {}, {}
     local nx, ny = #xs, #ys
     check(nx * ny <= 150000, "mesh too large for this prototype; increase mesh size")
     for j, y in ipairs(ys) do
         for i, x in ipairs(xs) do
             local id = #nodes + 1
             nodes[id] = { x * o.unit, y * o.unit }
-            local boundary = i == 1 or i == nx or j == 1 or j == ny
-            if not boundary then
-                free[#free + 1] = id
-                nodes[id].dof = #free
+            if i == 1 or i == nx or j == 1 or j == ny then
+                boundary[id] = true
             end
-            A[id] = boundary and o.boundary and o.boundary(x * o.unit, y * o.unit) or 0
         end
     end
     local function triangle(ids)
-        local p, q, r = nodes[ids[1]], nodes[ids[2]], nodes[ids[3]]
-        local twice = (q[1] - p[1]) * (r[2] - p[2]) - (r[1] - p[1]) * (q[2] - p[2])
-        local gx = { (q[2] - r[2]) / twice, (r[2] - p[2]) / twice, (p[2] - q[2]) / twice }
-        local gy = { (r[1] - q[1]) / twice, (p[1] - r[1]) / twice, (q[1] - p[1]) / twice }
-        local x, y = (p[1] + q[1] + r[1]) / 3, (p[2] + q[2] + r[2]) / 3
-        local material, current, mx, my = "air", 0, 1, 0
-        -- Last declared region wins, like a paint operation.
-        for _, reg in ipairs(m.regions) do
-            if inside(x / o.unit, y / o.unit, reg.points) then
-                material, current, mx, my = reg.material, reg.current, reg.mx, reg.my
-            end
-        end
-        if o.source then
-            current = o.source(x, y)
-        end
-        local dofs = {}
-        for k, id in ipairs(ids) do
-            dofs[k] = nodes[id].dof or 0
-        end
-        tri[#tri + 1] = {
-            ids = ids,
-            dofs = dofs,
-            gx = gx,
-            gy = gy,
-            area = abs(twice) / 2,
-            material = material,
-            p = m.materials[material],
-            current = current,
-            mx = mx,
-            my = my,
-        }
+        tri[#tri + 1] = ids
     end
     for j = 1, ny - 1 do
         for i = 1, nx - 1 do
@@ -314,8 +330,9 @@ function M.mesh(m)
             end
         end
     end
-    m.nodes, m.triangles, m.free, m.A = nodes, tri, free, A
     m.xs, m.ys = xs, ys
+    M.prepare_mesh(m, nodes, tri, boundary)
+    cache.store(m)
     return m
 end
 
@@ -325,9 +342,6 @@ end
 -- @tparam table points Coordinates in model units.
 -- @tparam table elements Counterclockwise triples of one-based vertex indices.
 function M.import_mesh(m, points, elements)
-    local o = m.options
-    local nodes, free, A, tri = {}, {}, {}, {}
-    -- Coordinate ordering improves the incomplete-Cholesky preconditioner.
     local order = {}
     for i = 1, #points do
         order[i] = i
@@ -338,21 +352,46 @@ function M.import_mesh(m, points, elements)
         end
         return points[a][2] < points[b][2]
     end)
-    local map = {}
+    local map, nodes, tri = {}, {}, {}
     for id, old in ipairs(order) do
         map[old] = id
-        local p = points[old]
-        local x, y = p[1] * o.unit, p[2] * o.unit
-        nodes[id] = { x, y }
-        local boundary = m.mesh_stats.boundary_nodes[old] or false
-        if not boundary then
-            free[#free + 1] = id
-            nodes[id].dof = #free
-        end
-        A[id] = boundary and o.boundary and o.boundary(x, y) or 0
+        nodes[id] = { points[old][1] * m.options.unit, points[old][2] * m.options.unit }
     end
     for _, el in ipairs(elements) do
-        local ids = { map[el[1]], map[el[2]], map[el[3]] }
+        tri[#tri + 1] = { map[el[1]], map[el[2]], map[el[3]] }
+    end
+    for _, segment in ipairs(m.mesh_stats.segments) do
+        segment[1], segment[2] = map[segment[1]], map[segment[2]]
+    end
+    local boundary = {}
+    for old in pairs(m.mesh_stats.boundary_nodes) do
+        boundary[map[old]] = true
+    end
+    m.mesh_stats.boundary_nodes = boundary
+    return M.prepare_mesh(m, nodes, tri, boundary)
+end
+
+--- Internal reconstruction shared by fresh meshes and passive cache records.
+-- Coordinates are in SI; vertex/element order is preserved exactly so that
+-- saved potentials, interface sampling and contour connectivity remain stable.
+-- Material references and excitations always come from the current model.
+-- @tparam table m Model with current physical declarations.
+-- @tparam table nodes SI coordinate pairs, without prepared degrees of freedom.
+-- @tparam table elements Counterclockwise triples of one-based node indices.
+-- @tparam table boundary Set of exterior node indices.
+function M.prepare_mesh(m, nodes, elements, boundary)
+    local o = m.options
+    local fixed, edges, gauge = boundary_conditions.prepare(m, nodes, elements, boundary)
+    local tri, free, A = {}, {}, {}
+    for id, p in ipairs(nodes) do
+        p.dof = nil
+        if fixed[id] == nil then
+            free[#free + 1] = id
+            p.dof = #free
+        end
+        A[id] = fixed[id] or 0
+    end
+    local function triangle(ids)
         local p, q, r = nodes[ids[1]], nodes[ids[2]], nodes[ids[3]]
         local twice = (q[1] - p[1]) * (r[2] - p[2]) - (r[1] - p[1]) * (q[2] - p[2])
         check(twice > 0, "nonpositive triangle area")
@@ -360,8 +399,9 @@ function M.import_mesh(m, points, elements)
         local gy = { (r[1] - q[1]) / twice, (p[1] - r[1]) / twice, (q[1] - p[1]) / twice }
         local x, y = (p[1] + q[1] + r[1]) / 3, (p[2] + q[2] + r[2]) / 3
         local material, current, mx, my = "air", 0, 1, 0
+        -- Last declared region wins, like a paint operation.
         for _, reg in ipairs(m.regions) do
-            if inside(x / o.unit, y / o.unit, reg.points) then
+            if geometry.contains(reg, x / o.unit, y / o.unit) then
                 material, current, mx, my = reg.material, reg.current, reg.mx, reg.my
             end
         end
@@ -385,17 +425,17 @@ function M.import_mesh(m, points, elements)
             my = my,
         }
     end
-    if m.mesh_stats then
-        for _, s in ipairs(m.mesh_stats.segments) do
-            s[1], s[2] = map[s[1]], map[s[2]]
-        end
-        local boundary = {}
-        for old in pairs(m.mesh_stats.boundary_nodes) do
-            boundary[map[old]] = true
-        end
-        m.mesh_stats.boundary_nodes = boundary
+    for _, ids in ipairs(elements) do
+        triangle(ids)
     end
+    boundary_conditions.compatibility({
+        triangles = tri,
+        boundary_edges = edges,
+        gauge_node = gauge,
+    })
     m.nodes, m.triangles, m.free, m.A = nodes, tri, free, A
+    m.exterior_nodes, m.fixed_values = boundary, fixed
+    m.boundary_edges, m.gauge_node = edges, gauge
     return m
 end
 
@@ -440,6 +480,7 @@ local function assemble(m, A, tangent)
             end
         end
     end
+    boundary_conditions.assemble(m, A, R, K, M.mu0)
     return R, K
 end
 
@@ -561,6 +602,13 @@ end
 -- @tparam table m Model.
 -- @treturn table The same model with A, element fields and convergence statistics.
 function M.solve(m)
+    if m.stats then
+        return m
+    end
+    local cache = require("luafemm-cache")
+    if cache.restore(m, true) then
+        return m
+    end
     if not m.nodes then
         M.mesh(m)
     end
@@ -588,6 +636,7 @@ function M.solve(m)
                 triangles = #m.triangles,
             }
             M.update_fields(m)
+            cache.store(m)
             return m
         end
         check(iteration < m.options.max_newton, "Newton failed to converge")

@@ -42,6 +42,14 @@ Pass user strings through `\luaescapestring` and validate numbers in Lua;
 do not splice user input into executable Lua expressions. Keep wrappers thin.
 Document each new key's default, units, inheritance/reset behaviour and errors
 in the PGF manual environments, with an executable example where useful.
+For a complete document in `examples/`, insert `\luafemmexample{basename}` in
+the relevant chapter. It reads the actual source through PGF's highlighter and
+includes every page of its freshly compiled PDF. Short self-contained snippets
+should use an executable `codeexample`; reserve `code only` for fragments that
+need surrounding declarations. `make manual` checks that every distributed
+example is documented and compiles all examples before the manual's index passes.
+It uses pdfcrop and Ghostscript to remove empty paper margins from the embedded
+outputs, keeping vector contents and leaving the original example PDFs intact.
 
 ## Validation
 
@@ -96,3 +104,9 @@ hand. `make dist` checks that regeneration leaves both outputs identical.
 Archive creation never commits, tags, uploads or publishes. Those are separate
 maintainer actions after review. CI repeats the portable build checks on Linux;
 a local success does not imply that a remote workflow has already run.
+
+Persistent cache compatibility is part of the numerical contract. Bump the
+format revision in the cache module when changing stored data or numerical
+algorithms within a development series whose public version is unchanged.
+Changes must cover cold, warm, partial mesh reuse and frozen reads; source or
+boundary closures must never be guessed from their bytecode.

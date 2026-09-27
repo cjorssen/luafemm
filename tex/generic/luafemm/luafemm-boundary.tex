@@ -1,0 +1,58 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic key interface for exterior boundary conditions. Loaded with @ a letter.
+% Each declaration has independent defaults; reusable PGF styles remain available.
+% Picture options are read before the model exists. Keep their declarations
+% unexpanded in a local queue; the model's start hook replays it exactly once.
+% Outside pictures the same queue supplies TeX-scoped defaults. Inside a
+% started magnetic picture, keys and the command have identical immediate effects.
+\newif\ifluafemm@modelstarted
+\let\luafemm@pendingboundaries\pgfutil@empty
+\tikzset{femm/boundary/.code={%
+    \ifluafemm@modelstarted
+      \femmboundary[#1]%
+    \else
+      \expandafter\def\expandafter\luafemm@pendingboundaries\expandafter{%
+        \luafemm@pendingboundaries\femmboundary[#1]}%
+    \fi},
+  femm/boundary/.default={}}
+\pgfkeys{/femm/boundary/.is family,/femm/boundary,
+  side/.is choice,
+  side/all/.code={\def\luafemm@boundaryside{all}},
+  side/left/.code={\def\luafemm@boundaryside{left}},
+  side/right/.code={\def\luafemm@boundaryside{right}},
+  side/bottom/.code={\def\luafemm@boundaryside{bottom}},
+  side/top/.code={\def\luafemm@boundaryside{top}},
+  type/.is choice,
+  type/dirichlet/.code={\def\luafemm@boundarytype{dirichlet}},
+  type/neumann/.code={\def\luafemm@boundarytype{neumann}},
+  type/robin/.code={\def\luafemm@boundarytype{robin}},
+  value/.initial=0,x coefficient/.initial=0,y coefficient/.initial=0,
+  coefficient/.initial=0}
+\protected\def\femmboundary{\pgfutil@ifnextchar[{\luafemm@boundary}{\luafemm@boundary[]}}
+\def\luafemm@boundary[#1]{%
+  \begingroup
+  \pgfqkeys{/femm/boundary}{side=all,type=dirichlet,value=0,
+    x coefficient=0,y coefficient=0,coefficient=0,#1}%
+  \pgfkeys{/pgf/fpu=true}%
+  \luafemm@boundarynumber{value}\luafemm@boundaryvalue
+  \luafemm@boundarynumber{x coefficient}\luafemm@boundarydx
+  \luafemm@boundarynumber{y coefficient}\luafemm@boundarydy
+  \luafemm@boundarynumber{coefficient}\luafemm@boundarycoefficient
+  \directlua{luafemm.tex.boundary('\luaescapestring{\luafemm@boundaryside}',
+    {type='\luaescapestring{\luafemm@boundarytype}',
+     value='\luaescapestring{\luafemm@boundaryvalue}',
+     dx='\luaescapestring{\luafemm@boundarydx}',
+     dy='\luaescapestring{\luafemm@boundarydy}',
+     coefficient='\luaescapestring{\luafemm@boundarycoefficient}'})}%
+  \endgroup
+}
+% Evaluate expressions without fixed-point overflow, then pass escaped literals.
+\def\luafemm@boundarynumber#1#2{%
+  \pgfmathparse{\pgfkeysvalueof{/femm/boundary/#1}}%
+  \pgfmathfloattofixed{\pgfmathresult}\let#2\pgfmathresult
+}
+\endinput

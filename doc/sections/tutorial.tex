@@ -262,12 +262,11 @@ the winding is on the left leg and the finite-domain solution includes leakage.
 \clearpage
 \subsection{The electromagnet, assembled}
 \label{sec:tutorial-coil-result}
-The complete file \nolinkurl{examples/tutorial-coil.tex} produces the following
-picture and graph. These are computed with the draft settings just introduced. The small jumps in the curves come from the
+The complete file \nolinkurl{examples/tutorial-coil.tex} appears below, followed
+by its picture and graph, computed with the draft settings just introduced.
+The small jumps in the curves come from the
 piecewise-constant element field; PGFPlots joins the samples with line segments.
-\begin{center}
-  \includegraphics[width=.88\linewidth]{build/examples/tutorial-coil.pdf}
-\end{center}
+\luafemmexample{tutorial-coil}
 
 The triangle count and gap-centre values beneath the graph are printed by
 |\femmstat{triangles}| and |\femmB|. They are useful for checking that a mesh
@@ -372,13 +371,35 @@ small signed |offset| makes the choice explicit.
 \clearpage
 \subsection{The permanent magnet, assembled}
 The file \nolinkurl{examples/tutorial-alnico.tex} combines the device and both
-profiles. The orange curve lies in the central air space, whereas the violet
+profiles; its full source and output follow. The orange curve lies in the
+central air space, whereas the violet
 line crosses the pole gaps; they sample different parts of the same field.
-\begin{center}
-  \includegraphics[width=.82\linewidth]{build/examples/tutorial-alnico.pdf}
-\end{center}
+\luafemmexample{tutorial-alnico}
 
 \clearpage
+\subsection{Keeping a calculation while editing the picture}
+Maya is now adjusting labels and choosing colours. These edits do not change
+her magnetic problem, so she adds one option to its picture:
+\begin{codeexample}[code only]
+\begin{tikzpicture}[
+  femm/problem={xmin=-110,xmax=110,ymin=-95,ymax=115,mesh size=5},
+  femm/cache={file=\jobname-field,mode=auto}]
+  % The same material paths, field picture and measurement paths.
+\end{tikzpicture}
+\end{codeexample}
+The first compilation writes the mesh and solution; subsequent compilations
+reuse them. Maya can change field-line counts, profile sampling or PGFPlots
+labels without solving again. Changing the current reuses the mesh but
+requires a new solution; refining the mesh requires both steps again.
+The two complete tutorial files enable this option. Distinct magnetic
+problems in the same document need distinct cache filenames.
+
+When the physical inputs are final, |mode=frozen| makes an absent or outdated
+result an error instead of starting another calculation. It still allows
+Maya to edit the presentation. It does not certify numerical accuracy:
+the next step is precisely to investigate that accuracy. Full options,
+file locations and diagnostics are in Section~\ref{sec:cache}.
+
 \subsection{Finishing the picture: now refine the computation}
 \label{sec:tutorial-refinement}
 

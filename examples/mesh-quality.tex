@@ -1,0 +1,28 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[border=3mm]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\tikzset{
+  draft device/.style={femm/problem={
+    xmin=-65,xmax=65,ymin=-40,ymax=65,mesh size=8}},
+  quality target/.style={femm/problem={
+    minimum angle=#1,max Steiner points=5000}},
+  quality target/.default=20}
+\begin{document}
+\foreach \angle/\caption in {0/Spacing only,20/With quality refinement}{%
+  \begin{tikzpicture}[draft device,quality target=\angle,scale=.48]
+    \node[femm/u electromagnet={gap=3,gap mesh size=0}] {};
+    % All geometry precedes the first mesh request; this does not solve a field.
+    \pic[femm/mesh style={black!55,line width=.1pt}] {femm mesh};
+    \node[above,font=\small] at (0,65) {\caption};
+    \node[below,align=center,font=\small] at (0,-42)
+      {Minimum angle: $\femmmeshstat{min_angle}^\circ$\\
+       Additional points: \femmmeshstat{steiner_points}};
+  \end{tikzpicture}%
+  \quad
+}
+\end{document}

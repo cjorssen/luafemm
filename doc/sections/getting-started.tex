@@ -75,6 +75,15 @@ Use |\startaxis|/|\stopaxis| inside a |\starttikzpicture| for a graph.
 Loading |\usemodule[tikz]| followed by |\usetikzlibrary[femm]| is an
 alternative to the wrapper. Repeated loads are harmless.
 
+Appendix~\ref{sec:format-examples} provides the full source and rendered result
+for each format, including the shared scene. Throughout this manual, short
+self-contained examples show their result beside the code. Longer examples
+show the complete source followed by its compiled output; the listings are
+read directly from the distributed files. Empty paper margins are cropped
+when including a result, and large figures are scaled to fit the manual.
+Intermediate tutorial steps and
+configuration fragments are identified by their surrounding explanation.
+
 \subsection{A complete small model}
 The following example is executed while this manual is built. Its red
 rectangle is a permanent magnet pointing up. Every path declared as a
@@ -92,17 +101,82 @@ region is also used by the mesher.
 \end{tikzpicture}
 \end{codeexample}
 
-The workflow is: define any custom materials, create a problem in the
-picture options, declare all physical regions, and then request a mesh,
-field or profile plot. The first such request computes what it needs.
-Once meshed, a model cannot accept additional materials or regions.
-Measurement paths may be registered before or after solving.
+\subsection{The order of operations}
+\label{sec:workflow}
+The document declares a model progressively. The following order is
+essential, including when the calculation comes from a cache:
+\begin{enumerate}
+\item Define reusable TikZ and material styles. A style definition alone
+  neither creates a model nor registers a physical region.
+\item Put |femm/problem| and any |femm/cache| options on the magnetic
+  |tikzpicture|. TikZ first reads its options and styles. luafemm then
+  creates one model in its begin-picture hook, using the final problem
+  options, and applies queued |femm/boundary| declarations in order.
+  Boundary keys may occur before or after |femm/problem| in the option list.
+\item In the picture body, declare \emph{all} physical paths and component
+  nodes, and any additional boundary conditions. A physical path is
+  registered when its capture postaction runs, after TikZ has resolved
+  its geometry. Later regions take precedence wherever their filled
+  portions overlap (Section~\ref{sec:domains}).
+\item Request a mesh, a solution or a computed field. The first such
+  request fixes the physical model: materials, regions and boundary
+  declarations must not follow it. A mesh picture alone already reaches
+  this point, even though it does not solve the field equations.
+\item Draw more field views, inspect numeric results and plot registered
+  measurement profiles. These reuse the prepared model. A profile may be
+  registered before or after meshing; its registration alone does not
+  compute anything. Its first sampling or plotting request solves its
+  source model if needed.
+\end{enumerate}
+
+\begin{center}\small
+\begin{tabular}{p{.49\linewidth}p{.42\linewidth}}
+\toprule Operation & Numerical effect \\
+\midrule
+|femm/region| or a component node & Register physical geometry \\
+|femm/profile| & Register a measurement curve only \\
+|\pic {femm mesh};| & Mesh if needed; freeze physical declarations \\
+|\femmsolve| or |\path[femm/solve];| & Mesh if needed, then solve \\
+|\pic {femm field};| & Solve if needed, then draw contours \\
+|\femmplot| inside an axis & Solve the profile's model if needed, then sample \\
+|\femmB|, |\femmstat| & Read an already solved model \\
+\bottomrule
+\end{tabular}
+\end{center}
+For example, the safe placement of an optional diagnostic mesh is
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[
+  femm/boundary={side=left,type=neumann},
+  femm/problem={xmin=-20,xmax=20,ymin=-20,ymax=20,mesh size=3}]
+  \path[femm/region={material=pure-iron}]
+    (-10,-10) rectangle (10,10);
+  \path[femm/profile={name=scan}] (-15,12)--(15,12);
+  % All physical declarations are now complete.
+  \pic {femm mesh};
+  \pic {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+Placing that mesh picture before a later material path is an error.
+Moving a boundary declaration into a graphical |scope| does not make it
+temporary: once registered, it belongs to the model. Ordinary drawing
+options remain governed by TeX grouping. Registering another profile or
+drawing labels after solving is allowed; adding physical keys to those
+labels or to |every path| can inadvertently attempt a late declaration.
+
+For custom |execute at begin picture| code that needs the model, put the
+hook after |femm/problem|. The order independence described above applies
+to the declarative boundary keys, not to arbitrary executable hooks.
+Cache hits obey the same lifecycle. Complete the declarations before any
+cache lookup triggered by a mesh, solve or sampling request; the cache
+cannot predict regions that will appear later in the document.
 
 \subsection{Notation, scope and stability}
 Options have the usual PGF |key=value| syntax. Most public keys start with
 |/tikz/femm|; lists introduced by |femm/problem|, |femm/region| and
-|femm/profile| have their own documented subkeys. Settings follow TeX
-grouping and may be inherited from styles or scopes. A new named profile
+|femm/profile| have their own documented subkeys. Option values follow TeX
+grouping and may be inherited from styles or scopes; registered physical
+declarations persist in their model. A new named profile
 is a Lua object with document-wide lifetime; this is deliberately different
 from a local TeX option.
 
@@ -112,7 +186,7 @@ literal without a TeX unit. Only keys explicitly documented as accepting
 PGF expressions evaluate such expressions. Graphic dimensions such as
 |arrow length| follow ordinary TikZ dimension syntax.
 
-The release-candidate public interface comprises the keys and commands
+The public interface comprises the keys and commands
 documented here. Macros containing |\luafemm@|, capture postactions, and
 the internal mesh layout are not extension interfaces. The Lua API is
 documented separately in Section~\ref{sec:development}; its internal

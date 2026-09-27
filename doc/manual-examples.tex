@@ -1,0 +1,45 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Manual-only helpers. PGF typesets the actual source with its own highlighter;
+% the build compiles each complete document once before the manual passes.
+% Long listings may cross pages. Every page of the corresponding PDF follows;
+% the build removes empty paper margins without rasterising the contents.
+\newcommand\luafemmsource[1]{%
+  \par\medskip\noindent\textbf{Source: }\nolinkurl{examples/#1.tex}\par
+  \begingroup
+    \codeexample[multipage,from file=examples/#1.tex]
+  \endgroup
+}
+\newcount\luafemmexamplepage
+\newcommand\luafemmexample[1]{%
+  \label{ex:#1}%
+  \luafemmsource{#1}%
+  \begingroup
+    \edef\luafemmexamplepdf{build/doc/examples/#1.pdf}%
+    \edef\luafemmexamplepages{\directlua{
+      local name='\luaescapestring{\luafemmexamplepdf}'
+      local document=assert(pdfe.open(name),'Missing example PDF: '..name)
+      tex.sprint(pdfe.getnofpages(document))
+      pdfe.close(document)
+    }}%
+    \luafemmexamplepage=1
+    \loop
+      % Keep the heading with its PDF page, even after a long source listing.
+      \par\medskip\noindent\begin{minipage}{\linewidth}
+      \textbf{Result}%
+      \ifnum\luafemmexamplepages>1
+        \space(page \the\luafemmexamplepage\ of \luafemmexamplepages)%
+      \fi\par\nobreak
+      \begin{center}
+        \includegraphics[page=\the\luafemmexamplepage,
+          width=.96\linewidth,height=.78\textheight,keepaspectratio]{\luafemmexamplepdf}
+      \end{center}
+      \end{minipage}\par
+      \advance\luafemmexamplepage by1
+    \ifnum\luafemmexamplepage<\numexpr\luafemmexamplepages+1\relax
+    \repeat
+  \endgroup
+}

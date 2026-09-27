@@ -1,0 +1,74 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Controlling mesh quality}
+\label{sec:mesh-quality}
+A smaller |mesh size| puts more points into the model, but it does not
+necessarily improve the shape of every triangle. A narrow air gap or the
+transition from a fine material region to coarse air can leave long, thin
+elements. The optional |minimum angle| and |maximum area| keys address
+triangle shape and area separately from nominal point spacing.
+
+\subsection{Draft first, request quality second}
+Keep both quality targets at zero while positioning parts and checking their
+material declarations. Inspect the mesh, then add a reusable style with a
+modest angle target, usually 20 degrees. Declare that style in the picture
+options, together with the domain and spacing: refinement is part of meshing,
+so it must be configured before the first mesh or field request.
+
+The complete example below uses the same U electromagnet and 8 mm draft
+spacing twice. Only the angle target changes. The two |femm/problem| keys
+provided by the styles configure one model per picture; their options compose
+before the model is created. |\pic {femm mesh};| performs meshing and quality
+refinement, but does not solve the magnetic field.
+
+For these sources, the minimum angle increases from about $7.29^\circ$ to
+$20.00^\circ$ with 148 added points. The diagnostics are computed by the
+example, rather than written into the figure. Counts are observations for
+this geometry and revision, not promises for other devices.
+\luafemmexample{mesh-quality}
+
+\subsection{How the refinement proceeds}
+The initial mesh still follows global and local point spacing. When either
+quality target is nonzero, refinement first examines constrained segments.
+A neighbouring triangle's opposite vertex encroaches on a segment if it lies
+strictly inside the circle whose diameter is that segment. Such a segment
+is bisected before processing deficient triangles. Points exactly on the
+circle do not trigger subdivision; the disk test uses a filtered dot product
+with exact-expansion fallback.
+
+Deficient triangles are processed in order of shortest edge, with deterministic
+tie breaking. Their proposed circumcentres are checked against the constrained
+segments. If a candidate encroaches a segment, that segment is split instead.
+The point-location walk also stops at a constrained interface and requests
+its subdivision before continuing. Accepted insertions are followed by local
+Lawson flips that preserve every constrained edge. Newly created triangles
+and neighbouring segments are checked again. All split segments retain their
+material-interface role or their exterior tag for boundary conditions.
+
+The final audit independently checks the requested angle and area bounds,
+constraint preservation, coverage, topology and constrained-Delaunay legality.
+Successful refinement therefore meets the requested criteria, within the
+documented floating-point audit margins ($10^{-8}$ degrees and $10^{-10}$
+relative area). It does not estimate the magnetic field error. Check field
+convergence with spacing and exterior-domain changes as before.
+
+\subsection{Limits and failure diagnostics}
+This is an original, bounded Lua implementation of segment-first Delaunay
+refinement inspired by the algorithms studied in Triangle. It is not a full
+port of Triangle's refinement machinery. In particular, it has no specialised
+protection for acute input corners, no coarsening and no guaranteed smooth
+gradation between local sizes. Candidate disk checks are conservative across
+all segments, which can request more subdivisions than a visibility-aware test.
+
+A material wedge with a smaller angle than the requested target cannot be
+triangulated while satisfying that target everywhere. Closely spaced features
+can require many extra points. Splitting stops with an error when the Steiner
+budget, the total vertex cap or the geometric tolerance prevents further
+progress; a candidate indistinguishable from an existing vertex also raises
+an error. No partial result is silently accepted or saved as a successful mesh.
+Reduce the target or review the geometry first; increase the budget only when
+the extra resolution is intentional. These controls are shared by all three
+TeX formats and use no external meshing program.

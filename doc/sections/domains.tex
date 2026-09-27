@@ -1,0 +1,139 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Nested domains and compound paths}
+\label{sec:domains}
+Two rectangles inside one another can describe a core and its surrounding
+material. There are two complementary ways to express this in TikZ:
+paint the outer region first and the inner region second, or give the
+surrounding material an explicit hole. Both use the same conforming mesh.
+
+\subsection{Two ordinary paths: later declarations win}
+With separate region paths, the physical declaration order matters.
+The last region containing a point supplies its material, current density
+and magnetisation direction. A broad outer region therefore comes first:
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[femm/problem={
+  xmin=-25,xmax=25,ymin=-20,ymax=20,
+  mesh size=3}]
+  \filldraw[femm/region={
+    material=pure-iron},fill=gray!25]
+    (-20,-15) rectangle (20,15);
+  \filldraw[femm/region={
+    material=cast-alnico-5-lng37,
+    magnetization angle=90},fill=red!25]
+    (-10,-6) rectangle (10,6);
+  \pic {femm mesh};
+\end{tikzpicture}
+\end{codeexample}
+The iron occupies the space between the rectangles; alnico occupies the
+inner rectangle. Reversing these two declarations would replace the
+alnico with iron. Graphical opacity, clipping and drawing layers do not
+perform material subtraction. An explicit later |material=air| region
+paints air in exactly the same way.
+
+\subsection{A surrounding material with its own hole}
+To express the annulus directly, use one physical path with two closed
+subpaths and TikZ's native |even odd rule|. No additional luafemm fill-rule
+key is needed. The same rule controls the visible fill and the material:
+\begin{codeexample}[width=5cm]
+\tikzset{iron shell/.style={
+  even odd rule,
+  femm/region={material=pure-iron},
+  draw,fill=gray!25}}
+\begin{tikzpicture}[femm/problem={
+  xmin=-25,xmax=25,ymin=-20,ymax=20,
+  mesh size=3}]
+  \filldraw[femm/region={
+    material=cast-alnico-5-lng37,
+    magnetization angle=90},fill=red!25]
+    (-10,-6) rectangle (10,6);
+  \path[iron shell]
+    (-20,-15) rectangle (20,15)
+    (-10,-6) rectangle (10,6);
+  \pic {femm mesh};
+\end{tikzpicture}
+\end{codeexample}
+Here the magnet was declared first. It survives because the iron path
+does not cover the cavity. The cavity preserves the previously declared
+material; if none was declared there, it contains the background air.
+A later material may still paint over any part of this compound region.
+
+\subsection{The native TikZ fill rules}
+\begin{key}{/tikz/even odd rule}
+For a physical region, count how many contour boundaries a ray from the
+point crosses. Odd counts fill the region, even counts leave it unchanged.
+Contour direction and the order of subpaths within this one path do not
+matter. With three nested contours, the outer band and innermost island
+receive the material, while the intermediate cavity preserves its previous
+material. Disjoint contours describe separate pieces with common properties.
+\end{key}
+\begin{key}{/tikz/nonzero rule}
+PGF's default rule uses a signed winding number. A point is filled when
+that number is nonzero. Nested contours with the same direction therefore
+fill the centre too; reverse the inner contour to make a hole. For nested
+rectangles or circles, |even odd rule| is usually easier to read. A native
+fill-rule key on a path overrides an inherited rule in the ordinary TikZ way.
+\end{key}
+These are existing PGF/TikZ keys, documented here for their additional
+physical effect. luafemm reads the evaluated PGF fill rule during capture.
+It does not depend on whether the path also requests graphical filling:
+|\path[even odd rule,femm/region=...]| has the same material membership
+as |\filldraw| with those options.
+
+Every subpath must close, using |rectangle|, |circle|, |ellipse| or
+|-- cycle|. Each individual contour must remain simple: self-intersections,
+self-contact and backtracking are rejected after flattening. Distinct
+contours may intersect or share edges; the constrained mesher subdivides
+their intersections before classification. Curves use the existing
+|curve tolerance| and coordinate-rounding conventions. Features lost in
+that approximation cannot be recovered by refining the mesh.
+
+All filled pieces of one compound region share its material, current
+density, magnetisation direction and local mesh size. Total source current
+is current density times the final painted area, not the sum of the
+unsigned contour areas. Source current is not automatically renormalised
+when another region paints over a winding. To use different properties
+in several pieces, declare separate physical paths.
+
+\subsection{Meshing, field sampling and cache reuse}
+Both meshers include every subcontour as an interface constraint. The
+grid mesher still requires axis-aligned straight edges. Delaunay local
+refinement applies inside the filled portion and along all its contour
+edges, including cavity walls. It does not request the same fine interior
+lattice throughout a hole; another region can refine that hole if desired.
+Boundary point spacing can nevertheless influence neighbouring triangles.
+
+The full rectangular problem domain remains meshed. A hole in a material
+is \emph{not an unmeshed exclusion}: air and any inner media still carry
+field, and a measurement profile can cross them. No boundary condition
+is added on the cavity wall. The ordinary material-interface transmission
+conditions follow from the finite-element formulation. Sampling exactly
+on an interface retains the documented first-containing-triangle
+convention; use a profile offset when a particular side matters.
+
+Unmeshed holes would change the PDE domain and require their own boundary
+conditions and solvability checks. They are not introduced by |even odd rule|
+or by a TikZ clip, and remain unsupported in this version. Measurement
+profiles also retain a separate contract: each profile is one connected
+curve, not a compound region boundary. Give separate contours separate
+profile names.
+
+The cache descriptor contains every contour and the fill rule. Changing
+either invalidates the mesh, because local refinement also depends on
+membership. Material-only changes can still reuse geometry. The cache
+revision is now 4, including quality-refinement controls and diagnostics;
+|auto| rebuilds earlier records and |frozen| rejects them.
+The complete \texttt{examples/nested-domains.tex} example combines an alnico
+magnet, an air cavity and a nonlinear iron shell with field lines and a
+PGFPlots scan across all three media.
+
+\subsection{Complete example: a magnet inside a shell}
+The following source declares the alnico first and the compound iron
+shell second. Its hole preserves both the inner magnet and the surrounding
+air. The scan crosses the shell, air and magnet; the plotted jumps reflect
+their different material laws and the elementwise field approximation.
+The numbered comments also make the declaration/solve/plot order explicit.
+\luafemmexample{nested-domains}

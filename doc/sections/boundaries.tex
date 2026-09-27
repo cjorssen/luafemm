@@ -1,0 +1,235 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Boundary conditions}
+\label{sec:boundaries}
+The outer rectangle is part of the physical model. Leaving its four sides
+at the default $A_z=0$ confines flux to a finite box. This is often useful
+for a first calculation, but the boundary should be moved farther away
+to assess its influence. Other conditions can impose a background field,
+describe a symmetry plane, or specify a mixed relation between potential
+and tangential field.
+
+\subsection{A uniform field to start with}
+Suppose that the empty domain should contain $B_x=0.2\,\mathrm T$ and
+$B_y=0$. Since $B_x=\partial_y A_z$, choose $A_z=0.2y$, with $y$ in
+metres. The rectangle below uses millimetres for geometry; the coefficient
+is nevertheless entered as |.2|, because boundary data always use SI.
+
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[femm/problem={
+  xmin=-20,xmax=20,ymin=-15,ymax=15,
+  mesh size=4},
+  femm/boundary={type=dirichlet,
+    y coefficient=.2}]
+  \draw (-20,-15) rectangle (20,15);
+  \pic[femm/lines=9] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+More generally, use |x coefficient=|$-B_y$ and
+|y coefficient=|$B_x$ to prescribe an affine potential on the exterior.
+Adding a material region changes the interior field. Imposing the
+background potential on a finite rectangle still perturbs the exterior
+solution: enlarge the domain and compare results.
+
+\subsection{Command and key reference}
+\begin{key}{/tikz/femm/boundary=\marg{options} (default \normalfont empty)}
+Declare a boundary condition using ordinary TikZ keys. Its subkeys are
+exactly those of |\femmboundary| below. In picture options, declarations
+are collected and applied after the new model is created, before the
+picture body starts. This key may precede or follow |femm/problem|.
+Repeated declarations are applied in order; the last one for each side
+wins. Setting |femm/problem| in several styles still creates only one
+model, using the final problem options.
+
+Normal TikZ |.style|, |.append style|, parameterised styles and
+|every picture| are supported. Outside a picture, a direct
+|\tikzset{femm/boundary=...}| records defaults for subsequent magnetic
+pictures in that TeX scope. Each picture inherits its own copy; body
+declarations do not change the defaults for later pictures. Pending
+options, including macros and boundary-family styles, are evaluated
+when the model starts. A picture without |femm/problem| does not apply
+them to a previous model.
+
+In the body of a started magnetic picture, the key applies immediately.
+For example, |\tikzset{femm/boundary={side=left,type=neumann}}| is equivalent
+to the corresponding command. It can also be used in |scope| options.
+Physical declarations persist after the graphical scope ends: they are
+not temporarily active boundary conditions. A declaration after meshing
+raises an error, just as with the command.
+
+This key selects complete sides of the model rectangle. On a drawing
+path, it still modifies the selected side; it does not assign a boundary
+condition to that path's contour. Prefer picture options or a dedicated
+setup scope. Do not put it in |every path| or in a style used to draw
+computed fields, since those paths may be drawn after the model is meshed.
+Using the key without a value resets all sides to zero Dirichlet data.
+\end{key}
+
+\begin{codeexample}[code only]
+\tikzset{
+  half model/.style={
+    femm/boundary={side=left,type=neumann}},
+  background field/.style={
+    femm/boundary={y coefficient=#1}},
+  background field/.default=.2}
+\begin{tikzpicture}[half model,
+  femm/problem={xmin=0,xmax=85,ymin=-75,ymax=95,mesh size=4}]
+  % Declare the half-device, then request a field or profile.
+\end{tikzpicture}
+\end{codeexample}
+
+\begin{command}{\femmboundary\oarg{options}}
+Declare a condition on one complete side of the rectangular domain, or
+on all four sides. Call this command in the picture body, after the model
+has been created and before the first mesh, solve or field request.
+It produces no drawing. The side names refer to the original model frame;
+a local |rotate| or |scale| does not change their meaning.
+
+The keys belong to |/femm/boundary|. Each call first resets the six keys
+to their defaults below, then processes its options. A later declaration
+replaces the earlier condition on the selected side. Other sides keep
+their conditions. Declarations persist in the current model even if the
+command is inside a TeX group. They cannot modify a meshed model; start a
+new picture for a different physical calculation.
+
+All four numerical keys accept PGF mathematical expressions. Values are
+expanded, evaluated with PGF's floating-point library, and passed to Lua
+as finite numbers. No user text is evaluated as Lua code. Normal PGF
+styles, including |.style| and |.append style|, are available in the family.
+The command and |femm/boundary| share this implementation and can be
+mixed in one model. Use the TikZ key in picture options; the command
+itself requires an already created model.
+\end{command}
+
+\begin{key}{/femm/boundary/side=\meta{choice} (initially all)}
+The |.is choice| alternatives are |all|, |left|, |right|, |bottom| and |top|.
+They select $x=x_{\min}$, $x=x_{\max}$, $y=y_{\min}$ and $y=y_{\max}$,
+respectively. A condition applies to the whole side, including material
+regions which reach it. To configure several sides differently, repeat
+the command. There is no automatic symmetry detection.
+\end{key}
+\begin{key}{/femm/boundary/type=\meta{choice} (initially dirichlet)}
+A |.is choice| selector with alternatives |dirichlet|, |neumann| and
+|robin|. Their physical meanings are given below. Every side initially
+has homogeneous Dirichlet data, whether or not this command is used.
+\end{key}
+\begin{key}{/femm/boundary/value=\meta{expression} (initially 0)}
+Constant term $g_0$ in $g(x,y)=g_0+g_xx+g_yy$, with coordinates in metres
+relative to the model origin. Its unit is T\,m for Dirichlet data and
+A/m for Neumann or Robin data.
+\end{key}
+\begin{keylist}[/femm/boundary]{x coefficient=\meta{expression} (initially 0),
+  y coefficient=\meta{expression} (initially 0)}
+The coefficients $g_x,g_y$ of the affine data. Their units are T for
+Dirichlet and A/m$^2$ for Neumann or Robin. These are spatial coefficients,
+not components of H; their effect also depends on the selected side.
+The potential and field use the model's physical frame, independently of
+graphic transformations.
+\end{keylist}
+\begin{key}{/femm/boundary/coefficient=\meta{nonnegative expression} (initially 0)}
+The Robin coefficient $c$, in A/(T\,m$^2$). A nonzero value requires
+|type=robin|. Negative coefficients are rejected because the present
+solver requires a positive definite tangent after constraints are applied.
+Zero makes a Robin condition identical to Neumann data.
+\end{key}
+
+\begin{codeexample}[code only]
+\pgfkeys{/femm/boundary/symmetry/.style={type=neumann,value=0}}
+% Inside a picture, before meshing:
+\femmboundary[side=left,symmetry]
+% All other sides retain their initial Az=0 condition.
+\end{codeexample}
+
+\subsection{Signs, corners and physical interpretation}
+Let $\mathbf n=(n_x,n_y)$ be the outward unit normal and
+$\mathbf t=(-n_y,n_x)$ the counterclockwise unit tangent. Write
+$H_t=\mathbf H\cdot\mathbf t$, including the coercive contribution
+$\mathbf H=\nu\mathbf B-H_c\mathbf m$ in a permanent magnet.
+The three conditions are
+\[
+ \begin{array}{ll}
+ \texttt{dirichlet}:&A_z=g,\\
+ \texttt{neumann}:&H_t=g,\\
+ \texttt{robin}:&H_t=cA_z+g.
+ \end{array}
+\]
+On the left, right, bottom and top sides, $H_t$ is respectively
+$-H_y$, $H_y$, $H_x$ and $-H_x$. The sign does not depend on how a
+decorative rectangle is drawn. This orientation also gives Ampere's law
+$\oint H_t\,\mathrm ds=\int J_z\,\mathrm dS$.
+
+A constant Dirichlet value makes the normal component of B vanish on
+that side: field lines run along it. Homogeneous Neumann data make the
+tangential component of H vanish. In air and an isotropic unmagnetised
+material, B is then normal to the side, which is useful for the appropriate
+symmetry plane. In a permanent magnet, $H_t=0$ does not generally imply
+$B_t=0$. The condition concerns the total H, not just a derivative of A.
+
+At a corner shared by Dirichlet and weak data, the prescribed potential
+wins at that node; the weak edge integral still contributes to its free
+neighbours. Two Dirichlet sides must prescribe the same corner value.
+Conflicts raise an error rather than silently choosing a side. Affine
+values are compared with a relative tolerance of $10^{-10}$ and a
+$10^{-12}$ T\,m comparison scale floor.
+
+In an unmagnetised material, the Robin relation can also be written
+\[
+ \nu\,\partial_n A_z+cA_z+g=0.
+\]
+This corresponds to FEMM's static mixed condition with $c_0=c$ and
+$c_1=g$. A positive Robin coefficient is not, by itself, an exact
+open-boundary treatment. In particular, a circular asymptotic formula
+cannot simply be transferred to this rectangular domain without an
+approximation study.
+
+\subsection{Solving only a symmetric half}
+The complete example \texttt{examples/boundary-conditions.tex} models the
+right half of a U electromagnet with mirrored windings on both legs.
+The cut is $x=0$, where H has no tangential component. The only change to
+the boundary setup is
+\begin{codeexample}[code only]
+\begin{tikzpicture}[femm/problem={
+  xmin=0,xmax=85,ymin=-75,ymax=95,mesh size=4},
+  femm/boundary={side=left,type=neumann}]
+  % Declare the right half of the core, armature and winding.
+  % Refine the right gap, then draw the field and register a profile.
+\end{tikzpicture}
+\end{codeexample}
+The other sides remain at $A_z=0$. The example plots the gap field with
+PGFPlots. The symmetry assumption concerns both geometry and excitation;
+the original tutorial's single winding on one leg does not have this
+exact mirror symmetry. A normal material interface needs no boundary
+declaration: continuity is already part of the finite-element formulation.
+
+The complete source and computed result follow. The style declares the
+symmetry condition before |femm/problem| in the option list; it is applied
+after model creation. The field lines cross the symmetry cut normally,
+and the graph samples the remaining air gap.
+\luafemmexample{boundary-conditions}
+
+\subsection{When no potential is prescribed}
+With only Neumann conditions (including Robin with $c=0$), A is determined
+only up to a constant. The package first checks the discrete compatibility
+condition $\int J_z\,\mathrm dS=\oint g\,\mathrm ds$, with a relative
+tolerance of $10^{-10}$ against the sum of absolute load contributions.
+It then fixes $A_z=0$ at the first mesh vertex, the lower-left corner for
+the supported meshers. This is a gauge reference, not a magnetic boundary.
+Incompatible data raise an error; a reference node must not conceal a
+current imbalance. Any Dirichlet side or positive Robin coefficient
+removes this constant nullspace and suppresses the extra reference.
+
+Boundary types and numerical values are included in the solution cache
+descriptor. Changing them reuses a matching mesh and solves again;
+|mode=frozen| rejects an outdated solution. The cache revision was
+increased for this feature; earlier caches are rebuilt in |auto| mode.
+
+This release supports complete sides of the rectangular exterior, affine
+data and constant nonnegative Robin coefficients. Boundary conditions on
+arbitrary internal curves, partial sides, periodic/antiperiodic pairs,
+sliding air gaps, circular infinite elements and automatic open-boundary
+constructions remain future work. Domains with unmeshed holes are a
+separate topology extension.

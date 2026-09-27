@@ -1,0 +1,234 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Parametric components as nodes}
+\label{sec:components}
+A component is a genuine PGF node with a fixed physical geometry and named
+anchors. One node can declare several material regions. Its text and labels
+are annotations: their font, width and padding never resize its magnetic
+parts. Components use the same region, mesh, solver and cache infrastructure
+as explicitly drawn paths; they introduce no new topology or boundary condition.
+
+\begin{key}{/tikz/femm/u core=\marg{options} (default \normalfont empty)}
+Select a U-shaped core open towards local $+y$. The node registers one
+simple closed iron contour. It has no armature, winding or gap refinement
+regions. The default dimensions match the core in the opening tutorial.
+\end{key}
+\begin{key}{/tikz/femm/u electromagnet=\marg{options} (default \normalfont empty)}
+Select a U core, an armature above its two poles, and two winding sections
+around the left leg. A single node registers four material regions and,
+by default, two air regions for gap refinement.
+The armature has the same width as the core; both gaps have the same height.
+\end{key}
+
+Put either key on a node inside a picture with |femm/problem|. It selects
+the internal component shape and enables |transform shape|. Declare every
+component and additional physical path before requesting a mesh or a field.
+Components do not solve during construction. They may be named or anonymous.
+Ordinary PGF grouping applies; a reusable TikZ style can set their options.
+
+\begin{codeexample}[width=6cm]
+\begin{tikzpicture}[femm/problem={
+  xmin=-60,xmax=60,ymin=-35,ymax=35},
+  scale=.5]
+  \node[femm/u core={
+    width=30,height=25,
+    leg thickness=5}] (A) at (-20,0) {};
+  \node[femm/u core={
+    width=30,height=25,
+    leg thickness=5,
+    core style={fill=blue!15}},
+    rotate=15] (B) at (20,0) {};
+  \draw[red,thick]
+    (A.left pole)--(A.right pole);
+  \draw[blue,thick]
+    (B.left pole)--(B.right pole);
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{Geometry, materials and excitation}
+The following subkeys belong to |/femm/component| and are supplied inside
+either component key. All lengths are numeric literals in model millimetres,
+not TeX dimensions; no |mm| suffix is needed. Values are finite numbers,
+not PGF expressions. Defaults are inherited within the usual TeX scope.
+Electromagnet-only options have no effect on |femm/u core|.
+
+\begin{key}{/femm/component/width=\meta{number} (initially 80)}
+Outer width of the U core and armature. It must exceed twice the leg thickness.
+The winding extends outside this width on the left.
+\end{key}
+\begin{key}{/femm/component/height=\meta{number} (initially 60)}
+Outer height of the U core alone, from its underside to its pole faces.
+It must exceed the leg thickness.
+\end{key}
+\begin{key}{/femm/component/leg thickness=\meta{positive number} (initially 15)}
+Common thickness of both legs and the bottom yoke. The window has width
+|width-2*leg thickness| and height |height-leg thickness|.
+\end{key}
+\begin{key}{/femm/component/gap=\meta{positive number} (initially 3)}
+Height of each air gap between a pole and the armature; electromagnet only.
+Zero is rejected in this initial component interface.
+\end{key}
+\begin{key}{/femm/component/armature thickness=\meta{positive number} (initially 15)}
+Height of the separate armature; electromagnet only. This is an independent
+parameter: changing the leg thickness does not change this default.
+\end{key}
+\begin{key}{/femm/component/coil width=\meta{positive number} (initially 6)}
+Width of each rectangular winding section; electromagnet only.
+\end{key}
+\begin{key}{/femm/component/coil height=\meta{positive number} (initially 26)}
+Height of each winding section; electromagnet only. Both sections must fit
+between the top of the yoke and the pole faces.
+\end{key}
+\begin{key}{/femm/component/coil clearance=\meta{nonnegative number} (initially 2)}
+Distance from each winding section to its adjacent face of the left leg.
+The inner section must fit inside the U window; electromagnet only.
+\end{key}
+\begin{key}{/femm/component/coil center y=\meta{number} (initially 3)}
+Vertical position of the two section centres relative to |core center|,
+positive towards the poles. It must keep the entire winding above the yoke
+and below the pole faces; electromagnet only.
+\end{key}
+\begin{key}{/femm/component/ampere turns=\meta{number} (initially 6000)}
+Signed $NI$ in A\,turns, for the complete winding. A positive value produces
+positive $J_z$ in the outer (left) section and negative $J_z$ in the inner
+section. The integral of $J_z$ over each section is respectively $NI$ and
+$-NI$; their net current is zero. Negative values reverse the excitation;
+zero leaves a passive winding.
+
+The package computes $J_z=NI/S$ using the area of the actual captured
+polygon in square metres. Scaling or deforming the node therefore preserves
+ampere-turns and adjusts current density. This convention differs from a raw
+|femm/current density| on a path, which holds density fixed.
+The winding is homogenised, not drawn or solved turn by turn.
+\end{key}
+\begin{key}{/femm/component/core material=\meta{material} (initially pure-iron)}
+Material of the U core, resolved through the existing region material
+selector. Catalogue identifiers and custom |femm/materials/| styles are accepted.
+\end{key}
+\begin{key}{/femm/component/armature material=\meta{material} (initially pure-iron)}
+Material of the armature; electromagnet only.
+\end{key}
+\begin{key}{/femm/component/coil material=\meta{material} (initially copper)}
+Material of both winding sections; electromagnet only. Excitation is determined
+by |ampere turns|, not by a current density stored in the material catalogue.
+The core, armature and gap regions have zero imposed current density.
+\end{key}
+\begin{key}{/femm/component/magnetization angle=\meta{number} (initially 0)}
+Direction of any coercive material in degrees from the component's local
+$+x$ axis. It applies to material parts and has no effect on passive materials.
+The direction is transformed into the model frame when the node is placed;
+rotating the component rotates its prescribed magnetisation. This differs
+from |femm/region/magnetization angle|, which is already a model-frame angle.
+\end{key}
+\begin{key}{/femm/component/mesh size=\meta{nonnegative number} (initially 0)}
+Local spacing for the core, armature and winding. Zero inherits the problem
+spacing. As with ordinary regions, positive values refine rather than coarsen.
+Mesh lengths are model-frame values; node scaling does not scale these keys.
+\end{key}
+\begin{key}{/femm/component/gap mesh size=\meta{nonnegative number} (initially 1)}
+Local spacing in both air gaps; electromagnet only. A positive value adds
+two air refinement rectangles. Zero omits these two declarations and uses
+the ordinary global mesh in the gaps.
+\end{key}
+
+\subsection{Anchors and placement}
+The |center| anchor is the centre of the rectangular envelope of all parts,
+including the exterior winding. In an electromagnet it differs from
+|core center|. Use |anchor=core center| to place the U at the same coordinates
+as the tutorial's explicit polygon. Text is centred at |window center|
+independently of the anchor used for placement.
+
+\begin{center}
+\begin{tabular}{p{.42\linewidth}p{.49\linewidth}}
+\toprule Anchor & Meaning in local component coordinates \\
+\midrule
+|center| & Centre of the component envelope \\
+|north|, |south|, |east|, |west| & Midpoints of envelope sides \\
+|north east|, |north west|,\newline |south east|, |south west|
+  & Corners of the envelope \\
+|core center| & Centre of the U's outer rectangle \\
+|window center| & Centre of the open window; text location \\
+|yoke center| & Centre of the bottom iron bar \\
+|left pole|, |right pole| & Centres of the two pole faces \\
+|left pole inner|, |left pole outer| & Inner/outer endpoints of the left pole \\
+|right pole inner|, |right pole outer| & Inner/outer endpoints of the right pole \\
+|left armature|, |right armature| & Points facing the pole centres across the gaps \\
+|left gap|, |right gap| & Centres of the gaps \\
+|armature center| & Centre of the armature rectangle \\
+|coil positive|, |coil negative| & Centres of the outer/inner winding sections \\
+\bottomrule
+\end{tabular}
+\end{center}
+The last four rows are available only on an electromagnet; requesting one on
+a bare core is an error. The coil anchor names describe the sign for positive
+|ampere turns|; their geometric locations do not swap when excitation reverses.
+An automatic connection such as |(M)--(N)| meets the rectangular envelope,
+which may enclose air. Use physical anchors for probes or exact pole contacts.
+
+\begin{codeexample}[code only]
+\node[femm/u electromagnet={gap=3,ampere turns=6000},
+  anchor=left pole,rotate=20] (M) at (0,0) {};
+\draw[femm/profile={name=left-gap,samples=101},red,dashed]
+  (M.left pole)--(M.left armature);
+\end{codeexample}
+
+Nodes support |at|, |anchor|, rotations and local affine transformations,
+including inherited transformations because |transform shape| is enabled.
+Keep that option enabled. Whole-picture transforms remain display transforms,
+subject to the capture precision described in Section~\ref{sec:model}.
+Changing a physical transform or component dimension invalidates the cache.
+Changing text or painting styles does not. Very small rounding differences
+under display transformations may conservatively cause a cache miss.
+
+Dimensions use the original picture coordinate basis. Changing local |x|
+or |y| vectors does not resize an existing shape: use component dimensions or
+node transformations. |minimum width|, |minimum height|, |inner sep| and
+|outer sep| do not alter its fixed physical outline or anchors.
+Positioning-library operations such as |right=10mm of M| use the envelope.
+Delayed placement, including matrix-managed nodes, is rejected: physical
+regions must be captured at their final position, once.
+
+\subsection{Drawing styles and a complete example}
+\begin{keylist}[/femm/component]{core style=\marg{TikZ options},
+  armature style=\marg{TikZ options},coil style=\marg{TikZ options},
+  gap style=\marg{TikZ options}}
+Append painting options to the corresponding part style within the current
+scope; no extra options are appended initially. Use colours, line widths,
+opacity or dash patterns here. Geometry-changing keys, path decorations
+that replace contours, and physical keys inside these styles are unsupported:
+use the explicit component parameters for physical changes.
+\end{keylist}
+\begin{stylekey}{/tikz/femm component core}
+Base core style: |draw=black!70,fill=gray!15|.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm component armature}
+Base armature style: |femm component core|. Thus it inherits core-style changes
+unless explicitly overridden.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm component coil}
+Base winding style: |draw=orange!70!black,fill=orange!25|.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm component gap}
+Empty initially: refinement rectangles are invisible. A |gap style| has
+no effect when |gap mesh size=0| because no gap paths are emitted.
+\end{stylekey}
+These styles paint the individual parts. Node-level |draw| or |fill| does not
+replace their styles. Ordinary node text options and |label| remain available.
+Each component is registered once, in declaration order: later physical
+regions may still override it according to the ordinary overlap rule.
+
+The file \nolinkurl{examples/u-electromagnet-node.tex} builds the tutorial
+electromagnet with one node, locates its measurement path with gap anchors,
+and plots $|\mathbf B|$ and $B_y$. It enables the persistent cache and starts
+with a coarse mesh. The core is a single concave polygon; all other regions
+are separate simple polygons. Compound material paths are available
+independently (Section~\ref{sec:domains}); these node templates do not need
+them. Unmeshed exclusions and rotor templates remain unsupported.
+
+The complete source below uses node anchors for the gap scan and labels.
+Changing a component dimension moves these locations with the physical parts.
+The result includes the field and the PGFPlots scan produced by that source.
+\luafemmexample{u-electromagnet-node}

@@ -1,0 +1,35 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Complete examples in the three formats}
+\label{sec:format-examples}
+The same magnetic scene can be compiled with plain LuaTeX, LuaLaTeX and
+ConTeXt MkIV. The following listings show the shared geometry and every
+complete wrapper, followed by its actual output. Place \texttt{scene.tex}
+beside the selected wrapper and compile from that directory with an
+installed luafemm TEXMF tree. The development build does this automatically.
+The geometry, profile and solver are identical; page layout follows the format.
+The manual crops the empty paper margins around each output for readability.
+
+\subsection{Shared physical scene}
+The alnico rectangle, iron return piece and passive copper region precede
+the first field request. The curved measurement path is registered before
+the field is solved. Each wrapper subsequently plots that same profile.
+\luafemmsource{formats/scene}
+
+\subsection{Plain LuaTeX}
+Compile with \texttt{luatex plain.tex}. Plain environment commands are
+used directly; the source requires no LaTeX wrapper.
+\luafemmexample{formats/plain}
+
+\subsection{LuaLaTeX}
+Compile with \texttt{lualatex latex.tex}. The package wrapper and the
+library entry point lead to the same generic implementation.
+\luafemmexample{formats/latex}
+
+\subsection{ConTeXt MkIV}
+Compile with \texttt{context --luatex context.tex}. The explicit engine
+selection matters on installations whose default ConTeXt engine is LMTX.
+\luafemmexample{formats/context}

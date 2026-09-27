@@ -16,18 +16,21 @@
 % Restore the incoming catcode even when this file is loaded by a format wrapper.
 \edef\luafemmRestoreAt{\catcode64=\the\catcode64\relax}%
 \catcode64=11\relax
-\def\luafemmversion{0.5.0-rc.1}%
-\def\luafemmversiondate{2026-09-25}%
-\def\luafemmversionnumber{50001}%
+\def\luafemmversion{0.6.0-dev}%
+\def\luafemmversiondate{2026-09-27}%
+\def\luafemmversionnumber{60000}%
 % The only Lua global owned by the package. Numerical modules return tables.
 \directlua{luafemm = require('luafemm'); luafemm.tex = require('luafemm-tex')}%
 % Public result commands are expandable so that numeric output can be reused.
 \def\femmstat#1{\directlua{luafemm.tex.statistic('\luaescapestring{#1}',false)}}%
 \def\femmmeshstat#1{\directlua{luafemm.tex.statistic('\luaescapestring{#1}',true)}}%
 \def\femmB#1#2{\directlua{luafemm.tex.field_value('\luaescapestring{#1}','\luaescapestring{#2}')}}%
+\def\femmcachestatus{\directlua{luafemm.tex.cache_status()}}%
 \protected\def\femmsolve{\directlua{luafemm.solve(luafemm.current)}}%
 \input luafemm-legacy.tex\relax
 \input luafemm-tikz.tex\relax
+\input luafemm-boundary.tex\relax
+\input luafemm-components.tex\relax
 \input luafemm-profiles.tex\relax
 \luafemmRestoreAt
 \endinput

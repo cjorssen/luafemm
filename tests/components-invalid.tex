@@ -1,0 +1,24 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Expected failures, selected and checked by scripts/build.py.
+\input tikz.tex
+\usetikzlibrary{femm,matrix}
+\tikzpicture[femm/problem={mesh size=10}]
+\ifcase\InvalidComponentCase
+  \node[femm/u core={width=30}] {};
+\or
+  \node[femm/u core] (A) {};
+  \draw (A.left gap)--(0,0);
+\or
+  \matrix at (20,30) {\node[femm/u core] {};\\};
+\or
+  \pic{femm mesh};
+  \node[femm/u core] {};
+\or
+  \node[femm/u core={core material=unknown-material}] {};
+\fi
+\endtikzpicture
+\bye

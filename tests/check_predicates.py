@@ -23,8 +23,11 @@ def incircle(p):
     cross = lambda a,b: a[0]*b[1]-a[1]*b[0]
     lift = lambda a: a[0]*a[0]+a[1]*a[1]
     return lift(x)*cross(y,z)+lift(y)*cross(z,x)+lift(z)*cross(x,y)
+def diametral(p):
+    a, b, c = [[F(x) for x in v] for v in p]
+    return sum((c[i]-a[i])*(c[i]-b[i]) for i in range(2))
 def case(kind, points):
-    val = (orient if kind == 'orient' else incircle)(points)
+    val = {'orient': orient, 'incircle': incircle, 'diametral': diametral}[kind](points)
     cases.append((kind, points, (val>0)-(val<0)))
 for _ in range(1500):
     a, b = [[rng.uniform(-1,1) for _ in range(2)] for _ in range(2)]
@@ -36,18 +39,26 @@ for _ in range(1500):
     points = [[math.cos(angle+j*math.pi/2), math.sin(angle+j*math.pi/2)] for j in range(4)]
     points[3][0] = math.nextafter(points[3][0],rng.choice([-math.inf,math.inf]))
     case('incircle', points)
+    # Almost-right angles exercise the diametral-disk sign near cancellation.
+    a, b = [[rng.uniform(-1,1) for _ in range(2)] for _ in range(2)]
+    c = [(a[0]+b[0]+a[1]-b[1])/2, (a[1]+b[1]+b[0]-a[0])/2]
+    c[0] = math.nextafter(c[0], rng.choice([-math.inf, math.inf]))
+    case('diametral', [a,b,c])
 for exponent in (-30,-10,0,10,30):
     s = 2.0**exponent
     case('orient', [[0.,0.],[s,s],[2*s,2*s]])
     case('incircle', [[s,0.],[0.,s],[-s,0.],[0.,-s]])
     case('orient', [[0.,0.],[s,s],[2*s,math.nextafter(2*s,math.inf)]])
+    case('diametral', [[-s,0.],[s,0.],[0.,s]])
+    case('diametral', [[-s,0.],[s,0.],[-s,0.]])
+    case('diametral', [[-s,0.],[s,0.],[0.,math.nextafter(s,0.)]])
 with tempfile.TemporaryDirectory(prefix='luafemm-predicates-') as temp:
     script = Path(temp)/'check.lua'
     lines = ["local p=require('luafemm-predicates')"]
     for kind, points, sign in cases:
         coords = ','.join('{'+','.join(float(x).hex() for x in v)+'}' for v in points)
         lines.append(f'do local d=p.{kind}({coords}); print(d>0 and 1 or (d<0 and -1 or 0)) end')
-    lines.append("io.stderr:write('exact fallbacks: '..p.stats.orientation..' / '..p.stats.incircle..'\\n')")
+    lines.append("io.stderr:write('exact fallbacks: '..p.stats.orientation..' / '..p.stats.incircle..' / '..p.stats.diametral..'\\n')")
     script.write_text('\n'.join(lines))
     run = subprocess.run(['texlua',str(script)],cwd=Path(__file__).resolve().parent.parent,
                          env={**os.environ, "LUA_PATH": "./tex/generic/luafemm/?.lua;;"},

@@ -8,6 +8,7 @@
 -- Original Lua constrained triangulator. No Triangle source is embedded.
 -- Incremental Delaunay, segment cavity recovery, constrained Lawson flips.
 local G = {}
+local geometry = require("luafemm-geometry")
 local abs, sqrt, min, max = math.abs, math.sqrt, math.min, math.max
 local predicates = require("luafemm-predicates")
 local function check(v, s)
@@ -92,6 +93,7 @@ local incircle = predicates.incircle
 function G.generate(o, regions)
     local start = os.clock()
     local pred0, pred1 = predicates.stats.orientation, predicates.stats.incircle
+    local pred2 = predicates.stats.diametral
     local scale = max(o.xmax - o.xmin, o.ymax - o.ymin)
     local ox, oy = (o.xmin + o.xmax) / 2, (o.ymin + o.ymax) / 2
     local function normalized(p)
@@ -116,11 +118,12 @@ function G.generate(o, regions)
     loop({ { o.xmin, o.ymin }, { o.xmax, o.ymin }, { o.xmax, o.ymax }, { o.xmin, o.ymax } }, true)
     for _, r in ipairs(regions) do
         local size = r.mesh_size and r.mesh_size > 0 and min(h, r.mesh_size / scale) or h
-        loop(r.points, false, size)
-        if size < h then
+        local contours = {}
+        local box = { math.huge, math.huge, -math.huge, -math.huge }
+        for _, points in ipairs(r.contours or { r.points }) do
+            loop(points, false, size)
             local poly = {}
-            local box = { math.huge, math.huge, -math.huge, -math.huge }
-            for _, p in ipairs(r.points) do
+            for _, p in ipairs(points) do
                 local q = normalized(p)
                 poly[#poly + 1] = q
                 box[1] = min(box[1], q[1])
@@ -128,7 +131,15 @@ function G.generate(o, regions)
                 box[3] = max(box[3], q[1])
                 box[4] = max(box[4], q[2])
             end
-            local_regions[#local_regions + 1] = { points = poly, h = size, box = box }
+            contours[#contours + 1] = poly
+        end
+        if size < h then
+            local_regions[#local_regions + 1] = {
+                contours = contours,
+                fill_rule = r.fill_rule,
+                h = size,
+                box = box,
+            }
         end
     end
     -- Split proper crossings, T junctions and collinear overlaps before CDT.
@@ -244,23 +255,10 @@ function G.generate(o, regions)
     segments = atomic
     local lo = normalized({ o.xmin, o.ymin })
     local hi = normalized({ o.xmax, o.ymax })
-    local function inside(p, poly)
-        local yes = false
-        for i, a in ipairs(poly) do
-            local b = poly[i % #poly + 1]
-            if
-                (a[2] > p[2]) ~= (b[2] > p[2])
-                and p[1] < (b[1] - a[1]) * (p[2] - a[2]) / (b[2] - a[2]) + a[1]
-            then
-                yes = not yes
-            end
-        end
-        return yes
-    end
     local function target(p)
         local size = h
         for _, r in ipairs(local_regions) do
-            if inside(p, r.points) then
+            if geometry.contains(r, p[1], p[2]) then
                 size = min(size, r.h)
             end
         end
@@ -277,7 +275,7 @@ function G.generate(o, regions)
             for i = math.ceil((box[1] - x0) / size), math.floor((box[3] - x0) / size) do
                 local x = x0 + i * size
                 local p = { x, y }
-                if (not poly or inside(p, poly)) and target(p) == size then
+                if (not poly or geometry.contains(poly, p[1], p[2])) and target(p) == size then
                     local away = true
                     for _, s in ipairs(raw) do
                         if distance2(p, s[1], s[2]) < (size * 0.18) ^ 2 then
@@ -294,7 +292,7 @@ function G.generate(o, regions)
     end
     seed(h, { lo[1] + h * 0.2, lo[2] + h * 0.2, hi[1] - h * 0.2, hi[2] - h * 0.2 })
     for _, r in ipairs(local_regions) do
-        seed(r.h, r.box, r.points)
+        seed(r.h, r.box, r)
     end
     check(#points <= 40000, "more than 40000 vertices; increase mesh size or curve tolerance")
     local count = #points
@@ -519,41 +517,76 @@ function G.generate(o, regions)
         check(edges[sk], "missing recovered segment")
         fixed[sk] = true
     end
-    -- Lawson legalization, keeping all recovered segments fixed.
-    local queue = sorted_keys(edges)
-    local head, flips = 1, 0
-    while head <= #queue do
-        local k = queue[head]
-        head = head + 1
-        local e = edges[k]
-        if e and e[4] and not fixed[k] then
-            local a, b = e[1], e[2]
-            local t, u = triangles[e[3]], triangles[e[4]]
-            local c, d
-            for j = 1, 3 do
-                if t[j] ~= a and t[j] ~= b then
-                    c = t[j]
+    -- Lawson legalization also serves local quality insertions. Existing
+    -- constraint edges remain fixed; only affected neighbours are revisited.
+    local flips = 0
+    local function legalize(queue)
+        local head, initial_flips = 1, flips
+        while head <= #queue do
+            local k = queue[head]
+            head = head + 1
+            local e = edges[k]
+            if e and e[4] and not fixed[k] then
+                local a, b = e[1], e[2]
+                local t, u = triangles[e[3]], triangles[e[4]]
+                local c, d
+                for j = 1, 3 do
+                    if t[j] ~= a and t[j] ~= b then
+                        c = t[j]
+                    end
+                    if u[j] ~= a and u[j] ~= b then
+                        d = u[j]
+                    end
                 end
-                if u[j] ~= a and u[j] ~= b then
-                    d = u[j]
-                end
-            end
-            if proper(points[a], points[b], points[c], points[d]) then
-                local val = incircle(points[t[1]], points[t[2]], points[t[3]], points[d])
-                if val > 0 then
-                    local first, second = e[3], e[4]
-                    remove(first)
-                    remove(second)
-                    add(c, d, a)
-                    add(d, c, b)
-                    flips = flips + 1
-                    check(flips < 20 * count, "edge legalization did not converge")
-                    for _, pair in ipairs({ { a, c }, { a, d }, { b, c }, { b, d } }) do
-                        queue[#queue + 1] = key(pair[1], pair[2])
+                if proper(points[a], points[b], points[c], points[d]) then
+                    local val = incircle(points[t[1]], points[t[2]], points[t[3]], points[d])
+                    if val > 0 then
+                        local first, second = e[3], e[4]
+                        remove(first)
+                        remove(second)
+                        add(c, d, a)
+                        add(d, c, b)
+                        flips = flips + 1
+                        check(
+                            flips - initial_flips < 20 * #points,
+                            "edge legalization did not converge"
+                        )
+                        for _, pair in ipairs({ { a, c }, { a, d }, { b, c }, { b, d } }) do
+                            queue[#queue + 1] = key(pair[1], pair[2])
+                        end
                     end
                 end
             end
         end
+    end
+    legalize(sorted_keys(edges))
+    local quality = { steiner_points = 0, segment_splits = 0, circumcenters = 0 }
+    if (o.min_angle or 0) > 0 or (o.max_area or 0) > 0 then
+        -- The supertriangle has finished its job. Removing it now leaves the
+        -- true exterior segments as one-sided edges for protected refinement.
+        for id, t in ipairs(triangles) do
+            if t.alive and (t[1] > count or t[2] > count or t[3] > count) then
+                remove(id)
+            end
+        end
+        points[count + 1], points[count + 2], points[count + 3] = nil, nil, nil
+        quality = require("luafemm-refine").run({
+            points = points,
+            triangles = triangles,
+            edges = edges,
+            segments = segments,
+            fixed = fixed,
+            point = point,
+            add = add,
+            remove = remove,
+            legalize = legalize,
+        }, {
+            min_angle = o.min_angle or 0,
+            max_area = (o.max_area or 0) / (scale * scale),
+            max_steiner = o.max_steiner or 5000,
+            tolerance = tol,
+        })
+        count = #points
     end
     local output = {}
     local area = 0
@@ -571,6 +604,11 @@ function G.generate(o, regions)
             end
         end
     end
+    check(minangle + 1e-8 >= (o.min_angle or 0), "minimum angle target not achieved")
+    check(
+        not o.max_area or o.max_area == 0 or maxarea * scale * scale <= o.max_area * (1 + 1e-10),
+        "maximum area target not achieved"
+    )
     check(
         abs(area - (o.xmax - o.xmin) * (o.ymax - o.ymin) / (scale * scale)) < 1e-8,
         "mesh does not cover the domain"
@@ -649,6 +687,10 @@ function G.generate(o, regions)
             mesh_tolerance = tol * scale,
             exact_orientation = predicates.stats.orientation - pred0,
             exact_incircle = predicates.stats.incircle - pred1,
+            exact_diametral = predicates.stats.diametral - pred2,
+            steiner_points = quality.steiner_points,
+            segment_splits = quality.segment_splits,
+            circumcenters = quality.circumcenters,
         }
 end
 return G

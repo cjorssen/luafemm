@@ -1,0 +1,33 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\usetikzlibrary{femm}
+\nopagenumbers
+\tikzset{quality test/.style={femm/problem={minimum angle=25,
+  maximum area=3,max Steiner points=1000}}}
+\tikzpicture[quality test,
+  femm/problem={xmin=-20,xmax=20,ymin=-20,ymax=20,mesh size=8},rotate=17]
+  \path[femm/region={material=copper}] (-7,-2)--(9,-3)--(8,4)--(-6,3)--cycle;
+  \pic {femm mesh};
+  \directlua{
+    local m=luafemm.current
+    assert(m.options.min_angle==25 and m.options.max_area==3)
+    assert(m.options.max_steiner==1000)
+    assert(m.mesh_stats.min_angle>24.9999 and m.mesh_stats.max_area<3.00001)
+    assert(m.mesh_stats.segment_splits>0 and m.mesh_stats.circumcenters>0)
+    assert(not m.stats)
+  }
+\endtikzpicture
+\tikzpicture[femm/problem={xmin=-2,xmax=2,ymin=-2,ymax=2,mesh size=1}]
+  \pic {femm mesh};
+  \directlua{
+    local m=luafemm.current
+    assert(m.options.min_angle==0 and m.options.max_area==0)
+    assert(m.options.max_steiner==5000 and m.mesh_stats.steiner_points==0)
+  }
+\endtikzpicture
+\directlua{texio.write_nl('PASS: quality keys compose in styles and remain picture-local')}
+\bye

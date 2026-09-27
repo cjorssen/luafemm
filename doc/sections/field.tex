@@ -10,6 +10,7 @@ Resolve the current problem when this path executes, for example
 |\path[femm/solve];|. This is optional: field pictures and requested
 profile values solve on demand. Declare all regions before the first
 mesh or solve request. A mesh-only picture does not solve the system.
+Section~\ref{sec:workflow} gives the complete declaration and computation order.
 \end{key}
 \begin{command}{\femmsolve}
 Command form of the same solve operation. A current model must exist.
@@ -116,8 +117,12 @@ These values require the Delaunay mesher; they do not exist for |grid|.
 |max_area| & Largest triangle area in model units squared \\
 |mesh_tolerance| & Actual vertex-merging distance in model units \\
 |seconds| & CPU mesh generation and audit time \\
-|flips| & Constraint-legalisation edge flips \\
+|flips| & Constraint and refinement legalisation flips \\
+|steiner_points| & Additional quality-refinement vertices \\
+|segment_splits| & Quality-refinement segment bisections \\
+|circumcenters| & Accepted quality-refinement circumcentres \\
 |exact_orientation|, |exact_incircle| & Exact-arithmetic fallback counts \\
+|exact_diametral| & Exact diametral-disk fallback count \\
 \bottomrule
 \end{tabular}
 \end{center}

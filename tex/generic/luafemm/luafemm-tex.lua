@@ -29,8 +29,18 @@ function T.number(value, key, default)
     return number
 end
 
+--- Apply one key-based exterior condition to the current model.
+function T.boundary(side, options)
+    for key, value in pairs(options) do
+        if key ~= "type" then
+            options[key] = T.number(value, "boundary " .. key)
+        end
+    end
+    M.boundary(M.current, side, options)
+end
+
 --- Initialise the current picture from validated strings and the PGF transform.
-function T.new_problem(options, transform, basis)
+function T.new_problem(options, transform, basis, cache)
     for key, value in pairs(options) do
         if key ~= "mesher" then
             options[key] = T.number(value, key)
@@ -39,8 +49,31 @@ function T.new_problem(options, transform, basis)
     options.log = function(message)
         texio.write_nl("luafemm: " .. message)
     end
+    -- Follow TeX's output directory for relative cache names. The standalone
+    -- Lua API deliberately retains ordinary working-directory semantics.
+    if
+        cache
+        and cache.file
+        and status
+        and status.output_directory
+        and status.output_directory ~= ""
+        and not cache.file:match("^[/\\]")
+        and not cache.file:match("^%a:")
+    then
+        cache.file = status.output_directory .. "/" .. cache.file
+    end
+    options.cache = cache
     M.current = M.new(options)
     M.current.frame = require("luafemm-path").frame(transform, basis)
+    -- Shape dimensions use the original coordinate basis, independently of
+    -- text metrics and later local x/y vector changes.
+    M.current.component_basis = require("luafemm-path").frame("{1}{0}{0}{1}{0pt}{0pt}", basis)
+end
+
+--- Print the current cache outcome; this command never starts a calculation.
+function T.cache_status()
+    check(M.current, "no current model")
+    tex.sprint(M.current.cache_info.status)
 end
 
 --- Resolve one PGF material style; omitted overrides inherit library properties.
@@ -107,25 +140,122 @@ end
 -- @tparam number tolerance Polygonalisation tolerance in model units.
 -- @tparam number angle Magnetisation direction in degrees.
 -- @tparam number mesh_size Local spacing, zero for inheritance.
-function T.capture_path(m, s, material, current, tolerance, angle, mesh_size)
+-- @tparam[opt] string turns Component winding ampere-turns (single contour only).
+-- @tparam[opt="nonzero"] string fill_rule Evaluated native PGF fill rule.
+function T.capture_path(m, s, material, current, tolerance, angle, mesh_size, turns, fill_rule)
     check(m and m.frame, "set femm/problem on the tikzpicture first")
-    local points = require("luafemm-path").read(s, m.frame, tolerance)
+    local contours = require("luafemm-path").read_contours(s, m.frame, tolerance)
     -- Round below the useful precision of PGF fixed-point coordinates.
     -- Snap domain endpoints to suppress TeX dimension-rounding artifacts.
-    for _, p in ipairs(points) do
-        for axis = 1, 2 do
-            p[axis] = math.floor(p[axis] * 10000 + 0.5) / 10000
-            local lo = axis == 1 and m.options.xmin or m.options.ymin
-            local hi = axis == 1 and m.options.xmax or m.options.ymax
-            if abs(p[axis] - lo) < 0.001 then
-                p[axis] = lo
-            end
-            if abs(p[axis] - hi) < 0.001 then
-                p[axis] = hi
+    for _, points in ipairs(contours) do
+        for _, p in ipairs(points) do
+            for axis = 1, 2 do
+                p[axis] = math.floor(p[axis] * 10000 + 0.5) / 10000
+                local lo = axis == 1 and m.options.xmin or m.options.ymin
+                local hi = axis == 1 and m.options.xmax or m.options.ymax
+                if abs(p[axis] - lo) < 0.001 then
+                    p[axis] = lo
+                end
+                if abs(p[axis] - hi) < 0.001 then
+                    p[axis] = hi
+                end
             end
         end
     end
-    M.region(m, material, points, current, angle, mesh_size)
+    if turns and turns ~= "" then
+        check(#contours == 1, "component winding needs one contour")
+        current = require("luafemm-components").current(
+            contours[1],
+            m.options.unit,
+            T.number(turns, "ampere turns")
+        )
+    end
+    M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
+end
+
+-- Saved shape IDs keep anchor geometry independent of the current model.
+-- These records hold no solver/model reference and never enter disk caches.
+local components = {}
+
+--- Create immutable node geometry; PGF stores the returned numeric ID.
+-- @tparam string kind Component type.
+-- @tparam table options Escaped numeric strings from component keys.
+function T.component_new(kind, options)
+    check(M.current and M.current.frame, "set femm/problem before declaring components")
+    check(not M.current.nodes, "declare components before meshing")
+    for key, value in pairs(options) do
+        options[key] = T.number(value, key)
+    end
+    local c = require("luafemm-components").make(kind, options)
+    c.basis = M.current.component_basis
+    components[#components + 1] = c
+    tex.sprint(tostring(#components))
+end
+
+local function component_point(c, p)
+    local f = c.basis
+    return f[1] * p[1] + f[3] * p[2], f[2] * p[1] + f[4] * p[2]
+end
+
+--- Emit one saved anchor in the shape's local PGF coordinate system.
+function T.component_anchor(id, name)
+    local c = assert(components[id])
+    local p = c.anchors[name]
+    check(p, "anchor '" .. name .. "' is unavailable on " .. c.kind)
+    local x, y = component_point(c, p)
+    tex.sprint(string.format("\\pgfpoint{%.9fpt}{%.9fpt}", x, y))
+end
+
+--- Intersect a connection ray with the component envelope, not its iron.
+function T.component_border(id, x, y)
+    local c = assert(components[id])
+    local f = c.basis
+    local function dimension(s)
+        return assert(tonumber(s:match("([%d%.%+%-eE]+)pt")))
+    end
+    x, y = dimension(x), dimension(y)
+    local det = f[1] * f[4] - f[2] * f[3]
+    local u, v = (f[4] * x - f[3] * y) / det, (-f[2] * x + f[1] * y) / det
+    local scale = max(abs(u) / c.half_width, abs(v) / c.half_height)
+    if scale == 0 then
+        tex.sprint("\\pgfpointorigin")
+    else
+        local px, py = component_point(c, { u / scale, v / scale })
+        tex.sprint(string.format("\\pgfpoint{%.9fpt}{%.9fpt}", px, py))
+    end
+end
+
+--- Draw/capture each part once, at the final node transform, before its text.
+-- A component-local magnetization direction is mapped into the model frame.
+-- Coil ampere-turns are converted after capture, using the rounded polygon.
+function T.component_paths(id, transform)
+    local c = assert(components[id])
+    local n = require("luafemm-path").frame(transform, { "1pt", "0pt", "0pt", "1pt" })
+    local f = M.current.frame
+    local theta = math.rad(c.options.magnetization_angle)
+    local vx, vy = component_point(c, { math.cos(theta), math.sin(theta) })
+    vx, vy = n[1] * vx + n[3] * vy, n[2] * vx + n[4] * vy
+    local det = f[1] * f[4] - f[2] * f[3]
+    local mx, my = (f[4] * vx - f[3] * vy) / det, (-f[2] * vx + f[1] * vy) / det
+    check(mx * mx + my * my > 0, "singular component transform")
+    local angle = math.deg(math.atan(my, mx))
+    for _, r in ipairs(c.regions) do
+        local points = {}
+        for i, p in ipairs(r.points) do
+            local x, y = component_point(c, p)
+            points[i] = string.format("(%.9fpt,%.9fpt)", x, y)
+        end
+        tex.sprint(
+            string.format(
+                "\\csname luafemm@componentpart\\endcsname{%s}{%s}{%.17g}{%.17g}{%s--cycle}",
+                r.role,
+                r.turns and string.format("%.17g", r.turns) or "",
+                r.mesh_size,
+                angle,
+                table.concat(points, "--")
+            )
+        )
+    end
 end
 
 local function canvas(m, x, y)

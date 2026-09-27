@@ -9,10 +9,21 @@
 % transformations and rounded corners. All dimensional conventions live in
 % the manual; numerical values cross the Lua boundary as escaped strings.
 \newif\ifluafemm@arrows\luafemm@arrowstrue
+% Empty for ordinary regions; component winding paths set this locally.
+\def\luafemm@componentturns{}
+% Cache configuration belongs to the picture, before its begin hook runs.
+% The choice handler stores a value rather than expanding user text as Lua.
+\pgfkeys{/femm/cache/.is family,/femm/cache,
+  file/.initial=\jobname-femm,mode/.initial=off,mode/.is choice,
+  mode/off/.code={\pgfkeyssetvalue{/femm/cache/mode}{off}},
+  mode/auto/.code={\pgfkeyssetvalue{/femm/cache/mode}{auto}},
+  mode/refresh/.code={\pgfkeyssetvalue{/femm/cache/mode}{refresh}},
+  mode/frozen/.code={\pgfkeyssetvalue{/femm/cache/mode}{frozen}}}
 \pgfkeys{/femm/problem/.is family,/femm/problem,
   xmin/.initial=-90,xmax/.initial=90,ymin/.initial=-75,ymax/.initial=95,
   mesh size/.initial=2,mesher/.initial=delaunay,
   mesh tolerance/.initial=0,
+  minimum angle/.initial=0,maximum area/.initial=0,max Steiner points/.initial=5000,
   tolerance/.initial=0.0000001,curve tolerance/.initial=.03,
   max iterations/.initial=60,
   /femm/region/.is family,/femm/region,
@@ -21,6 +32,8 @@
 \def\luafemm@problemvalue#1{\pgfkeysvalueof{/femm/problem/#1}}
 \def\luafemm@regionvalue#1{\pgfkeysvalueof{/femm/region/#1}}
 \tikzset{
+  femm/cache/.code={\pgfqkeys{/femm/cache}{mode=auto,#1}},
+  femm/cache/.default={},
   femm/problem/.code={%
     \pgfqkeys{/femm/problem}{#1}%
     \tikzset{x=1mm,y=1mm,execute at begin picture={\luafemm@starttikz}}},
@@ -86,6 +99,9 @@
 \directlua{luafemm.tex.register_material_choices()}%
 % Capture the picture frame only after TikZ has installed all its options.
 \def\luafemm@starttikz{%
+  % Several styles may set femm/problem. Their final values describe one
+  % model; repeated begin hooks must not replace it or discard its boundaries.
+  \ifluafemm@modelstarted\else
   \pgfgettransform\luafemm@roottransform
   \pgfkeyssetvalue{/femm/region/curve tolerance}{\luafemm@problemvalue{curve tolerance}}%
   \directlua{
@@ -94,9 +110,18 @@
       ymin='\luaescapestring{\luafemm@problemvalue{ymin}}',ymax='\luaescapestring{\luafemm@problemvalue{ymax}}',
       h='\luaescapestring{\luafemm@problemvalue{mesh size}}',mesher='\luaescapestring{\luafemm@problemvalue{mesher}}',
       mesh_tolerance='\luaescapestring{\luafemm@problemvalue{mesh tolerance}}',
+      min_angle='\luaescapestring{\luafemm@problemvalue{minimum angle}}',
+      max_area='\luaescapestring{\luafemm@problemvalue{maximum area}}',
+      max_steiner='\luaescapestring{\luafemm@problemvalue{max Steiner points}}',
       tolerance='\luaescapestring{\luafemm@problemvalue{tolerance}}',max_newton='\luaescapestring{\luafemm@problemvalue{max iterations}}'},
       '\luaescapestring{\luafemm@roottransform}',
-      {'\the\pgf@xx','\the\pgf@xy','\the\pgf@yx','\the\pgf@yy'})}%
+      {'\the\pgf@xx','\the\pgf@xy','\the\pgf@yx','\the\pgf@yy'},
+      {file='\luaescapestring{\pgfkeysvalueof{/femm/cache/file}}',
+       mode='\luaescapestring{\pgfkeysvalueof{/femm/cache/mode}}'})}%
+  \luafemm@modelstartedtrue
+  \luafemm@pendingboundaries
+  \let\luafemm@pendingboundaries\pgfutil@empty
+  \fi
 }
 \def\luafemm@capturetikz{%
   \begingroup
@@ -129,7 +154,9 @@
     luafemm.tex.number('\luaescapestring{\luafemm@current}','current density'),
     luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{curve tolerance}}','curve tolerance'),
     luafemm.tex.number('\luaescapestring{\luafemm@angle}','magnetization angle'),
-    luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{mesh size}}','mesh size'))}%
+    luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{mesh size}}','mesh size'),
+    '\luaescapestring{\luafemm@componentturns}',
+    '\ifpgfsys@eorule even odd\else nonzero\fi')}%
   \endgroup
 }
 \endinput

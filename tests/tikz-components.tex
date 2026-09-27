@@ -1,0 +1,98 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\usetikzlibrary{femm,positioning}
+\nopagenumbers
+\tikzpicture[femm/problem={xmin=-100,xmax=100,ymin=-100,ymax=100,mesh size=10},scale=.5]
+  \node[femm/u electromagnet,anchor=core center] (M) at (0,0) {Text};
+  \draw (M.left pole)--(M.left armature);
+  \draw (M.north)--++(0,3);
+  \directlua{
+    local m=luafemm.current
+    assert(rawlen(m.regions)==6)
+    local C=require('luafemm-components')
+    for i=3,4 do
+      local r=m.regions[i]
+      local area=1/C.current(r.points,m.options.unit,1)
+      assert(math.abs(area*r.current-(i==3 and 6000 or -6000))<1e-8)
+    end
+    for i=1,2 do assert(m.regions[i].material=='pure-iron') end
+    luafemm.component_reference=m.regions
+  }
+\endtikzpicture
+\par
+% Text, padding, minimum dimensions and outer sep must not change the domains.
+\tikzpicture[femm/problem={xmin=-100,xmax=100,ymin=-100,ymax=100},scale=.5]
+  \node[femm/u electromagnet,anchor=core center,
+    inner sep=10mm,outer sep=3mm,minimum width=180mm,
+    font=\sevenrm,label=above:Label] (Other) at (0,0) {Much wider text};
+  \draw (Other.left gap)--(Other.right gap);
+  \directlua{
+    local regs=luafemm.current.regions
+    assert(rawlen(regs)==6)
+    for i,r in ipairs(regs) do
+      local old=luafemm.component_reference[i]
+      assert(r.current==old.current)
+      for j,p in ipairs(r.points) do
+        assert(p[1]==old.points[j][1] and p[2]==old.points[j][2])
+      end
+    end
+  }
+\endtikzpicture
+\par
+% A root display transform is removed; local node rotation/scale is physical.
+\tikzpicture[femm/problem={xmin=-150,xmax=150,ymin=-150,ymax=150},scale=.4,rotate=15]
+  \node[femm/u electromagnet,rotate=30,scale=1.2,
+    anchor=left pole] (R) at (7,8) {};
+  \draw (R.left pole)--(R.left armature);
+  \directlua{
+    local r=luafemm.current.regions[1]
+    local x=(r.points[7][1]+r.points[8][1])/2
+    local y=(r.points[7][2]+r.points[8][2])/2
+    assert(math.abs(x-7)<.003 and math.abs(y-8)<.003)
+    assert(math.abs(r.angle-30)<.01)
+    local C=require('luafemm-components')
+    for i=3,4 do
+      local q=luafemm.current.regions[i]
+      assert(math.abs(q.current/C.current(q.points,.001,1)-(i==3 and 6000 or -6000))<1e-8)
+    end
+  }
+\endtikzpicture
+\par
+% Several differently sized instances, inherited styles, positioned anchors,
+% and anchor access after another model has become current.
+\tikzset{small core/.style={femm/u core={width=20,height=15,leg thickness=4}}}
+\tikzpicture[femm/problem={xmin=-50,xmax=70,ymin=-30,ymax=30},scale=.5]
+  \node[small core] (A) {};
+  \node[femm/u core={width=30,height=18,leg thickness=5},right=10mm of A] (B) {};
+  \draw (A.east)--(B.west);
+  \draw[dashed] (A)--(B);
+  \draw (A.45)--(A.north east);
+  \draw (M.left pole)--(M.right pole);
+  \directlua{
+    assert(rawlen(luafemm.current.regions)==2,'anchor queries duplicated domains')
+    local a,b=luafemm.current.regions[1],luafemm.current.regions[2]
+    assert(a.current==0 and b.current==0,'winding excitation leaked to later nodes')
+    assert(math.abs(a.points[2][1]-a.points[1][1]-20)<.003)
+    assert(math.abs(b.points[2][1]-b.points[1][1]-30)<.003)
+    luafemm.component_reference=nil
+    texio.write_nl('COMPONENT NODES PASS')
+  }
+\endtikzpicture
+\par
+% The original model basis applies to both node paths and their anchors.
+\tikzpicture[femm/problem={xmin=-50,xmax=50,ymin=-40,ymax=40},
+  x=2mm,y=1.5mm,scale=.5]
+  \node[small core,anchor=left pole,xscale=1.2,yscale=.8,xslant=.2] (S) at (0,0) {};
+  \draw (S.left pole)--(S.right pole);
+  \directlua{
+    local r=luafemm.current.regions[1]
+    local x=(r.points[7][1]+r.points[8][1])/2
+    local y=(r.points[7][2]+r.points[8][2])/2
+    assert(math.abs(x)<.003 and math.abs(y)<.003,'model basis or affine anchor lost')
+  }
+\endtikzpicture
+\bye

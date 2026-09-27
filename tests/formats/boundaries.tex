@@ -1,0 +1,45 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Mixed affine boundary patch, using identical public syntax in all formats.
+\par
+\pgfkeys{/femm/boundary/flux/.style={type=neumann}}
+\tikzset{test imposed field/.style={
+  femm/boundary={value=.004,x coefficient=.3,y coefficient=.2}},
+  test quality/.style={femm/problem={minimum angle=20,maximum area=3,max Steiner points=1000}}}
+% The first condition precedes femm/problem, the second follows it.
+\tikzpicture[test imposed field,test quality,
+  femm/problem={xmin=-10,xmax=10,ymin=-8,ymax=8,mesh size=3},
+  femm/boundary={side=top,type=robin,coefficient=2000,
+    value=-.2/(4*pi*1e-7)-2000*.004,x coefficient=-600,y coefficient=-400},
+  femm/cache={file=boundary-cache,mode=\CacheMode},scale=\CacheScale]
+  % These declarations must reset the previous coefficient and affine terms.
+  \tikzset{femm/boundary={side=bottom,flux,value=.2/(4*pi*1e-7)}}
+  \femmboundary[side=right,flux,value=-.3/(4*pi*1e-7)]
+  % A passive nonmagnetic annulus leaves the analytic background field unchanged.
+  \path[even odd rule,femm/region={material=copper,current density=0}]
+    (-7,-6) rectangle (7,6) (-3,-2) rectangle (3,2);
+  \pic[femm/arrows=false,femm/lines=7] {femm field};
+  \draw (-10,-8) rectangle (10,8);
+  \draw[femm/profile={name=boundary-test,samples=\CacheSamples}]
+    (-8,0)--(8,0);
+  \directlua{
+    local m=luafemm.current
+    assert(m.cache_info.status=='\ExpectedCache')
+    assert(not m.gauge_node)
+    assert(m.mesh_stats.min_angle>19.99999 and m.mesh_stats.max_area<3.00001)
+    assert(m.mesh_stats.steiner_points>0)
+    local area=0
+    for _,e in ipairs(m.triangles) do if e.material=='copper' then area=area+e.area end end
+    assert(math.abs(area-144e-6)<1e-10)
+    local p=require('luafemm-profiles').sample('boundary-test')
+    for _,row in ipairs(p) do
+      assert(math.abs(row.Bx-.2)<2e-5)
+      assert(math.abs(row.By+.3)<2e-5)
+    end
+    texio.write_nl('LUAFEMM-BOUNDARY: '..p[1].B)
+  }
+\endtikzpicture
+\par

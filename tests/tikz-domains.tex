@@ -1,0 +1,51 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\usetikzlibrary{femm}
+\nopagenumbers
+\tikzset{shell/.style={even odd rule,femm/region={material=pure-iron},fill=gray!20}}
+\tikzpicture[femm/problem={xmin=-12,xmax=12,ymin=-12,ymax=12,mesh size=2},rotate=15,scale=.8]
+  \path[femm/profile={name=early-probe,samples=5}] (-10,0)--(10,0);
+  \directlua{assert(not luafemm.current.nodes and not luafemm.current.stats)}
+  \path[femm/region={material=copper,current density=0}] (-3,-2) rectangle (3,2);
+  \filldraw[shell] (-8,-6) rectangle (8,6) (-3,-2) rectangle (3,2);
+  \directlua{
+    local m=luafemm.current
+    assert(m.regions[2].fill_rule=='even odd')
+    assert(rawlen(m.regions[2].contours)==2)
+    luafemm.mesh(m)
+    assert(not m.stats, 'mesh-only requests must not solve')
+    local area=0
+    for _,e in ipairs(m.triangles) do if e.material=='copper' then area=area+e.area end end
+    assert(math.abs(area-24e-6)<1e-10)
+    assert(not pcall(luafemm.region,m,'air',{{0,0},{1,0},{0,1}}))
+    local rows=require('luafemm-profiles').sample('early-probe')
+    assert(m.stats and rawlen(rows)==5)
+  }
+\endtikzpicture
+% Circles, rectangles and rounded contours retain independent closure states.
+\tikzpicture[femm/problem={xmin=-12,xmax=12,ymin=-12,ymax=12,mesh size=2}]
+  \filldraw[shell,rounded corners=.5mm] (-8,-8) rectangle (8,8)
+    (0,0) circle[radius=4] (0,0) circle[radius=1];
+  \directlua{
+    local m=luafemm.current
+    local r=m.regions[1]
+    assert(rawlen(r.contours)==3)
+    local g=require('luafemm-geometry')
+    assert(g.contains(r,0,0) and not g.contains(r,2,0) and g.contains(r,6,0))
+  }
+  \pic {femm mesh};
+\endtikzpicture
+% The native nonzero key overrides an inherited parity style on the same path.
+\tikzpicture[femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,mesh size=2}]
+  \filldraw[shell,nonzero rule] (-8,-8) rectangle (8,8) (-3,-3) rectangle (3,3);
+  \directlua{
+    local r=luafemm.current.regions[1]
+    assert(r.fill_rule=='nonzero' and require('luafemm-geometry').contains(r,0,0))
+  }
+\endtikzpicture
+\directlua{texio.write_nl('PASS: compound TikZ regions use the native PGF fill rule')}
+\bye

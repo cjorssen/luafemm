@@ -1,0 +1,57 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Right half of a U electromagnet with mirrored windings on both legs.
+\documentclass[varwidth=140mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{half model/.style={femm/boundary={side=left,type=neumann}}}
+% The style may precede femm/problem: its condition is applied to the new model.
+% The symmetry plane admits normal flux. The three distant sides keep Az=0.
+\begin{tikzpicture}[half model,femm/problem={
+    xmin=0,xmax=85,ymin=-75,ymax=95,mesh size=4},
+    femm/cache={file=\jobname-half,mode=auto}]
+  \filldraw[femm/region={material=pure-iron},fill=gray!25]
+    (0,-30)--(40,-30)--(40,30)--(25,30)--(25,-15)--(0,-15)--cycle;
+  \filldraw[femm/region={material=pure-iron},fill=gray!25]
+    (0,33) rectangle (40,48);
+  \filldraw[femm/region={material=copper,current density=-3000/(6*26)*1e6},
+    fill=orange!30] (17,-10) rectangle (23,16);
+  \filldraw[femm/region={material=copper,current density=3000/(6*26)*1e6},
+    fill=orange!30] (42,-10) rectangle (48,16);
+  \path[femm/region={material=air,mesh size=.6}]
+    (25,30) rectangle (40,33);
+  \begin{scope}
+    \clip (0,-42) rectangle (62,60);
+    \pic[femm/lines=21,femm/arrow spacing=24mm] {femm field};
+  \end{scope}
+  \draw[very thick,dashed,purple] (0,-40)--(0,58)
+    node[above,align=center,font=\small] {Symmetry plane\\$H_t=0$};
+  \draw[femm/profile={name=half-gap,samples=101},red,dashed,-Stealth]
+    (15,31.5)--(50,31.5);
+  \node[font=\small,fill=white] at (20,40.5) {Armature};
+  \node[font=\small,fill=white] at (20,-23) {Soft iron};
+  \node at (20,3) {$\otimes$};
+  \node at (45,3) {$\odot$};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=12cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmplot[profile=half-gap,component=B,abscissa=x,plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=half-gap,component=By,abscissa=x,plot options={blue}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip\small
+Right half of a symmetric device; $NI=3000$ A turns on each leg.
+Draft mesh: \femmstat{triangles} triangles.
+\end{document}

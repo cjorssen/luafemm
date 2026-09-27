@@ -9,12 +9,20 @@
 The domain is invariant along $z$. In SI units,
 $\mathbf A=A_z\mathbf e_z$ and
 $\mathbf B=(\partial_y A_z,-\partial_x A_z)$.
-For test functions $v$ vanishing on the outer boundary, the weak problem is
+For test functions $v$ vanishing on the Dirichlet boundary, the weak problem is
 \[
- \int_\Omega \nu\nabla A_z\cdot\nabla v
+ \int_\Omega \nu\nabla A_z\cdot\nabla v+\int_{\Gamma_w}(cA_z+g)v
  =\int_\Omega J_zv+
   \int_\Omega H_c\mathbf m\cdot(\partial_yv,-\partial_xv).
 \]
+Here $\Gamma_w$ contains Neumann and Robin sides, with $c=0$ for Neumann.
+The boundary tangent is counterclockwise; $H_t=cA_z+g$. On an edge of
+length $\ell$, the boundary mass matrix is
+$\ell\bigl(\begin{smallmatrix}2&1\\1&2\end{smallmatrix}\bigr)/6$.
+It integrates both $cA_z$ and the affine data $g$ exactly. These terms
+are added to the residual and, for $cA_z$, its tangent. Corner constraints
+and the all-Neumann compatibility check are described in
+Section~\ref{sec:boundaries}.
 The potential uses continuous piecewise-affine functions on triangles.
 Material laws and sources are constant within each element. With basis
 functions $N_i$, the element residual is
@@ -60,20 +68,29 @@ the calculation. The prototype limit is 40000 vertices for Delaunay and
 150000 grid vertices.
 
 Triangle was studied as an algorithmic reference; its source and binary
-are not embedded. This is not a full Triangle port. There is no
-Ruppert/Chew quality refinement, no guaranteed minimum angle and no
-guaranteed smooth transition between mesh sizes. Narrow features and
-acute corners can create badly conditioned triangles. Monitor |min_angle|
-and perform refinement studies; smaller spacing alone is not a quality
-certificate.
+are not embedded. This is not a full Triangle port. Optional segment-first
+Delaunay refinement enforces angle and area targets, or raises an error
+when its budget or geometric precision is exhausted (Section~\ref{sec:mesh-quality}).
+There is no specialised acute-corner protection or guaranteed smooth
+transition between mesh sizes. With both quality targets disabled, narrow
+features and acute corners can create badly conditioned triangles.
+Monitor |min_angle| and perform field-convergence studies; triangle quality
+alone is not a physical error estimate.
 
 \subsection{What is tested}
-The release checks analytic affine fields, manufactured Poisson convergence,
+The release checks analytic affine fields for Dirichlet, Neumann, Robin
+and mixed sides on both meshers (including nonlinear permanent magnets),
+manufactured Poisson and Robin convergence, all-Neumann compatibility,
 nonlinear saturation, current and magnetisation reversal, an exact
 magnet/air interface patch, and a magnetised disk against the infinite-domain
 solution. Geometry tests cover intersections, shared edges, small gaps,
-concavity, scaling and translation. An independent Python rational oracle
-checks 3015 predicate signs; 49 stress configurations exercise the mesher.
+concavity, scaling, translation and compound-region fill rules. Circular-shell
+shielding is checked against an analytic cavity field with exact exterior
+Dirichlet data. An independent Python rational oracle
+checks 4530 orientation, incircle and diametral-disk signs; 49 stress
+configurations exercise the base mesher. Quality tests independently check
+angles and areas, scaled and translated inputs, compound cavities, refined
+boundary tags, affine Robin fields, cache reuse and explicit budget failures.
 Python is a development-test dependency only.
 
 All 246 catalogue records are validated. Profiles are tested for Cartesian

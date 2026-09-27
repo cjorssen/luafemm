@@ -20,7 +20,8 @@
   gap mesh/.style={femm/region={material=air,mesh size=.5}}
 }
 \begin{tikzpicture}[femm/problem={xmin=-110,xmax=110,
-  ymin=-95,ymax=115,mesh size=5}]
+  ymin=-95,ymax=115,mesh size=5},
+  femm/cache={file=\jobname-field,mode=auto}]
   \filldraw[core]
     (-40,-30)--(40,-30)--(40,30)--(25,30)
     --(25,-15)--(-25,-15)--(-25,30)--(-40,30)--cycle;
