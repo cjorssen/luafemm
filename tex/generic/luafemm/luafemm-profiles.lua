@@ -20,7 +20,7 @@ end
 -- @tparam table m Source model.
 -- @tparam string name Document-wide identifier.
 -- @tparam table points Connected polyline in model units.
--- @tparam[opt] table o samples, offset and outside (error or nan).
+-- @tparam[opt] table o samples, offset, outside and polar centre/origin/pole count.
 -- @treturn table Registered profile.
 function P.register(m, name, points, o)
     o = o or {}
@@ -51,6 +51,13 @@ function P.register(m, name, points, o)
     end
     check(total > 0, "path must have positive length")
     -- Named profiles retain their own model, even after another picture starts.
+    for _, k in ipairs({ "center_x", "center_y", "angle_origin", "pole_pairs" }) do
+        check(o[k] == nil or finite(o[k]), "invalid polar option " .. k)
+    end
+    check(
+        (o.pole_pairs or 1) >= 1 and (o.pole_pairs or 1) % 1 == 0,
+        "pole pairs must be a positive integer"
+    )
     profiles[name] = {
         model = m,
         points = p,
@@ -58,6 +65,10 @@ function P.register(m, name, points, o)
         length = total,
         samples = n,
         offset = o.offset or 0,
+        center_x = o.center_x or 0,
+        center_y = o.center_y or 0,
+        angle_origin = o.angle_origin or 0,
+        pole_pairs = o.pole_pairs or 1,
         outside = o.outside or "error",
     }
     return profiles[name]
@@ -84,6 +95,7 @@ function P.capture(m, name, softpath, o)
             end
         end
     end
+
     return P.register(m, name, points, o)
 end
 --- Look up a registered profile; unknown names raise an error.
@@ -119,6 +131,12 @@ function P.sample(name)
         local u = (s - p.lengths[j - 1]) / l
         local x, y =
             a[1] + u * (b[1] - a[1]) - p.offset * ty, a[2] + u * (b[2] - a[2]) + p.offset * tx
+        if p.circle then
+            local a = math.rad(p.angle_origin + 360 * i / (p.samples - 1))
+            tx, ty = -math.sin(a), math.cos(a)
+            x, y = p.center_x + p.circle * math.cos(a), p.center_y + p.circle * math.sin(a)
+            s = 2 * math.pi * p.circle * i / (p.samples - 1)
+        end
         local o = m.options
         local row = { s = s, t = i / (p.samples - 1), x = x, y = y }
         if x < o.xmin or x > o.xmax or y < o.ymin or y > o.ymax then
@@ -144,12 +162,32 @@ function P.sample(name)
             row.Ht, row.Hn = hx * tx + hy * ty, -hx * ty + hy * tx
             row.Az = az
         end
+        local dx, dy = x - p.center_x, y - p.center_y
+        local radius = math.sqrt(dx * dx + dy * dy)
+        if radius == 0 then
+            radius = 0 / 0
+        end
+        row.Br, row.Btheta =
+            (row.Bx * dx + row.By * dy) / radius, (-row.Bx * dy + row.By * dx) / radius
+        row.Hr, row.Htheta =
+            (row.Hx * dx + row.Hy * dy) / radius, (-row.Hx * dy + row.Hy * dx) / radius
+        local angle = math.deg(math.atan(dy, dx)) - p.angle_origin
+        if #rows > 0 then
+            local previous = rows[#rows].angle
+            angle = previous + (angle - previous + 180) % 360 - 180
+        end
+        row.angle = p.circle and 360 * i / (p.samples - 1) or angle
+        row.electrical_angle = p.pole_pairs * row.angle
         rows[#rows + 1] = row
     end
     p.rows = rows
     return rows
 end
 local components = {
+    Br = true,
+    Btheta = true,
+    Hr = true,
+    Htheta = true,
     B = true,
     Bx = true,
     By = true,
@@ -163,7 +201,7 @@ local components = {
     Az = true,
     circulation = true,
 }
-local abscissas = { s = true, t = true, x = true, y = true }
+local abscissas = { s = true, t = true, x = true, y = true, angle = true, electrical_angle = true }
 --- Format a chosen component for the pgfplots coordinates input handler.
 -- @tparam string name Profile identifier.
 -- @tparam[opt=B] string component Magnetic component or Az.
@@ -177,6 +215,7 @@ function P.coordinates(name, component, abscissa)
     local rows = P.sample(name)
     if component == "circulation" then
         local p = P.get(name)
+        check(not p.circle, "use an ordinary captured path for circulation")
         check(p.offset == 0, "circulation requires offset=0; declare the displaced path explicitly")
         if not p.integrals then
             local integrate = require("luafemm-integrals").segment
@@ -200,5 +239,90 @@ function P.coordinates(name, component, abscissa)
         )
     end
     return table.concat(out, " ")
+end
+
+--- Register an exact circular scan, sampled uniformly in mechanical angle.
+-- The closing endpoint is retained for plotting, excluded from Fourier sums.
+-- @tparam table m Source model.
+-- @tparam string name Document-wide profile identifier.
+-- @tparam number x Centre x in model units.
+-- @tparam number y Centre y in model units.
+-- @tparam number radius Positive radius in model units.
+-- @tparam[opt] table o Sampling and polar options; offset must be zero.
+-- @treturn table Registered profile retaining its source model.
+function P.circle(m, name, x, y, radius, o)
+    o = o or {}
+    check(not o.offset or o.offset == 0, "circular profiles require zero offset")
+    check(finite(radius) and radius > 0, "positive circle radius required")
+    local settings = {}
+    for k, v in pairs(o) do
+        settings[k] = v
+    end
+    settings.center_x, settings.center_y = x, y
+    local points = {}
+    for i = 0, 72 do
+        local a = math.rad((o.angle_origin or 0) + 5 * i)
+        points[#points + 1] = { x + radius * math.cos(a), y + radius * math.sin(a) }
+    end
+    local p = P.register(m, name, points, settings)
+    p.circle = radius
+    p.length = 2 * math.pi * radius
+    return p
+end
+
+--- Fourier coefficients of a full circular profile in the mechanical angle.
+-- Phase is for A*cos(n*theta+phase), degrees relative to angle_origin.
+-- THD includes orders 1..maximum except the requested fundamental; DC is separate.
+-- @tparam string name Full-circle profile name.
+-- @tparam[opt=Br] string component Field component to analyse.
+-- @tparam[opt=15] integer maximum Largest mechanical harmonic below Nyquist.
+-- @tparam[opt=1] integer fundamental Reference order for distortion.
+-- @treturn table Indexed coefficients plus mean and thd (NaN for zero fundamental).
+function P.harmonics(name, component, maximum, fundamental)
+    component = component or "Br"
+    maximum = maximum or 15
+    fundamental = fundamental or 1
+    check(components[component] and component ~= "circulation", "invalid harmonic component")
+    local p = P.get(name)
+    check(p.circle, "harmonics require a circular gap profile")
+    local rows = P.sample(name)
+    local n = #rows - 1
+    check(
+        maximum >= 1 and maximum % 1 == 0 and 2 * maximum < n,
+        "harmonic order must be below Nyquist"
+    )
+    check(
+        fundamental >= 1 and fundamental % 1 == 0 and fundamental <= maximum,
+        "invalid fundamental order"
+    )
+    local mean = 0
+    for i = 1, n do
+        check(finite(rows[i][component]), "nonfinite harmonic sample")
+        mean = mean + rows[i][component] / n
+    end
+    local out = { mean = mean }
+    for k = 1, maximum do
+        local a, b = 0, 0
+        for i = 1, n do
+            local theta = 2 * math.pi * (i - 1) / n
+            a = a + 2 * rows[i][component] * math.cos(k * theta) / n
+            b = b + 2 * rows[i][component] * math.sin(k * theta) / n
+        end
+        out[k] = {
+            cosine = a,
+            sine = b,
+            amplitude = math.sqrt(a * a + b * b),
+            phase = math.deg(math.atan(-b, a)),
+        }
+    end
+    local energy = 0
+    for k = 1, maximum do
+        if k ~= fundamental then
+            energy = energy + out[k].amplitude ^ 2
+        end
+    end
+    out.thd = out[fundamental].amplitude > 1e-30 and math.sqrt(energy) / out[fundamental].amplitude
+        or 0 / 0
+    return out
 end
 return P

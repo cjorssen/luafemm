@@ -229,17 +229,45 @@ local components = {}
 --- Create immutable node geometry; PGF stores the returned numeric ID.
 -- @tparam string kind Component type.
 -- @tparam table options Escaped numeric strings from component keys.
-function T.component_new(kind, options)
+-- @tparam[opt] table machine Structured machine options for rotor/stator nodes.
+function T.component_new(kind, options, machine)
     check(M.current and M.current.frame, "set femm/problem before declaring components")
     check(not M.current.nodes, "declare components before meshing")
-    for key, value in pairs(options) do
-        options[key] = T.number(value, key)
+    if kind == "rotor" or kind == "stator" then
+        check(M.current.options.field_model == "open", "machine nodes require field model=open")
+        options = machine or options
+    else
+        for key, value in pairs(options) do
+            options[key] = T.number(value, key)
+        end
     end
-    options.ideal = M.current.options.field_model == "ideal" and 1 or 0
+    if kind ~= "rotor" and kind ~= "stator" then
+        options.ideal = M.current.options.field_model == "ideal" and 1 or 0
+    end
     local c = require("luafemm-components").make(kind, options)
     c.basis = M.current.component_basis
     components[#components + 1] = c
     tex.sprint(tostring(#components))
+end
+
+--- Install indexed shape anchors before PGF uses an anchor for node placement.
+-- Definitions select the saved ID at lookup time; they do not capture a model.
+-- @tparam integer id Saved component geometry ID.
+function T.component_anchors(id)
+    local c = assert(components[id])
+    if c.machine then
+        for anchor in pairs(c.anchors) do
+            if anchor:match("^slot ") or anchor:match("^gap ") then
+                tex.sprint(
+                    "\\expandafter\\gdef\\csname pgf@anchor@femm component@"
+                        .. anchor
+                        .. "\\endcsname{\\csname luafemm@componentanchor\\endcsname{"
+                        .. anchor
+                        .. "}}"
+                )
+            end
+        end
+    end
 end
 
 local function component_point(c, p)
@@ -308,22 +336,57 @@ function T.component_paths(id, transform, name)
         end
         M.current.component_cycles[name] = cycles
     end
-    for _, r in ipairs(c.regions) do
-        local points = {}
-        for i, p in ipairs(r.points) do
-            local x, y = component_point(c, p)
-            points[i] = string.format("(%.9fpt,%.9fpt)", x, y)
+
+    if c.machine then
+        M.current.machine_nodes = M.current.machine_nodes or {}
+        if name and name ~= "" then
+            M.current.machine_nodes[name] = {
+                center = mapped({ 0, 0 }),
+                east = mapped({ c.airgap_radius, 0 }),
+                north = mapped({ 0, c.airgap_radius }),
+                kind = c.kind,
+                tolerance = c.options.curve_tolerance,
+                nominal_radius = c.airgap_radius,
+            }
         end
-        tex.sprint(
-            string.format(
-                "\\csname luafemm@componentpart\\endcsname{%s}{%s}{%.17g}{%.17g}{%s--cycle}",
-                r.role,
-                r.turns and string.format("%.17g", r.turns) or "",
-                r.mesh_size,
-                angle_value(r.angle or c.options.magnetization_angle),
-                table.concat(points, "--")
+    end
+    for _, r in ipairs(c.regions) do
+        local paths = {}
+        for _, contour in ipairs(r.contours or { r.points }) do
+            local points = {}
+            for i, p in ipairs(contour) do
+                local x, y = component_point(c, p)
+                points[i] = string.format("(%.9fpt,%.9fpt)", x, y)
+            end
+            paths[#paths + 1] = table.concat(points, "--") .. "--cycle"
+        end
+        local path = table.concat(paths, " ")
+        if c.machine then
+            tex.sprint(
+                string.format(
+                    "\\csname luafemm@machinepart\\endcsname{%s}{%s}{%.17g}{%.17g}{%s}{%.17g}{%s}{%s}",
+                    r.role,
+                    r.turns and string.format("%.17g", r.turns) or "",
+                    r.mesh_size,
+                    angle_value(c.options.magnetization_angle),
+                    r.material,
+                    r.current_density or 0,
+                    path,
+                    r.style or ""
+                )
             )
-        )
+        else
+            tex.sprint(
+                string.format(
+                    "\\csname luafemm@componentpart\\endcsname{%s}{%s}{%.17g}{%.17g}{%s}",
+                    r.role,
+                    r.turns and string.format("%.17g", r.turns) or "",
+                    r.mesh_size,
+                    angle_value(r.angle or c.options.magnetization_angle),
+                    path
+                )
+            )
+        end
     end
 end
 
@@ -464,4 +527,109 @@ function T.register_material_choices()
     end
 end
 
+--- Register and draw an exact scan between two concentric circular components.
+local function machine_gap(m, o)
+    local machines = m.machine_nodes or {}
+    local r, s = machines[o.rotor], machines[o.stator]
+    check(
+        r and s and r.kind == "rotor" and s.kind == "stator",
+        "gap profile needs named rotor and stator"
+    )
+    local function radius(v)
+        local x, y = v.east[1] - v.center[1], v.east[2] - v.center[2]
+        local u, w = v.north[1] - v.center[1], v.north[2] - v.center[2]
+        local rr = math.sqrt(x * x + y * y)
+        check(
+            math.abs(rr - math.sqrt(u * u + w * w)) < 1e-5 * rr
+                and math.abs(x * u + y * w) < 1e-5 * rr * rr,
+            "gap profile requires circular components (no shear or unequal scaling)"
+        )
+        return rr
+    end
+    local ri, ro = radius(r), radius(s)
+    check(
+        math.abs(r.center[1] - s.center[1]) + math.abs(r.center[2] - s.center[2]) < 0.003,
+        "gap components must be concentric"
+    )
+    check(ri < ro, "rotor must fit strictly inside stator")
+    local tol = math.max(r.tolerance * ri / r.nominal_radius, s.tolerance * ro / s.nominal_radius)
+    check(ro - ri > 4 * tol, "reduce curve tolerance to resolve the air gap")
+    return r.center, ri, ro, tol
+end
+--- Register a gap scan in the current model and emit its model-frame annotation.
+-- @tparam table o Node names, position, profile name and angular sampling options.
+function T.gap_profile(o)
+    local m = M.current
+    local center, ri, ro, tol = machine_gap(m, o)
+    check(o.position > 0 and o.position < 1, "gap profile must lie strictly inside the gap")
+    local rad = ri + (ro - ri) * o.position
+    local P = require("luafemm-profiles")
+    check(rad > ri + tol and rad < ro - tol, "profile too close to polygonal air-gap walls")
+    local p = P.circle(m, o.name, center[1], center[2], rad, o)
+    local points = {}
+    for _, q in ipairs(p.points) do
+        points[#points + 1] = canvas(m, q[1], q[2])
+    end
+    tex.sprint("\\draw[femm gap profile] " .. table.concat(points, "--") .. ";")
+end
+
+--- Add an air-only refinement band with margins from polygonal pole faces.
+-- @tparam table o Rotor/stator names and a positive model-frame mesh_size.
+function T.air_gap(o)
+    local m = M.current
+    check(not m.nodes, "declare air-gap refinement before solving")
+    check(o.mesh_size > 0, "air-gap mesh size must be positive")
+    local center, ri, ro, tol = machine_gap(m, o)
+    local paths = {}
+    for _, r in ipairs({ ri + 2 * tol, ro - 2 * tol }) do
+        local n = math.max(36, math.ceil(math.pi / math.acos(1 - tol / r)))
+        local points = {}
+        for i = 0, n - 1 do
+            local a = 2 * math.pi * i / n
+            points[#points + 1] =
+                canvas(m, center[1] + r * math.cos(a), center[2] + r * math.sin(a))
+        end
+        paths[#paths + 1] = table.concat(points, "--") .. "--cycle"
+    end
+    tex.sprint(
+        string.format(
+            "\\path[femm air gap,even odd rule,femm/region={material=air,current density=0,mesh size=%.17g}] %s;",
+            o.mesh_size,
+            table.concat(paths, " ")
+        )
+    )
+end
+--- Serialize a harmonic spectrum or scalar for generic TeX/PGFPlots.
+-- @tparam table o Profile, component, order, normalization and scalar quantity.
+-- @tparam boolean plot Emit coordinate pairs rather than a scalar.
+function T.harmonic(o, plot)
+    local h = require("luafemm-profiles").harmonics(
+        o.profile,
+        o.component,
+        o.maximum_order,
+        o.fundamental
+    )
+    if plot then
+        local out = {}
+        for i = 1, o.maximum_order do
+            local value = h[i].amplitude
+            if o.normalize == "true" then
+                check(h[o.fundamental].amplitude > 1e-30, "cannot normalize a zero fundamental")
+                value = value / h[o.fundamental].amplitude
+            end
+            out[#out + 1] = string.format("(%d,%.12g)", i, value)
+        end
+        tex.sprint(table.concat(out, " "))
+    else
+        local value
+        if o.quantity == "thd" or o.quantity == "mean" then
+            value = h[o.quantity]
+        else
+            check(h[o.order], "harmonic order exceeds maximum order")
+            value = h[o.order][o.quantity]
+        end
+        check(type(value) == "number" and value == value, "undefined harmonic statistic")
+        tex.sprint(string.format("%.12g", value))
+    end
+end
 return T

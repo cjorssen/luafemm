@@ -8,6 +8,19 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Changelog
 
+## 0.9.0-dev — 2026-09-27
+
+- Add rotor and circular/square stator nodes with compound iron domains, shafts,
+  casings, detailed slot placement and shape controls, and conductor layers.
+- Add balanced coil records, per-conductor materials and excitation, and uniform
+  or sinusoidally weighted distributed windings with conserved ampere-turns.
+- Add local air-gap refinement, exact circular scans, polar field components,
+  mechanical/electrical angle plots, and spatial Fourier spectra and statistics.
+- Add Kamil's four-stage machine tutorial and a complete node-construction
+  example, with executed source/output pairs and an extensive key reference.
+- Validate machine geometry and numerical fields, generic-format cache reuse,
+  and optional independent xfemm interchange comparisons.
+
 ## 0.8.0-dev — 2026-09-27
 
 - Add confined planar magnetic domains with one floating potential per window.

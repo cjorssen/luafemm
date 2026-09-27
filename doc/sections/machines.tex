@@ -1,0 +1,396 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Rotors, stators and windings}
+\label{sec:machines}
+
+The machine nodes are genuine PGF shapes, using the same capture, materials,
+mesh, solver and persistent-cache machinery as ordinary physical paths.
+They describe a constant-depth planar cross-section with axial current density.
+They require |field model=open|. Declaring a machine does not start a solve.
+A rotor may precede or follow its stator: compound core contours preserve the
+bore rather than painting an air disk over earlier regions.
+
+\begin{keylist}[/tikz]{femm/rotor=\marg{options},femm/stator=\marg{options}}
+Select a machine component and apply its options in |/femm/machine|.
+The default argument is empty. Both keys enable |transform shape| and fix
+node padding to zero. Physical dimensions are independent of node text.
+Standard placement and transformation conventions are those of
+Section~\ref{sec:components}. A circular gap scan additionally requires
+concentric components with circular, unsheared transformed surfaces.
+\end{keylist}
+
+\subsection{Geometry and materials}
+All lengths below are finite numerical literals in model millimetres; angles
+are mechanical degrees, positive counterclockwise from local $+x$.
+As in the existing component interface, dimension values are not unevaluated
+PGF mathematical expressions. Evaluate expressions before supplying the keys.
+Mesh sizes are measured in the model frame and do not scale with a node.
+
+\begin{key}{/femm/machine/radius=\meta{positive number} (initially 29)}
+Nominal rotor air-gap radius, before cutting its slots. Rotor only.
+\end{key}
+\begin{key}{/femm/machine/bore radius=\meta{positive number} (initially 30)}
+Nominal stator bore radius, before cutting its slots. Stator only.
+\end{key}
+\begin{key}{/femm/machine/outer shape=\meta{circle or square} (initially circle)}
+PGF choice selecting the stator core's outer outline. The bore remains circular.
+\end{key}
+\begin{keylist}[/femm/machine]{outer radius=\meta{number} (initially 45),
+  outer width=\meta{number} (initially 90)}
+Outer core radius for a circular stator, or full side length for a square
+stator. The inactive dimension has no effect. The core must contain its bore,
+slots and the requested minimum yoke.
+\end{keylist}
+\begin{key}{/femm/machine/shaft radius=\meta{nonnegative number} (initially 0)}
+Rotor shaft radius. Zero omits the shaft region. A positive value cuts a
+circular hole from the rotor core and fills it with |shaft material|.
+\end{key}
+\begin{key}{/femm/machine/housing thickness=\meta{nonnegative number} (initially 0)}
+Separate stator casing outside the core, circular or square as selected above.
+Zero omits it. It has its own material and drawing style.
+\end{key}
+\begin{key}{/femm/machine/minimum yoke=\meta{positive number} (initially 1)}
+Minimum geometric clearance from slots to the shaft or outer core surface.
+This is a construction check, not a saturation criterion. The angular-envelope
+check also rejects overlapping adjacent slots conservatively; deeply staggered
+slots with overlapping angular envelopes are not admitted.
+\end{key}
+\begin{keylist}[/femm/machine]{core material=\meta{material} (initially pure-iron),
+ shaft material=\meta{material} (initially air),
+ housing material=\meta{material} (initially air)}
+Select catalogue identifiers or custom |femm/materials/| styles. The shaft and
+housing have zero prescribed current. Conductors have independent selectors.
+The default air housing is physically passive even when its style paints it.
+\end{keylist}
+\begin{key}{/femm/machine/magnetization angle=\meta{number} (initially 0)}
+Local coercive-field direction for any coercive material used in a part.
+It is transformed with the component. No automatic radial magnet segmentation
+is implied by selecting a permanent-magnet material.
+\end{key}
+\begin{keylist}[/femm/machine]{mesh size=\meta{nonnegative number} (initially 0),
+ slot mesh size=\meta{nonnegative number} (initially 0),
+ conductor mesh size=\meta{nonnegative number} (initially 0)}
+Local refinement for core/shaft/housing, slot cavities and conductors,
+respectively. Zero inherits the problem spacing. Slot records can override
+the latter two values. Refinement remains bounded by the ordinary mesh budget.
+\end{keylist}
+\begin{key}{/femm/machine/curve tolerance=\meta{positive number} (initially .03)}
+Maximum chord sagitta used to discretise circular interfaces and notch fillets.
+The arc step is also capped at ten degrees (fifteen for small fillets).
+All machine material paths are emitted as polygons and are exported to FEMM
+as segments. The nominal circles, their polygonal approximation and the mesh
+are distinct: refine both tolerance and spacing in a convergence study.
+\end{key}
+
+\subsection{Slot placement and shape}
+\begin{key}{/femm/machine/slots=\marg{options}}
+Apply shared slot parameters in |/femm/machine/slots|. Its argument has no
+implicit reset: PGF styles and grouping work normally. The defaults below
+produce no slots until a count or explicit position list is provided.
+\end{key}
+\begin{key}{/femm/machine/slots/placement=\meta{uniform or explicit} (initially uniform)}
+Choice between a generated angular sequence and the supplied |angles| list.
+\end{key}
+\begin{key}{/femm/machine/slots/count=\meta{integer} (initially 0)}
+Number of slots for uniform placement, from 0 to 512. Zero makes a smooth
+component. Explicit placement uses the number of entries in |angles| instead.
+\end{key}
+\begin{keylist}[/femm/machine/slots]{start angle=\meta{number} (initially 0),
+ pitch=\meta{number} (initially 0)}
+The $i$th uniform slot is at |start angle| plus $(i-1)$ times the pitch.
+Zero pitch means $360/\texttt{count}$. Nonzero pitch allows a partial angular
+array; angles are reduced modulo 360 for geometry. Coincident slots fail.
+\end{keylist}
+\begin{key}{/femm/machine/slots/angles=\marg{comma-separated numbers} (initially empty)}
+Mechanical slot-centre angles for explicit placement, up to 512 entries.
+Indices follow list order, even when the list is not sorted angularly.
+\end{key}
+\begin{key}{/femm/machine/slots/offset=\meta{number} (initially 0)}
+Additional angular displacement, especially useful in an individual slot
+record. It changes the geometry and the automatic winding's angular weight.
+\end{key}
+\begin{key}{/femm/machine/slots/shape=\meta{choice} (initially trapezoid)}
+Choices are |rectangle|, |trapezoid| and |radial|. These describe the body
+behind the narrow mouth. Rectangle has equal body widths; trapezoid uses the
+independent bottom width; radial makes the body's two flanks pass through the
+machine centre. The mouth itself has parallel sides.
+\end{key}
+\begin{keylist}[/femm/machine/slots]{depth=\meta{positive number} (initially 8),
+ neck depth=\meta{positive number} (initially 1)}
+Depth to the bottom, and depth to the shoulder where the mouth meets the
+body. Both are measured along the slot's centre ray from the nominal surface,
+into the iron: outward for the stator and inward for the rotor.
+The total depth must exceed the neck depth.
+\end{keylist}
+\begin{keylist}[/femm/machine/slots]{opening width=\meta{positive number} (initially 2),
+ opening angle=\meta{number} (initially 0)}
+Width is the chord between the two mouth endpoints on the nominal circle;
+it must be smaller than the nominal radius.
+A positive opening angle overrides that width and specifies their subtended
+angle; it must be less than 90 degrees. Zero selects the width convention.
+This explicit precedence also applies inside styles and slot overrides.
+\end{keylist}
+\begin{keylist}[/femm/machine/slots]{width=\meta{positive number} (initially 4),
+ bottom width=\meta{positive number} (initially 5)}
+Tangential body width at the shoulder and bottom. The shoulder width must
+contain the mouth. |bottom width| applies only to trapezoids; rectangles use
+|width| and radial slots derive the bottom width from the two radii.
+\end{keylist}
+\begin{key}{/femm/machine/slots/corner radius=\meta{nonnegative number} (initially 0)}
+Circular fillets on internal notch corners; zero leaves sharp corners.
+The radius must fit adjacent edges and must not exceed conductor clearance.
+Core and cavity share the same fillet vertices. The surface-mouth endpoints
+remain on the nominal circle.
+\end{key}
+\begin{key}{/femm/machine/slots/material=\meta{material} (initially air)}
+Material filling the entire cut slot before its conductors are inserted.
+Use a custom nonmagnetic material to represent insulation. This region carries
+zero imposed current. An insulating liner and residual air can be represented
+by their common magnetic permeability in this magnetostatic model.
+\end{key}
+\begin{keylist}[/femm/machine/slots]{mesh size=\meta{nonnegative number} (initially 0),
+ conductor mesh size=\meta{nonnegative number} (initially 0)}
+Positive values override the machine's respective slot/conductor mesh keys.
+Zero uses those machine values, which may themselves inherit the problem.
+\end{keylist}
+\begin{key}{/femm/machine/slot=\marg{options}}
+Append an individual slot override. Supply |index|, a one-based slot number,
+and any shared slot keys that describe its geometry, filling or conductors.
+Unspecified fields retain the shared values. Placement, count, start angle, pitch and angles are global
+array settings and are rejected in an individual slot record.
+A slot index may appear only once. All records are compiled when the node is
+constructed, after shared parameters are resolved, independently of the order
+in which |slots| and |slot| appeared in that node's options.
+\end{key}
+\begin{key}{/femm/machine/slot/index=\meta{integer}}
+Required existing slot index. Slot override fields live in |/femm/machine/slot|
+and start empty; their names and meanings match the shared slot keys.
+\end{key}
+
+\subsection{Conductor sections and excitation}
+\begin{key}{/femm/machine/slots/conductor material=\meta{material} (initially copper)}
+Material of every conductor layer in the slot. This is independent of the
+imposed current: changing copper to aluminium does not change a prescribed
+$NI$. The present solver does not compute conductivity-driven eddy currents.
+\end{key}
+\begin{key}{/femm/machine/slots/clearance=\meta{positive number} (initially .4)}
+Minimum inset from the straight body walls. Conductors occupy only the body,
+not the mouth. The sloping side-wall inset is measured perpendicular to the
+wall; the bottom and shoulder insets are radial. An excessive inset is an error.
+\end{key}
+\begin{keylist}[/femm/machine/slots]{layers=\meta{integer} (initially 1),
+ layer gap=\meta{nonnegative number} (initially .3)}
+One to eight equal-depth conductor layers, ordered from the shoulder towards
+the bottom, with the stated radial separation. Each layer retains the local
+trapezoidal width and has its own area. Unassigned layers are passive.
+\end{keylist}
+\begin{key}{/femm/machine/slots/current density=\meta{number} (initially 0)}
+Uniform prescribed $J_z$ in A/m$^2$ in every conductor layer. Positive means
+out of the page. A nonzero value conflicts with a coil or automatic winding
+on the same layer. Raw density stays fixed under node scaling, unlike $NI$.
+\end{key}
+\begin{key}{/femm/machine/conductor=\marg{options}}
+Append a conductor override, applied after slot geometry and before winding
+assignment. Subkeys belong to |/femm/machine/conductor|: |slot=1|, |layer=1|,
+|material|, |current density| and |style|. The last three start empty and leave
+the corresponding slot setting unchanged. Repeated records apply in order.
+Geometry is controlled by the slot's widths, depth, clearance and layer keys.
+\end{key}
+\begin{key}{/femm/machine/coil=\marg{options}}
+Append a balanced two-sided coil. Subkeys are in |/femm/machine/coil|.
+Multiple coils add their signed ampere-turns if they share a conductor layer.
+The records do not draw end connections: the model is a transverse section.
+\end{key}
+\begin{key}{/femm/machine/coil/slots=\marg{first,second}}
+Required two distinct existing slot indices. The first receives $+NI$ and
+the second $-NI$. Their angular separation is unrestricted by the winding
+interface; geometric collision checks still apply.
+\end{key}
+\begin{key}{/femm/machine/coil/layer=\meta{integer} (initially 1)}
+Conductor layer used in both slots. It must exist in both.
+\end{key}
+\begin{keylist}[/femm/machine/coil]{turns=\meta{nonnegative number},
+ current=\meta{number},ampere turns=\meta{number}}
+Choose the product |turns*current| or the direct |ampere turns| value.
+Defaults for the product are one turn and zero current. Specifying a direct
+value together with either product key is rejected. Negative current or
+ampere-turns reverses the coil. Fractional homogenised turns are permitted.
+Actual polygon area determines $J_z=NI/S$ after physical transformations.
+\end{keylist}
+\begin{key}{/femm/machine/coil/material=\meta{material} (initially empty)}
+Optional material override for both assigned conductor layers. Empty retains
+their individual materials. If several coils override a shared layer's
+material, the last such record wins.
+\end{key}
+\begin{key}{/femm/machine/winding=\marg{options}}
+Configure an automatic distributed winding. Its subkeys are listed below.
+Automatic distribution and explicit |coil| records cannot be combined.
+\end{key}
+\begin{key}{/femm/machine/winding/distribution=\meta{choice} (initially none)}
+|none| leaves excitation to coil records or raw densities. |uniform| uses
+weights $\operatorname{sign}\sin(p(\theta_i-\theta_0))$; |sine| uses
+$\sin(p(\theta_i-\theta_0))$. Weights at numerical zeros are zero. Positions
+must give a balanced sum. See Section~\ref{sec:tutorial-machines} for the
+normalisation and its physical interpretation.
+\end{key}
+\begin{key}{/femm/machine/winding/ampere turns=\meta{number} (initially 1000)}
+Total excitation assigned to the positive-weight slots, distributed across
+all their layers. Negative values reverse the entire winding. This is not an
+excitation per slot. The negative-weight slots carry the opposite total.
+\end{key}
+\begin{keylist}[/femm/machine/winding]{pole pairs=\meta{positive integer} (initially 1),
+ axis=\meta{number} (initially 0)}
+Spatial order $p$ and mechanical angular origin $\theta_0$ of the current
+weights. Rotation of the whole node rotates its slots and sources together.
+\end{keylist}
+
+\subsection{Styles, anchors and a complete construction}
+\begin{keylist}[/femm/machine]{core style=\marg{options},shaft style=\marg{options},
+ housing style=\marg{options},slot style=\marg{options},conductor style=\marg{options}}
+Append ordinary TikZ painting options to the respective part style. There are
+no appended options initially. Physical changes belong in physical keys;
+path replacements, transformations and physical-region keys in these painting
+styles are unsupported.
+\end{keylist}
+\begin{keylist}[/femm/machine/slots]{style=\marg{options},conductor style=\marg{options}}
+Extra painting options for a slot cavity or its conductor layers, empty
+initially. Individual slot records can override them; |conductor| records
+can override one layer's style. The global part style is applied first.
+\end{keylist}
+\begin{stylekey}{/tikz/femm machine core}
+Initially |draw=black!70,fill=gray!15|.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm machine conductor}
+Initially |draw=orange!70!black,fill=orange!25|.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm machine slot}
+Initially empty; cavity material remains present even when invisible.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm machine shaft}
+Initially |draw=black!50|.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm machine housing}
+Initially |draw=black!70,fill=gray!30|.
+\end{stylekey}
+
+The standard compass anchors refer to the bounding box. |center|,
+|core center| and |window center| coincide at the machine axis. The latter
+also determines text placement. Physical anchors |gap east|, |gap north|,
+|gap west| and |gap south| lie on the nominal air-gap circle. For each slot
+$i$, the node supplies |slot i| (body centre), |slot i opening| (nominal surface),
+|slot i bottom| and |slot i conductor j| (layer centre). Indices are literal
+integers in the anchor name, for example |(S.slot 3 conductor 2)|.
+An unavailable index raises an error when queried.
+
+\luafemmexample{machine-nodes}
+
+\subsection{Refinement and circular profiles between nodes}
+\begin{key}{/tikz/femm/air gap=\marg{options}}
+Set |/femm/air gap| options: required |rotor| and |stator| node names, and
+|mesh size| (initially .5 mm, strictly positive). The |femm air gap| pic adds
+an air refinement annulus after both nodes exist and before any solve.
+It checks concentricity, circular transformed surfaces and positive clearance.
+The annulus stays two curve tolerances from each nominal surface so that
+polygonal approximation cannot paint air over iron. It refines the gap's
+interior, not a prescribed number of radial element layers.
+\end{key}
+\begin{stylekey}{/tikz/femm air gap}
+Initially empty. Paint the refinement band by redefining this style if desired.
+\end{stylekey}
+\begin{key}{/tikz/femm/gap profile=\marg{options}}
+Set |/femm/gap profile| options for the |femm gap profile| pic:
+|rotor| and |stator| are required names; |name=gap| names the registered
+profile; |position=.5| is its fractional radial location from rotor to stator;
+|samples=361| includes the closing endpoint; |angle origin=0| selects its
+starting model-frame angle; |pole pairs=1| scales the electrical abscissa.
+The position must lie strictly inside the gap, with clearance from the
+polygonal walls. The pic registers an exact circular scan without solving.
+Its visible annotation uses short straight segments. Its drawing transform is
+the source model's frame; additional pic placement does not move the scan.
+\end{key}
+\begin{stylekey}{/tikz/femm gap profile}
+Initially |draw=red!70!black,dashed,thin|. An empty drawing style can hide the
+annotation without removing the profile.
+\end{stylekey}
+
+The gap must exceed four transformed curve tolerances. Uniform scaling and
+rotation preserve circularity; unequal scaling and shear are rejected by the
+gap helpers, though the individual nodes can still be transformed that way.
+A gap-profile centre is retained with its source model, so subsequent figures
+do not change its interpretation. For circulation, use an ordinary captured path rather than this exact circular
+scan. Direct circular profiles are also available
+as |require('luafemm-profiles').circle(model,name,x,y,radius,options)| in Lua.
+
+\subsection{Polar plots and spatial harmonics}
+\begin{keylist}[/femm/profile]{center x=\meta{number} (initially 0),
+ center y=\meta{number} (initially 0),angle origin=\meta{number} (initially 0),
+ pole pairs=\meta{positive integer} (initially 1)}
+Polar reference for an ordinary captured profile. The centre is specified in
+model coordinates. Components |Br| and |Btheta| use the outward radial and
+counterclockwise angular unit vectors; |Hr| and |Htheta| follow the same rule.
+At the centre, polar components are undefined and plotted as missing values.
+Cartesian components retain their existing meaning.
+\end{keylist}
+The plot |component| choice accepts these four additional values. Its
+|abscissa| choice additionally accepts |angle| and |electrical angle|.
+Both are in degrees, relative to |angle origin|; the electrical angle is
+|pole pairs| times the mechanical angle. Ordinary profiles unwrap successive
+angles by the shortest increment, so sample densely enough to resolve the
+winding around the centre. Exact circular profiles run from 0 to 360 degrees.
+
+\begin{command}{\femmharmonicplot\oarg{options}}
+Inside a PGFPlots axis, emit an ordinary |\addplot+| of harmonic amplitudes
+against integer mechanical spatial order. No trailing semicolon is needed.
+Requires a full circular gap profile (or Lua circular profile), with finite
+samples. The repeated closing endpoint is omitted from Fourier sums.
+\end{command}
+\begin{command}{\femmharmonic\oarg{options}}
+Print one spectrum statistic using PGF's number formatter. Both commands
+parse their options locally in |/femm/harmonic| and can share family styles.
+The calculation is pure Lua and reuses the profile's cached field samples.
+\end{command}
+\begin{key}{/femm/harmonic/profile=\meta{identifier}}
+Required circular profile name; initially empty.
+\end{key}
+\begin{key}{/femm/harmonic/component=\meta{component} (initially Br)}
+Field component to analyse: B, H, Az, their Cartesian, path-relative or polar
+components. Circulation is not a periodic field component and is rejected.
+\end{key}
+\begin{key}{/femm/harmonic/maximum order=\meta{positive integer} (initially 15)}
+Largest mechanical spatial order included. It must be strictly below half the
+number of nonduplicate angular samples. This is a sampling limit, not a claim
+that the FEM mesh resolves that harmonic. Increase both mesh resolution and
+sampling and compare results when high-order amplitudes matter.
+\end{key}
+\begin{key}{/femm/harmonic/fundamental=\meta{positive integer} (initially 1)}
+Reference order for normalisation and THD. For a $p$-pole-pair machine set it
+to $p$. THD includes all other orders up to |maximum order|, including any
+subharmonics, and excludes DC. It is a ratio, not a percentage.
+\end{key}
+\begin{key}{/femm/harmonic/normalize=\meta{true or false} (initially false)}
+For spectrum plots, divide amplitudes by the selected fundamental. A zero
+fundamental cannot be normalised. This key does not change scalar output.
+\end{key}
+\begin{key}{/femm/harmonic/order=\meta{positive integer} (initially 1)}
+Order selected by scalar amplitude or phase output. It must not exceed
+|maximum order|. Ignored for mean and THD.
+\end{key}
+\begin{key}{/femm/harmonic/quantity=\meta{choice} (initially amplitude)}
+Scalar |amplitude|, |phase|, |mean| or |thd|. Phase is in degrees in the
+convention $A\cos(n\theta+\phi)$, relative to the profile's angular origin.
+A zero-amplitude phase is conventional, not physically meaningful.
+Mean is the DC term; THD is undefined for a zero fundamental and raises an error.
+\end{key}
+\begin{key}{/femm/harmonic/plot options=\marg{PGFPlots options} (initially empty)}
+Options passed to the emitted |\addplot+|. Axes, legends, colours, bar plots
+and logarithmic scales remain standard PGFPlots settings.
+\end{key}
+
+Finite-element B is piecewise constant; plots deliberately retain those
+jumps. Harmonic amplitudes are estimates from sampled FEM values, without
+smoothing or forced sinusoidal fitting. Rotor-angle sweeps require distinct
+static models and remeshing. Sliding air-gap elements, sector periodicity and
+transient circuit coupling are separate extensions.

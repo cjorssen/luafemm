@@ -109,6 +109,39 @@ def verify():
         values=list(map(float,run([probe,OUT/filename,8,9]).split('VALUES ')[1].split()))
         if abs(values[0]-.002)>1e-8 or abs(values[1])+abs(values[2])>1e-7:
             raise SystemExit(f'Mixed-boundary mismatch: {filename}')
+    # Slotted machine snapshots and independently meshed native solves.
+    run(['texlua', 'tests/interop_machines.lua'], 'machine-cases.log')
+    solved = set()
+    machine_results = []
+    machine_rows = (OUT / 'machine-samples.tsv').read_text().splitlines()
+    field_scales = {}
+    for row in machine_rows:
+        name, x, y, az, bx, by, *rest = row.split('\t')
+        field_scales[name] = max(field_scales.get(name, 0), (float(bx)**2 + float(by)**2)**.5)
+    for row in machine_rows:
+        name, x, y, *numbers = row.split('\t')
+        reference = list(map(float, numbers))
+        if name not in solved:
+            run([bins / 'fmesher', OUT / (name + '.fem')], name + '-mesh.log')
+            run([bins / 'fsolver', OUT / name], name + '-solve.log')
+            solved.add(name)
+        for suffix in ('-lua.ans', '.ans'):
+            actual = list(map(float, run([probe, OUT / (name + suffix), x, y]).split('VALUES ')[1].split()))
+            if suffix == '-lua.ans':
+                error = max(abs(a-b)/max(1,abs(b)) for a,b in zip(actual,reference))
+                if error > 1e-7:
+                    raise SystemExit(f'Machine snapshot mismatch: {name}: {error}')
+            else:
+                # Normalize by the case's peak sampled field: a pointwise
+                # relative error is undefined at angular field zeros.
+                scale = field_scales[name]
+                error = ((actual[1]-reference[1])**2 + (actual[2]-reference[2])**2)**.5 / scale
+                if error > .03:
+                    raise SystemExit(f'Independent machine B mismatch: {name}: {error}')
+            machine_results.append(dict(file=name+suffix,x=float(x),y=float(y),
+                                        reference=reference,xfemm=actual,error=error))
+    (OUT / 'machine-results.json').write_text(json.dumps(machine_results,indent=2)+'\n')
+    print(f'PASS: {len(machine_results)} machine snapshot/native comparisons.')
     (OUT / 'results.json').write_text(json.dumps(results,indent=2)+'\n')
     print(f'PASS: {len(results)} independent A/B/H samples plus three affine patches; see build/interop/results.json')
 

@@ -7,7 +7,7 @@
 -- This module is usable by texlua without a running TeX interpreter.
 -- Public lengths use options.unit metres per model unit; assembly uses SI.
 -- @module luafemm
-local M = { version = "0.8.0-dev", mu0 = 4 * math.pi * 1e-7 }
+local M = { version = "0.9.0-dev", mu0 = 4 * math.pi * 1e-7 }
 local boundary_conditions = require("luafemm-boundary")
 local geometry = require("luafemm-geometry")
 local abs, sqrt, max = math.abs, math.sqrt, math.max

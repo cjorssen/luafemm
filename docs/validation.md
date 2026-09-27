@@ -8,12 +8,46 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Development-version validation
 
-Version **0.8.0-dev**, verified on 2026-09-27. Local environment: TeX Live 2026,
+Version **0.9.0-dev**, verified on 2026-09-27. Local environment: TeX Live 2026,
 LuaTeX/LuaHBTeX 1.24.0, PGF 3.1.12, PGFPlots 1.18.3 (`compat=1.18`),
 ConTeXt MkIV 2026.09.10 10:02. Test commands and detailed logs are produced by
 `make test`, `make examples`, `make manual` and `make dist` under `build/`.
 A remote CI workflow is supplied; local verification does not imply a completed
 GitHub Actions run.
+
+## Machine evidence
+
+The machine suite validates smooth/slotted rotors, square/circular stators,
+rectangular/trapezoidal/radial slot bodies, shared fillets, multilayer conductor
+areas and materials, stable slot indices, invalid geometry, excitation conflicts,
+and exactly balanced integrated coil currents. An affine manufactured field
+checks polar projections and Fourier amplitude/phase independently of machine
+physics. Reversing rotor/stator declaration order preserves sampled fields.
+
+For the 12-slot linear fixture, changing global/gap spacing from 4/1 mm to
+2/0.5 mm and curve tolerance from 0.04 to 0.02 mm changes the fundamental by
+about 1.03% and the complete radial scan by 5.07% RMS relative to its fine-mesh
+RMS. These are measured regression results, not a universal accuracy guarantee.
+At fixed excitation the sine-weighted winding reduces order-15 spatial THD
+from about 0.202 to 0.134 in this fixture; slot ripple remains resolved.
+
+The four Kamil examples use 24 slots for their distributed windings and narrower
+mouths. Each supplies actual field, angular profile and spectrum figures.
+Their order-15 distortion excludes the higher slot harmonics; the tutorial
+explicitly distinguishes low-order distortion from all-frequency smoothness.
+
+`python3 scripts/interop.py` also exports a concentrated-coil and a distributed
+machine to FEM/ANS. The optional native xfemm oracle checks 24 answer snapshots
+and 24 independently solved gap samples. The native field discrepancy is
+normalised by each case's peak sampled field, avoiding meaningless relative
+errors at field zeros; the regression gate is 3%. Same-mesh answer snapshots
+use the existing 1e-7 scaled A/B/H gate. Raw evidence is written to
+`build/interop/machine-results.json`.
+
+The generic-format suite includes a two-layer machine, a conductor material
+override, gap refinement, an angular profile and harmonic scalar output in
+cold, warm and shared frozen cache modes. Lua and TeX sources remain independent
+of the external validation toolchain.
 
 ## Ideal-circuit evidence
 
@@ -113,7 +147,7 @@ format tests against an extracted TDS installation outside the runtime tree.
 ## Manual examples
 
 Every standalone document under `examples/` is included in the manual as a
-complete source/output pair: 14 documents, including the three format wrappers.
+complete source/output pair: 26 documents, including the three format wrappers.
 Their shared `scene.tex` has its own listing. The coverage check rejects omitted
 examples and stale names. PGF's native `codeexample` machinery reads the actual
 files, and the manual includes every page of the resulting PDFs. pdfcrop with
@@ -146,8 +180,8 @@ are inspected in rendered PDFs.
 
 These retained prototype measurements document sensitivity; they are not newly
 measured release guarantees. Cocircular diagonal choices and Newton counts can
-change when the mesher changes. A direct numerical comparison against FEMM or
-xfemm remains to be performed.
+change when the mesher changes. Independent comparisons against xfemm are now covered by the optional
+interchange checks described above.
 
 For the alnico U, By is sampled at (-32.5,30.5) and (32.5,30.5) mm. All cases
 converged in six Newton iterations.

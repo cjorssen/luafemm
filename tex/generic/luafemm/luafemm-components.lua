@@ -44,6 +44,9 @@ end
 -- @tparam[opt] table options Numeric geometry, mesh and excitation parameters.
 -- @treturn table Independent options, regions, anchors and centred bounds.
 function C.make(kind, options)
+    if kind == "rotor" or kind == "stator" then
+        return require("luafemm-machines").make(kind, options)
+    end
     if kind ~= "u core" and kind ~= "u electromagnet" then
         return require("luafemm-shapes").make(kind, options)
     end

@@ -8,6 +8,7 @@
 % on the Lua side; changing a TeX group does not discard a named profile.
 \newtoks\luafemm@plottoks
 \pgfkeys{/femm/profile/.is family,/femm/profile,
+  center x/.initial=0,center y/.initial=0,angle origin/.initial=0,pole pairs/.initial=1,
   name/.initial=,samples/.initial=201,curve tolerance/.initial=.03,
   offset/.initial=0,outside/.is choice,
   outside/error/.code={\def\luafemm@profileoutside{error}},
@@ -27,6 +28,10 @@
       samples=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{samples}}','samples'),
       tolerance=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{curve tolerance}}','curve tolerance'),
       offset=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{offset}}','offset'),
+      center_x=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{center x}}','center x'),
+      center_y=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{center y}}','center y'),
+      angle_origin=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{angle origin}}','angle origin'),
+      pole_pairs=luafemm.tex.number('\luaescapestring{\luafemm@profilevalue{pole pairs}}','pole pairs'),
       outside='\luafemm@profileoutside'})}%
   \endgroup}
 \pgfkeys{/femm/plot/.is family,/femm/plot,
@@ -38,8 +43,10 @@
 \luafemm@componentchoice{Bt}\luafemm@componentchoice{Bn}
 \luafemm@componentchoice{H}\luafemm@componentchoice{Hx}\luafemm@componentchoice{Hy}
 \luafemm@componentchoice{circulation}
+\luafemm@componentchoice{Br}\luafemm@componentchoice{Btheta}\luafemm@componentchoice{Hr}\luafemm@componentchoice{Htheta}
 \luafemm@componentchoice{Ht}\luafemm@componentchoice{Hn}\luafemm@componentchoice{Az}
 \def\luafemm@abscissachoice#1{\pgfkeys{/femm/plot/abscissa/#1/.code={\def\luafemm@plotabscissa{#1}}}}
+\luafemm@abscissachoice{angle}\pgfkeys{/femm/plot/abscissa/electrical angle/.code={\def\luafemm@plotabscissa{electrical_angle}}}
 \luafemm@abscissachoice{s}\luafemm@abscissachoice{t}\luafemm@abscissachoice{x}\luafemm@abscissachoice{y}
 % Group only option parsing; execute addplot outside it so that axis state,
 % cycle lists and legends behave exactly as for an ordinary addplot+.

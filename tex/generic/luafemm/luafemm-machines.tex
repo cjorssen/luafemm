@@ -1,0 +1,317 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Structured PGF key records cross into Lua only as escaped strings.
+\pgfkeys{/femm/machine/.is family,/femm/machine,
+  radius/.initial={29},
+  bore radius/.initial={30},
+  outer radius/.initial={45},
+  outer width/.initial={90},
+  outer shape/.initial={circle},
+  outer shape/.is choice,
+  outer shape/circle/.code={\pgfkeyssetvalue{/femm/machine/outer shape}{circle}},
+  outer shape/square/.code={\pgfkeyssetvalue{/femm/machine/outer shape}{square}},
+  shaft radius/.initial={0},
+  housing thickness/.initial={0},
+  minimum yoke/.initial={1},
+  core material/.initial={pure-iron},
+  shaft material/.initial={air},
+  housing material/.initial={air},
+  mesh size/.initial={0},
+  slot mesh size/.initial={0},
+  conductor mesh size/.initial={0},
+  curve tolerance/.initial={.03},
+  magnetization angle/.initial={0}}
+\pgfkeys{/femm/machine/slots/.is family,/femm/machine/slots,
+  placement/.initial={uniform},
+  placement/.is choice,
+  placement/uniform/.code={\pgfkeyssetvalue{/femm/machine/slots/placement}{uniform}},
+  placement/explicit/.code={\pgfkeyssetvalue{/femm/machine/slots/placement}{explicit}},
+  count/.initial={0},
+  start angle/.initial={0},
+  pitch/.initial={0},
+  angles/.initial={},
+  shape/.initial={trapezoid},
+  shape/.is choice,
+  shape/rectangle/.code={\pgfkeyssetvalue{/femm/machine/slots/shape}{rectangle}},
+  shape/trapezoid/.code={\pgfkeyssetvalue{/femm/machine/slots/shape}{trapezoid}},
+  shape/radial/.code={\pgfkeyssetvalue{/femm/machine/slots/shape}{radial}},
+  depth/.initial={8},
+  neck depth/.initial={1},
+  opening width/.initial={2},
+  width/.initial={4},
+  corner radius/.initial={0},
+  style/.initial={},conductor style/.initial={},
+  bottom width/.initial={5},
+  opening angle/.initial={0},
+  offset/.initial={0},
+  material/.initial={air},
+  conductor material/.initial={copper},
+  clearance/.initial={.4},
+  layers/.initial={1},
+  layer gap/.initial={.3},
+  current density/.initial={0},
+  mesh size/.initial={0},
+  conductor mesh size/.initial={0}}
+\pgfkeys{/femm/machine/slot/.is family,/femm/machine/slot,
+  index/.initial={},
+  placement/.initial={},
+  count/.initial={},
+  start angle/.initial={},
+  pitch/.initial={},
+  angles/.initial={},
+  shape/.initial={},
+  depth/.initial={},
+  neck depth/.initial={},
+  opening width/.initial={},
+  width/.initial={},
+  corner radius/.initial={},
+  style/.initial={},conductor style/.initial={},
+  bottom width/.initial={},
+  opening angle/.initial={},
+  offset/.initial={},
+  material/.initial={},
+  conductor material/.initial={},
+  clearance/.initial={},
+  layers/.initial={},
+  layer gap/.initial={},
+  current density/.initial={},
+  mesh size/.initial={},
+  conductor mesh size/.initial={}}
+\pgfkeys{/femm/machine/coil/.is family,/femm/machine/coil,
+  slots/.initial={},
+  layer/.initial={1},
+  turns/.initial={},
+  current/.initial={},
+  ampere turns/.initial={},
+  material/.initial={}}
+\pgfkeys{/femm/machine/winding/.is family,/femm/machine/winding,
+  distribution/.initial={none},
+  distribution/.is choice,
+  distribution/none/.code={\pgfkeyssetvalue{/femm/machine/winding/distribution}{none}},
+  distribution/uniform/.code={\pgfkeyssetvalue{/femm/machine/winding/distribution}{uniform}},
+  distribution/sine/.code={\pgfkeyssetvalue{/femm/machine/winding/distribution}{sine}},
+  ampere turns/.initial={1000},
+  pole pairs/.initial={1},
+  axis/.initial={0}}
+\def\luafemm@machineslots{}
+\def\luafemm@machinecoils{}
+\def\luafemm@machineconductors{}
+\pgfkeys{/femm/machine/slot/.code={%
+  \begingroup
+  \pgfqkeys{/femm/machine/slot}{index={},corner radius={},style={},conductor style={},placement={},count={},start angle={},pitch={},angles={},shape={},depth={},neck depth={},opening width={},width={},bottom width={},opening angle={},offset={},material={},conductor material={},clearance={},layers={},layer gap={},current density={},mesh size={},conductor mesh size={},#1}%
+  \edef\luafemm@next{\endgroup
+    \def\noexpand\luafemm@machineslots{\luafemm@machineslots,
+      {        index='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/index}}',
+        placement='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/placement}}',
+        count='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/count}}',
+        start_angle='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/start angle}}',
+        pitch='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/pitch}}',
+        angles='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/angles}}',
+        shape='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/shape}}',
+        depth='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/depth}}',
+        neck_depth='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/neck depth}}',
+        opening_width='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/opening width}}',
+        width='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/width}}',
+        corner_radius='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/corner radius}}',
+        style='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/style}}',
+        conductor_style='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/conductor style}}',
+        bottom_width='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/bottom width}}',
+        opening_angle='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/opening angle}}',
+        offset='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/offset}}',
+        material='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/material}}',
+        conductor_material='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/conductor material}}',
+        clearance='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/clearance}}',
+        layers='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/layers}}',
+        layer_gap='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/layer gap}}',
+        current_density='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/current density}}',
+        mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/mesh size}}',
+        conductor_mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot/conductor mesh size}}'}}}%
+  \luafemm@next}}
+\pgfkeys{/femm/machine/coil/.code={%
+  \begingroup
+  \pgfqkeys{/femm/machine/coil}{slots={},layer={},turns={},current={},ampere turns={},material={},#1}%
+  \edef\luafemm@next{\endgroup
+    \def\noexpand\luafemm@machinecoils{\luafemm@machinecoils,
+      {        slots='\luaescapestring{\pgfkeysvalueof{/femm/machine/coil/slots}}',
+        layer='\luaescapestring{\pgfkeysvalueof{/femm/machine/coil/layer}}',
+        turns='\luaescapestring{\pgfkeysvalueof{/femm/machine/coil/turns}}',
+        current='\luaescapestring{\pgfkeysvalueof{/femm/machine/coil/current}}',
+        ampere_turns='\luaescapestring{\pgfkeysvalueof{/femm/machine/coil/ampere turns}}',
+        material='\luaescapestring{\pgfkeysvalueof{/femm/machine/coil/material}}'}}}%
+  \luafemm@next}}
+\def\luafemm@machineoptions{%
+          radius='\luaescapestring{\pgfkeysvalueof{/femm/machine/radius}}',
+        bore_radius='\luaescapestring{\pgfkeysvalueof{/femm/machine/bore radius}}',
+        outer_radius='\luaescapestring{\pgfkeysvalueof{/femm/machine/outer radius}}',
+        outer_width='\luaescapestring{\pgfkeysvalueof{/femm/machine/outer width}}',
+        outer_shape='\luaescapestring{\pgfkeysvalueof{/femm/machine/outer shape}}',
+        shaft_radius='\luaescapestring{\pgfkeysvalueof{/femm/machine/shaft radius}}',
+        housing_thickness='\luaescapestring{\pgfkeysvalueof{/femm/machine/housing thickness}}',
+        minimum_yoke='\luaescapestring{\pgfkeysvalueof{/femm/machine/minimum yoke}}',
+        core_material='\luaescapestring{\pgfkeysvalueof{/femm/machine/core material}}',
+        shaft_material='\luaescapestring{\pgfkeysvalueof{/femm/machine/shaft material}}',
+        housing_material='\luaescapestring{\pgfkeysvalueof{/femm/machine/housing material}}',
+        mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/mesh size}}',
+        slot_mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/slot mesh size}}',
+        conductor_mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/conductor mesh size}}',
+        curve_tolerance='\luaescapestring{\pgfkeysvalueof{/femm/machine/curve tolerance}}',
+        magnetization_angle='\luaescapestring{\pgfkeysvalueof{/femm/machine/magnetization angle}}',
+  slots={        placement='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/placement}}',
+        count='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/count}}',
+        start_angle='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/start angle}}',
+        pitch='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/pitch}}',
+        angles='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/angles}}',
+        shape='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/shape}}',
+        depth='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/depth}}',
+        neck_depth='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/neck depth}}',
+        opening_width='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/opening width}}',
+        width='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/width}}',
+        corner_radius='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/corner radius}}',
+        style='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/style}}',
+        conductor_style='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/conductor style}}',
+        bottom_width='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/bottom width}}',
+        opening_angle='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/opening angle}}',
+        offset='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/offset}}',
+        material='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/material}}',
+        conductor_material='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/conductor material}}',
+        clearance='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/clearance}}',
+        layers='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/layers}}',
+        layer_gap='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/layer gap}}',
+        current_density='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/current density}}',
+        mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/mesh size}}',
+        conductor_mesh_size='\luaescapestring{\pgfkeysvalueof{/femm/machine/slots/conductor mesh size}}'},
+  winding={        distribution='\luaescapestring{\pgfkeysvalueof{/femm/machine/winding/distribution}}',
+        ampere_turns='\luaescapestring{\pgfkeysvalueof{/femm/machine/winding/ampere turns}}',
+        pole_pairs='\luaescapestring{\pgfkeysvalueof{/femm/machine/winding/pole pairs}}',
+        axis='\luaescapestring{\pgfkeysvalueof{/femm/machine/winding/axis}}'},
+  overrides={dummy=true\luafemm@machineslots},
+  coils={dummy=true\luafemm@machinecoils},
+  conductors={dummy=true\luafemm@machineconductors}}
+\pgfkeys{/femm/machine/slots/.code={\pgfqkeys{/femm/machine/slots}{#1}},
+ /femm/machine/winding/.code={\pgfqkeys{/femm/machine/winding}{#1}}}
+\tikzset{femm/rotor/.code={\pgfqkeys{/femm/machine}{#1}%
+  \def\luafemm@componentkind{rotor}%
+  \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+ femm/rotor/.default={}}
+\tikzset{femm/stator/.code={\pgfqkeys{/femm/machine}{#1}%
+  \def\luafemm@componentkind{stator}%
+  \tikzset{shape=femm component,transform shape,inner sep=0pt,outer sep=0pt}},
+ femm/stator/.default={}}
+\tikzset{femm machine core/.style={draw=black!70,fill=gray!15}}
+\pgfkeys{/femm/machine/core style/.code={\tikzset{femm machine core/.append style={#1}}}}
+\tikzset{femm machine conductor/.style={draw=orange!70!black,fill=orange!25}}
+\pgfkeys{/femm/machine/conductor style/.code={\tikzset{femm machine conductor/.append style={#1}}}}
+\tikzset{femm machine slot/.style={}}
+\pgfkeys{/femm/machine/slot style/.code={\tikzset{femm machine slot/.append style={#1}}}}
+\tikzset{femm machine shaft/.style={draw=black!50}}
+\pgfkeys{/femm/machine/shaft style/.code={\tikzset{femm machine shaft/.append style={#1}}}}
+\tikzset{femm machine housing/.style={draw=black!70,fill=gray!30}}
+\pgfkeys{/femm/machine/housing style/.code={\tikzset{femm machine housing/.append style={#1}}}}
+
+% Each region has an explicit material and excitation; painting styles are local.
+\def\luafemm@machinepart#1#2#3#4#5#6#7#8{%
+  \begingroup
+  \def\luafemm@componentturns{#2}%
+  \path[femm machine #1,#8,even odd rule,femm/region={material={#5},
+    ideal domain=false,current density=#6,magnetization angle=#4,mesh size=#3}] #7;
+  \endgroup}
+
+\pgfkeys{/femm/gap profile/.is family,/femm/gap profile,
+  rotor/.initial=,stator/.initial=,name/.initial=gap,position/.initial=.5,
+  samples/.initial=361,angle origin/.initial=0,pole pairs/.initial=1}
+\tikzset{femm/gap profile/.code={\pgfqkeys{/femm/gap profile}{#1}},
+  femm gap profile/.style={draw=red!70!black,dashed,thin},
+  pics/femm gap profile/.style={code={%
+    \begingroup\pgftransformreset
+    \directlua{luafemm.tex.gap_profile({
+      rotor='\luaescapestring{\pgfkeysvalueof{/femm/gap profile/rotor}}',
+      stator='\luaescapestring{\pgfkeysvalueof{/femm/gap profile/stator}}',
+      name='\luaescapestring{\pgfkeysvalueof{/femm/gap profile/name}}',
+      position=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/gap profile/position}}','position'),
+      samples=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/gap profile/samples}}','samples'),
+      angle_origin=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/gap profile/angle origin}}','angle origin'),
+      pole_pairs=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/gap profile/pole pairs}}','pole pairs')})}%
+    \endgroup}}}
+\pgfkeys{/femm/harmonic/.is family,/femm/harmonic,
+  profile/.initial=,component/.initial=Br,maximum order/.initial=15,
+  fundamental/.initial=1,order/.initial=1,quantity/.initial=amplitude,
+  normalize/.initial=false,plot options/.initial={},
+  quantity/.is choice,
+  quantity/amplitude/.code={\pgfkeyssetvalue{/femm/harmonic/quantity}{amplitude}},
+  quantity/phase/.code={\pgfkeyssetvalue{/femm/harmonic/quantity}{phase}},
+  quantity/mean/.code={\pgfkeyssetvalue{/femm/harmonic/quantity}{mean}},
+  quantity/thd/.code={\pgfkeyssetvalue{/femm/harmonic/quantity}{thd}},
+  normalize/.is choice,
+  normalize/true/.code={\pgfkeyssetvalue{/femm/harmonic/normalize}{true}},
+  normalize/false/.code={\pgfkeyssetvalue{/femm/harmonic/normalize}{false}}}
+\def\luafemm@harmonicoptions{%
+  profile='\luaescapestring{\pgfkeysvalueof{/femm/harmonic/profile}}',
+  component='\luaescapestring{\pgfkeysvalueof{/femm/harmonic/component}}',
+  quantity='\luaescapestring{\pgfkeysvalueof{/femm/harmonic/quantity}}',
+  normalize='\luaescapestring{\pgfkeysvalueof{/femm/harmonic/normalize}}',
+  maximum_order=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/harmonic/maximum order}}','maximum order'),
+  fundamental=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/harmonic/fundamental}}','fundamental'),
+  order=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/harmonic/order}}','order')}
+\protected\def\femmharmonic{\pgfutil@ifnextchar[{\luafemm@harmonic}{\luafemm@harmonic[]}}
+\def\luafemm@harmonic[#1]{%
+  \begingroup\pgfqkeys{/femm/harmonic}{#1}%
+  \edef\luafemm@value{\directlua{luafemm.tex.harmonic({\luafemm@harmonicoptions},false)}}%
+  \pgfmathprintnumber{\luafemm@value}\endgroup}
+\protected\def\femmharmonicplot{\pgfutil@ifnextchar[{\luafemm@harmonicplot}{\luafemm@harmonicplot[]}}
+\def\luafemm@harmonicplot[#1]{%
+  \begingroup\pgfqkeys{/femm/harmonic}{#1}%
+  \pgfkeysgetvalue{/femm/harmonic/plot options}\luafemm@plotoptions
+  \luafemm@plottoks=\expandafter{\luafemm@plotoptions}%
+  \edef\luafemm@next{\endgroup
+    \noexpand\addplot+[\the\luafemm@plottoks] coordinates {%
+      \directlua{luafemm.tex.harmonic({\luafemm@harmonicoptions},true)}};}%
+  \luafemm@next}
+
+\pgfkeys{/femm/machine/conductor/.code={%
+  \begingroup
+  \pgfqkeys{/femm/machine/conductor}{slot=1,layer=1,material=,current density=,style=,#1}%
+  \edef\luafemm@next{\endgroup
+    \def\noexpand\luafemm@machineconductors{\luafemm@machineconductors,
+      {slot='\luaescapestring{\pgfkeysvalueof{/femm/machine/conductor/slot}}',
+       layer='\luaescapestring{\pgfkeysvalueof{/femm/machine/conductor/layer}}',
+       material='\luaescapestring{\pgfkeysvalueof{/femm/machine/conductor/material}}',
+       current_density='\luaescapestring{\pgfkeysvalueof{/femm/machine/conductor/current density}}',
+       style='\luaescapestring{\pgfkeysvalueof{/femm/machine/conductor/style}}'}}}%
+  \luafemm@next},
+  /femm/machine/conductor/slot/.initial=1,
+  /femm/machine/conductor/layer/.initial=1,
+  /femm/machine/conductor/material/.initial=,
+  /femm/machine/conductor/current density/.initial=,
+  /femm/machine/conductor/style/.initial=}
+
+\pgfkeys{/femm/air gap/.is family,/femm/air gap,
+ rotor/.initial=,stator/.initial=,mesh size/.initial=.5}
+\tikzset{femm/air gap/.code={\pgfqkeys{/femm/air gap}{#1}},
+ femm air gap/.style={},
+ pics/femm air gap/.style={code={%
+  \begingroup\pgftransformreset
+  \directlua{luafemm.tex.air_gap({
+   rotor='\luaescapestring{\pgfkeysvalueof{/femm/air gap/rotor}}',
+   stator='\luaescapestring{\pgfkeysvalueof{/femm/air gap/stator}}',
+   mesh_size=luafemm.tex.number('\luaescapestring{\pgfkeysvalueof{/femm/air gap/mesh size}}','gap mesh size')})}%
+  \endgroup}}}
+\pgfkeys{/femm/harmonic/component/.is choice,
+ /femm/harmonic/component/B/.code={\pgfkeyssetvalue{/femm/harmonic/component}{B}},
+ /femm/harmonic/component/Bx/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Bx}},
+ /femm/harmonic/component/By/.code={\pgfkeyssetvalue{/femm/harmonic/component}{By}},
+ /femm/harmonic/component/Bt/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Bt}},
+ /femm/harmonic/component/Bn/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Bn}},
+ /femm/harmonic/component/Br/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Br}},
+ /femm/harmonic/component/Btheta/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Btheta}},
+ /femm/harmonic/component/H/.code={\pgfkeyssetvalue{/femm/harmonic/component}{H}},
+ /femm/harmonic/component/Hx/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Hx}},
+ /femm/harmonic/component/Hy/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Hy}},
+ /femm/harmonic/component/Ht/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Ht}},
+ /femm/harmonic/component/Hn/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Hn}},
+ /femm/harmonic/component/Hr/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Hr}},
+ /femm/harmonic/component/Htheta/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Htheta}},
+ /femm/harmonic/component/Az/.code={\pgfkeyssetvalue{/femm/harmonic/component}{Az}}}
+\endinput

@@ -1,0 +1,213 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Original tutorial following PGF's progressive, task-led presentation.
+\clearpage
+\section{Tutorial: A synchronous machine for Kamil}
+\label{sec:tutorial-machines}
+
+Kamil is preparing a lesson on synchronous machines. His first drawing has a
+circular rotor, an iron stator and two small rectangles for the sides of a
+coil. He can explain which way the current flows. What he cannot yet show is
+why the field around the air gap should resemble the sine wave on the next
+page of his notes. Two rectangles do not look particularly sinusoidal.
+
+He decides to start with those two rectangles, calculate the field, and let
+the graph tell him what needs changing. We shall follow him from a concentrated
+winding to regularly spaced slots, then to weighted turns and deliberately
+unequal slot spacing. Every complete source below is distributed with the
+package and executed when this manual is built.
+
+\subsection{Deciding what the drawing represents}
+
+The drawing is a transverse section of a cylindrical machine. The nominal
+air-gap surfaces are concentric circles, with no salient poles. Current flows
+parallel to the machine axis, out of or into the page. The model has a constant
+axial depth. This is a planar field calculation; it is not an axial-flux
+machine with a gap between two disks.
+
+Kamil first excites only the stator. The passive iron rotor remains essential:
+it changes the magnetic circuit even though its current is zero. Each figure
+represents a magnetostatic state. A conducting material does not acquire an
+induced current simply because its conductivity is nonzero. End windings,
+eddy currents and time-dependent motion are outside this example.
+
+For these comparisons he chooses a linear teaching material with relative
+permeability 2000. This avoids mixing winding-distribution effects with
+saturation. Later he can replace its identifier with |pure-iron| or another
+catalogue material and solve the nonlinear problem.
+
+\subsection{A drawing that is inexpensive to change}
+
+Kamil remembers Maya's first decision: use a modest global mesh while composing
+the drawing. Here the global spacing is 4 mm, with 0.7 mm in an air-only band
+inside the 2 mm gap. These are working settings, not certified accuracy bounds.
+The 0.03 mm curve tolerance controls the polygonal representation of the
+circular material interfaces independently of the mesh spacing.
+
+He defines reusable TikZ styles. The component keys use model millimetres,
+so |radius=28| is a physical radius; |scale=.65| on the picture only adjusts
+the printed diagram. The physical geometry does not grow when he changes its
+labels or selects a larger font.
+
+\begin{codeexample}[code only]
+\tikzset{
+  femm/materials/teaching-iron/.style={mu r=2000},
+  kamil rotor/.style={femm/rotor={
+    radius=28,core material=teaching-iron}},
+  kamil stator/.style={femm/stator={
+    bore radius=30,outer radius=45,
+    core material=teaching-iron,
+    slots={count=2,start angle=90,
+      depth=8,neck depth=.8,
+      opening width=1,width=3.5,bottom width=4.5},
+    coil={slots={1,2},ampere turns=200}}}
+}
+\end{codeexample}
+
+A slot is a cavity, not a current source. The |coil| record associates two
+conductor sections: slot 1 carries $+200$ A\,turns and slot 2 carries
+$-200$ A\,turns. Positive current points out of the page. The conductors need
+not have equal areas: their current densities are calculated from their
+individual captured areas.
+
+\subsection{Two nodes, a gap, and one circular measurement}
+
+The order is worth writing down. Kamil declares the two nodes, adds the gap
+refinement, registers the measurement, and finally asks for field lines.
+The field request starts the solve. Afterwards he may plot as many components
+of the registered profile as he likes, but he cannot add another physical
+part to that solved model.
+
+\begin{codeexample}[code only]
+\node[kamil stator] (S) {};
+\node[kamil rotor] (R) {};
+\pic[femm/air gap={rotor=R,stator=S,mesh size=.7}]
+  {femm air gap};
+\pic[femm/gap profile={rotor=R,stator=S,
+  name=gap,samples=721}] {femm gap profile};
+\pic[femm/lines=19] {femm field};
+\end{codeexample}
+
+The gap profile lies halfway between the nominal surfaces. It samples an
+exact circle, uniformly in mechanical angle. Its red drawing is only an
+annotation; it does not impose a boundary condition.
+
+The component Kamil wants is $B_r$, positive away from the common centre.
+Plotting $|\mathbf B|$ would conceal the change of sign between north and
+south poles. |Bn| is also a different convention: the left normal of a
+counterclockwise circular path points inward, whereas $B_r$ points outward.
+
+\begin{codeexample}[code only]
+\begin{axis}[xlabel={Mechanical angle (degrees)},ylabel={$B_r$ (T)}]
+  \femmplot[profile=gap,component=Br,abscissa=angle]
+\end{axis}
+\end{codeexample}
+
+Here is his complete first document, including the calculated field, the
+angular scan and its harmonic spectrum. Its profile is called |kamil-single|
+to keep it distinct from the following examples.
+\luafemmexample{tutorial-machine-single}
+
+\subsection{More slots do not specify a winding}
+
+Kamil now puts 24 slots around the stator. Their centres start at
+$7.5^\circ$ and advance in steps of $15^\circ$. He keeps the opening and body
+widths unchanged. With |distribution=uniform|, conductor sections in one
+half of the machine carry equal positive ampere-turns, and those in the
+opposite half carry equal negative ampere-turns. The selection is based on
+the sign of $\sin(\theta)$ for |axis=0,pole pairs=1|.
+
+\begin{codeexample}[code only]
+slots={count=24,start angle=7.5,
+  depth=8,neck depth=.8,opening width=1,
+  width=3.5,bottom width=4.5},
+winding={distribution=uniform,ampere turns=200}
+\end{codeexample}
+
+The total positive excitation remains 200 A\,turns, as in the concentrated
+coil. It is not 200 A\,turns in every slot. This normalization makes the
+comparison meaningful, although the fundamental amplitudes need not be equal.
+The distributed source produces a different magnetomotive-force waveform.
+It does not prescribe the resulting flux density.
+\luafemmexample{tutorial-machine-uniform}
+
+\subsection{Changing the turns before moving the slots}
+
+Kamil tries |distribution=sine| with exactly the same slots. For each slot
+centre $\theta_i$, the source weight is
+\[
+ w_i=\sin\bigl(p(\theta_i-\theta_0)\bigr),\qquad
+ (NI)_i=(NI)_+\frac{w_i}{\sum_j\max(w_j,0)}.
+\]
+Here $p$ is |pole pairs| and $\theta_0$ is |axis|. The distribution must be
+balanced: $\sum_i w_i=0$ within numerical tolerance. The package rejects an
+unbalanced set instead of inventing a return conductor. Multiple layers
+share a slot's assigned ampere-turns equally.
+
+In the usual thin-gap, highly permeable-iron approximation, the spatial
+variation of magnetomotive force is related to the current distribution.
+A sinusoidal current sheet therefore motivates this construction. The FEM
+calculation still includes the finite permeability and the actual slots.
+This is why the graph need not be a perfect sinusoid. For the continuous
+current-sheet model, see the synchronous-machine example in
+\href{https://web.mit.edu/6.013_book/www/chapter11/11.7.html}{Haus and Melcher,
+\emph{Electromagnetic Fields and Energy}, Section 11.7}.
+
+\begin{codeexample}[code only]
+winding={distribution=sine,ampere turns=200,
+  pole pairs=1,axis=0}
+\end{codeexample}
+
+These weights describe homogenised ampere-turns and can imply noninteger
+turn counts at a chosen current. For a manufacturable winding, Kamil would
+choose integer turns with explicit |coil| records, then recalculate the
+harmonics. No turn rounding is hidden inside |distribution=sine|.
+\luafemmexample{tutorial-machine-sine}
+
+\subsection{Keeping equal turns and choosing the positions}
+
+Kamil also wants a construction with identical coil sides. He retains twelve
+positive and twelve negative sections, but changes their positions. In the
+positive half, he places slot centres at the midpoint quantiles of a density
+proportional to $\sin\theta$:
+\[
+ \theta_i=\arccos\left(1-2\frac{i-1/2}{12}\right),
+ \qquad i=1,\ldots,12.
+\]
+The remaining positions are $\theta_i+180^\circ$. Pairing each slot with its
+opposite gives equal positive and negative ampere-turns. The slots are denser
+near $90^\circ$ and $270^\circ$, where the continuous source is strongest.
+
+The source below contains the resulting explicit angles. The geometric
+checks still apply: adding slots indefinitely would eventually leave too
+little room for the teeth. The construction approximates a distribution;
+it is not an optimizer and does not guarantee cancellation of particular
+harmonics. Its spectrum is the test of the idea.
+\luafemmexample{tutorial-machine-positioned}
+
+\subsection{Asking how close is close enough}
+
+The spectrum reports $B_n/B_1$ through order 15. For a component expanded as
+$B(\theta)=a_0+\sum_n(a_n\cos n\theta+b_n\sin n\theta)$, the reported amplitude
+is $B_n=\sqrt{a_n^2+b_n^2}$. The spatial distortion shown below each example is
+\[
+ \mathrm{THD}_{15}=\frac{\sqrt{\sum_{n=2}^{15}B_n^2}}{B_1}.
+\]
+It excludes DC and harmonics above order 15. In particular, a small value
+does not imply that slot-scale ripple at higher orders has disappeared.
+The output is a ratio; multiply by 100 for percent.
+
+Before using the final figures, Kamil repeats the calculations with global
+spacing 2 mm, gap spacing 0.35 mm, and a smaller curve tolerance. He compares
+fundamental amplitude, phase, and selected harmonics. He then checks a larger
+outer air domain to assess the imposed outer boundary. Increasing |samples|
+only improves the scan and Fourier quadrature; increasing |femm/lines| only
+adds drawn contours. Neither refines the finite-element solution.
+
+He can finally replace |teaching-iron| with a nonlinear material, change the
+stator to a square outer shape, or excite a slotted rotor. Each change is a
+new physical comparison. Styles let him keep the same labels, measurement
+commands and PGFPlots presentation throughout.

@@ -124,7 +124,9 @@
         ampere_turns='\luaescapestring{\luafemm@componentvalue{ampere turns}}',
         mesh_size='\luaescapestring{\luafemm@componentvalue{mesh size}}',
         gap_mesh_size='\luaescapestring{\luafemm@componentvalue{gap mesh size}}',
-        magnetization_angle='\luaescapestring{\luafemm@componentvalue{magnetization angle}}'})}}%
+        magnetization_angle='\luaescapestring{\luafemm@componentvalue{magnetization angle}}'},
+        {\luafemm@machineoptions})}}%
+    \directlua{luafemm.tex.component_anchors(\luafemm@componentid)}%
   }
   \savedanchor\luafemm@componenttext{%
     \luafemm@componentanchor{window center}%

@@ -61,7 +61,7 @@ for _, o in ipairs({
 }) do
     assert(not pcall(C.make, "u electromagnet", o), "invalid component was accepted")
 end
-assert(not pcall(C.make, "rotor"))
+assert(C.make("rotor").machine)
 assert(not pcall(C.current, { { 0, 0 }, { 1, 0 }, { 2, 0 } }, 0.001, 1))
 print("Component areas, anchors, signed ampere-turns, transformations and validation passed.")
 

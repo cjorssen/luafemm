@@ -91,7 +91,7 @@ def formats():
     for name, engine in (("plain", "luatex"), ("latex", "lualatex"), ("context", None)):
         folder = BUILD / "formats" / name
         folder.mkdir(parents=True, exist_ok=True)
-        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex", "ideal.tex"):
+        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex", "ideal.tex", "machines.tex"):
             shutil.copy2(ROOT / "tests" / "formats" / filename, folder / filename)
         shutil.copy2(ROOT / "tests/fixtures/uniform.fem", folder / "uniform.fem")
         if engine:
@@ -106,6 +106,7 @@ def formats():
         boundary_file.unlink(missing_ok=True)
         (folder / "exchange-cache.lfc").unlink(missing_ok=True)
         (folder / "ideal-cache.lfc").unlink(missing_ok=True)
+        (folder / "machine-cache.lfc").unlink(missing_ok=True)
         passes = {}
         for stage, mode, expected in (("cold", "auto", "miss"),
                                       ("warm", "auto", "solution"),
@@ -118,6 +119,7 @@ def formats():
                 boundary_file.write_bytes(shared_boundary)
                 (folder / "exchange-cache.lfc").write_bytes(shared_exchange)
                 (folder / "ideal-cache.lfc").write_bytes(shared_ideal)
+                (folder / "machine-cache.lfc").write_bytes(shared_machine)
             settings = {"CacheMode": mode, "ExpectedCache": expected,
                         "CacheScale": "1" if stage == "cold" else "2",
                         "CacheColor": "blue" if stage == "cold" else "red",
@@ -161,6 +163,10 @@ def formats():
             if not ideal:
                 raise SystemExit(f"Missing ideal result in {name}/{stage}")
             values["IDEAL"] = float(ideal.group(1))
+            machine = re.search(r"LUAFEMM-MACHINE: ([+\d.eE-]+)", log)
+            if not machine:
+                raise SystemExit(f"Missing machine result in {name}/{stage}")
+            values["MACHINE"] = float(machine.group(1))
             passes[stage] = values
             if name == "plain" and stage == "cold":
                 shared_cache = cache_file.read_bytes()
@@ -168,11 +174,13 @@ def formats():
                 shared_boundary = boundary_file.read_bytes()
                 shared_exchange = (folder / "exchange-cache.lfc").read_bytes()
                 shared_ideal = (folder / "ideal-cache.lfc").read_bytes()
+                shared_machine = (folder / "machine-cache.lfc").read_bytes()
             if stage == "frozen" and (cache_file.read_bytes() != shared_cache
                                       or component_file.read_bytes() != shared_component
                                       or boundary_file.read_bytes() != shared_boundary
                                       or (folder / "exchange-cache.lfc").read_bytes() != shared_exchange
-                                      or (folder / "ideal-cache.lfc").read_bytes() != shared_ideal):
+                                      or (folder / "ideal-cache.lfc").read_bytes() != shared_ideal
+                                      or (folder / "machine-cache.lfc").read_bytes() != shared_machine):
                 raise SystemExit("Frozen mode modified its input cache")
             if name == "context":
                 output = console.read_text(errors="replace")

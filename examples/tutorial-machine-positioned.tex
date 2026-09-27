@@ -1,0 +1,65 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile with LuaLaTeX. All dimensions below are in model millimetres.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzset{
+  femm/materials/teaching-iron/.style={mu r=2000},
+  kamil stator/.style={femm/stator={core material=teaching-iron,
+    bore radius=30,outer radius=45,
+    slots={depth=8,neck depth=.8,opening width=1,
+      width=3.5,bottom width=4.5,
+      placement=explicit,angles={
+        23.55646,41.40962,54.31467,65.37568,
+        75.52249,85.21981,94.78019,104.47751,
+        114.62432,125.68533,138.59038,156.44354,
+        203.55646,221.40962,234.31467,245.37568,
+        255.52249,265.21981,274.78019,284.47751,
+        294.62432,305.68533,318.59038,336.44354}},
+    winding={distribution=uniform,ampere turns=200}}},
+  kamil rotor/.style={femm/rotor={radius=28,
+    core material=teaching-iron}},
+  femm gap profile/.style={draw=red!70!black,dashed,thin}
+}
+\begin{document}
+\centering
+Equal turns with nonuniform slot positions\par\medskip
+\begin{tikzpicture}[femm/problem={xmin=-55,xmax=55,
+    ymin=-55,ymax=55,depth=10,mesh size=4},
+    femm/cache={file=\jobname},scale=.65]
+  \node[kamil stator] (S) {};
+  \node[kamil rotor] (R) {};
+  \pic[femm/air gap={rotor=R,stator=S,mesh size=.7}]
+    {femm air gap};
+  \pic[femm/gap profile={rotor=R,stator=S,
+    name=kamil-positioned,samples=721}] {femm gap profile};
+  \pic[femm/lines=19] {femm field};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=12cm,height=4.6cm,no markers,grid=major,
+    xmin=0,xmax=360,xtick={0,90,180,270,360},
+    xlabel={Mechanical angle (degrees)},ylabel={$B_r$ (T)}]
+  \femmplot[profile=kamil-positioned,component=Br,abscissa=angle]
+\end{axis}
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=12cm,height=4.2cm,ybar,bar width=4pt,
+    ymin=0,xmin=.5,xmax=15.5,xtick={1,3,...,15},
+    xlabel={Spatial harmonic order},ylabel={$B_n/B_1$}]
+  \femmharmonicplot[profile=kamil-positioned,
+    maximum order=15,normalize=true]
+\end{axis}
+\end{tikzpicture}
+\par
+Fundamental: \femmharmonic[profile=kamil-positioned] T.
+Spatial THD through order 15:
+\femmharmonic[profile=kamil-positioned,quantity=thd].
+\end{document}

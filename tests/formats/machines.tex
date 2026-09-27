@@ -1,0 +1,32 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\par
+\tikzpicture[femm/problem={xmin=-50,xmax=50,ymin=-50,ymax=50,mesh size=6},
+ femm/cache={file=machine-cache,mode=\CacheMode},scale=.4]
+ \node[femm/stator={slots={count=2,start angle=90,layers=2},
+   slot={index=1,bottom width=6},
+   conductor={slot=2,layer=2,material=aluminum-1100},
+   coil={slots={1,2},layer=2,ampere turns=100}}] (S) {};
+ \node[femm/rotor={radius=28,shaft radius=5}] (R) {};
+ \pic[femm/air gap={rotor=R,stator=S,mesh size=1}] {femm air gap};
+ \pic[femm/gap profile={rotor=R,stator=S,name=format-machine,samples=121}]
+   {femm gap profile};
+ \pic[femm/arrows=false,femm/lines=7] {femm field};
+ \draw[\CacheColor] (S.slot 1 opening)--(S.slot 1 conductor 2);
+ \directlua{
+   assert(luafemm.current.cache_info.status=='\ExpectedCache')
+   local h=require('luafemm-profiles').harmonics('format-machine','Br',7)
+   assert(h[1].amplitude>0)
+   texio.write_nl('LUAFEMM-MACHINE: '..h[1].amplitude)
+ }
+\endtikzpicture
+\par
+\tikzpicture\axis[width=7cm,height=4cm,no markers]
+ \femmplot[profile=format-machine,component=Br,abscissa=angle]
+\endaxis\endtikzpicture
+\par
+\femmharmonic[profile=format-machine,maximum order=7,quantity=thd]
+\par

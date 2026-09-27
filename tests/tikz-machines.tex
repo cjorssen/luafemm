@@ -1,0 +1,29 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\input pgfplots.tex
+\nopagenumbers
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+
+\tikzpicture[femm/problem={xmin=-50,xmax=50,ymin=-50,ymax=50,mesh size=5},scale=.6]
+\node[femm/stator={outer shape=square,
+ slots={count=2,start angle=90},coil={slots={1,2},ampere turns=1000}},anchor=slot 1 opening] (S) at (0,30) {};
+\node[femm/rotor={radius=28}] (R) {};
+\pic[femm/gap profile={rotor=R,stator=S,name=test-gap,samples=121}] {femm gap profile};
+\draw[red] (S.slot 1)--(S.slot 2);
+\pic[femm/lines=9] {femm field};
+\endtikzpicture\par
+\tikzpicture\axis[width=8cm,height=4cm]
+\femmplot[profile=test-gap,component=Br,abscissa=angle]
+\femmplot[profile=test-gap,component=Btheta,abscissa=electrical angle]
+\endaxis\endtikzpicture\par
+\tikzpicture\axis[width=8cm,height=4cm,ybar]
+\femmharmonicplot[profile=test-gap,maximum order=7,normalize=true]
+\endaxis\endtikzpicture
+THD: \femmharmonic[profile=test-gap,maximum order=7,quantity=thd].
+\bye

@@ -8,7 +8,7 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # luafemm
 
-**0.8.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
+**0.9.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
 written entirely in Lua and TeX. Declare materials on ordinary TikZ paths,
 solve a finite-element model inside LuaTeX, and draw oriented field lines or
 sample the field along a path. Works with **plain LuaTeX, LuaLaTeX and
@@ -61,6 +61,25 @@ For ConTeXt MkIV, use `\usemodule[luafemm]`, optionally
 `\usemodule[pgfplots]`, and `\starttikzpicture` / `\stoptikzpicture`.
 Run ConTeXt explicitly with `--luatex`. Complete format examples are in
 [`examples/formats/`](examples/formats/).
+
+## Slotted machines
+
+Use `femm/rotor` and `femm/stator` for a smooth or slotted rotor and a circular
+or square stator. Configure individual slot positions, mouths, bodies and
+fillets; assign conductor materials and layers; connect balanced coil sides
+or use distributed winding weights. All dimensions remain physical node keys.
+
+The `femm air gap` pic refines the gap locally. The `femm gap profile` pic
+registers an exact circular scan for `Br`, `Btheta` and angular PGFPlots axes.
+`\femmharmonicplot` and `\femmharmonic` report spatial harmonics without an
+external process. These are planar magnetostatic snapshots, with prescribed
+currents; they do not introduce an eddy-current or sliding-mesh solver.
+
+Kamil's tutorial compares a concentrated coil, uniform slots, weighted turns,
+and equal turns at nonuniform positions. Complete executed examples start at
+[`examples/tutorial-machine-single.tex`](examples/tutorial-machine-single.tex).
+See [`examples/machine-nodes.tex`](examples/machine-nodes.tex) for detailed
+geometry and conductor overrides.
 
 ## Ideal magnetic circuits
 
