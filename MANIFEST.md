@@ -51,6 +51,7 @@ upstream exceptions and the planned CTAN distribution.
 - `doc/sections/tutorial-machines.tex`
 - `doc/sections/tutorial.tex`
 - `docs/femm-interoperability-audit.md`
+- `docs/images/README.md`
 - `docs/interoperability.md`
 - `docs/materials.md`
 - `docs/meshing.md`
@@ -89,6 +90,7 @@ upstream exceptions and the planned CTAN distribution.
 - `scripts/import-materials.lua`
 - `scripts/interop.py`
 - `scripts/manual-catalog.lua`
+- `scripts/readme-images.py`
 - `scripts/release.py`
 - `tests/alnico_convergence.lua`
 - `tests/alnico_model.lua`
@@ -167,6 +169,15 @@ upstream exceptions and the planned CTAN distribution.
 - `tex/generic/luafemm/tikzlibraryfemm.code.tex`
 - `tex/generic/luafemm/tikzlibrarypgfplots.femm.code.tex`
 - `tex/latex/luafemm/luafemm.sty`
+
+## Rendered README previews (LPPL-1.3c)
+
+These previews are generated from the original examples with
+`scripts/readme-images.py`; see `docs/images/README.md` for provenance.
+
+- `docs/images/slotted-machine-field.png`
+- `docs/images/slotted-rotor.png`
+- `docs/images/tilted-u.png`
 
 ## Aggregated upstream notices and data derivatives (separate FEMM terms)
 

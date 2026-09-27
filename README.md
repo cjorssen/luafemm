@@ -14,6 +14,14 @@ solve a finite-element model inside LuaTeX, and draw oriented field lines or
 sample the field along a path. Works with **plain LuaTeX, LuaLaTeX and
 ConTeXt MkIV**. No native solver, external mesher or shell escape is required.
 
+| A tilted armature, rounded iron and its field | A slotted stator and its air-gap field |
+| :---: | :---: |
+| [<img src="docs/images/tilted-u.png" width="420" alt="U-shaped electromagnet with a tilted armature, triangular mesh and oriented magnetic field lines.">](examples/curved-core.tex) | [<img src="docs/images/slotted-machine-field.png" width="420" alt="Circular stator with 24 conductor slots surrounding a smooth rotor, with oriented field lines and a circular gap measurement path.">](examples/tutorial-machine-sine.tex) |
+
+These figures are calculated and drawn directly by LuaTeX and TikZ. Click an
+image for its complete source; the machine tutorial also plots the radial gap
+field and its spatial harmonics.
+
 This development version includes nonlinear B–H laws, permanent magnets,
 246 FEMM material records, constrained triangular meshing, local mesh spacing,
 and PGFPlots profiles of B, H and their components. It is a planar static
@@ -80,6 +88,11 @@ and equal turns at nonuniform positions. Complete executed examples start at
 [`examples/tutorial-machine-single.tex`](examples/tutorial-machine-single.tex).
 See [`examples/machine-nodes.tex`](examples/machine-nodes.tex) for detailed
 geometry and conductor overrides.
+
+[<img src="docs/images/slotted-rotor.png" width="580" alt="Square stator housing with twelve slots and two conductor layers, surrounding a rotated rotor with two slots and a central shaft.">](examples/machine-nodes.tex)
+
+*A square stator, two conductor layers and a slotted rotor rotated by 20°,
+all declared with parametric TikZ nodes. [View the source](examples/machine-nodes.tex).*
 
 ## Ideal magnetic circuits
 
