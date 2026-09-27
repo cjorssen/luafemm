@@ -8,7 +8,7 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # luafemm
 
-**0.6.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
+**0.7.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
 written entirely in Lua and TeX. Declare materials on ordinary TikZ paths,
 solve a finite-element model inside LuaTeX, and draw oriented field lines or
 sample the field along a path. Works with **plain LuaTeX, LuaLaTeX and
@@ -61,6 +61,32 @@ For ConTeXt MkIV, use `\usemodule[luafemm]`, optionally
 `\usemodule[pgfplots]`, and `\starttikzpicture` / `\stoptikzpicture`.
 Run ConTeXt explicitly with `--luatex`. Complete format examples are in
 [`examples/formats/`](examples/formats/).
+
+## FEMM interchange
+
+Version 0.7 adds planar DC `.fem` import, polygonal `.fem` export and solved
+`.ans` export in pure Lua. TikZ curves remain available: FEM output uses the
+computational polygonal interfaces. Specify `depth` before exporting and choose
+`interpolation=femm` before solving a nonlinear problem intended for ANS output.
+
+```tex
+\begin{tikzpicture}[femm/import={file=problem.fem},
+  femm/problem={mesh size=2},
+  femm/export={format=ans,file=problem-lua.ans}]
+  \pic {femm geometry};
+  \pic {femm field};
+\end{tikzpicture}
+```
+
+Import supports isotropic DC materials, constant magnetisation, series circuits,
+closed regions, circular arcs, true holes and supported tagged boundaries.
+Unsupported physics is rejected. Imported physical topology is immutable in
+this release; TikZ drawing overlays and field profiles remain available.
+See the manual's interchange chapter and `examples/interchange-*.tex`.
+
+Optional independent checks use `python3 scripts/interop.py --build --xfemm ../xfemm`.
+The native tools are for development only. Windows FEMM GUI acceptance has not
+been tested on the macOS development host.
 
 ## Documentation and examples
 
@@ -211,7 +237,7 @@ every option, invalidation rule and limitation.
 - `build/`: ignored generated PDFs, logs, caches and local release archives.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for coding conventions and release checks,
-and [CHANGELOG.md](CHANGELOG.md) for migration from the prototypes.
+and [CHANGELOG.md](CHANGELOG.md) for version history and breaking changes.
 
 ## Author, maintenance and distribution
 

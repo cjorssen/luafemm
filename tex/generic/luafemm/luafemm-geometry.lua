@@ -13,13 +13,13 @@ local orient = require("luafemm-predicates").orient
 --- Test membership using half-open ray crossings and robust orientation signs.
 -- Boundary points follow the half-open convention; element centroids are
 -- classified after constraint recovery, so none should straddle an interface.
--- @tparam table region contours (or a legacy points array) and fill_rule.
+-- @tparam table region contours and fill_rule.
 -- @tparam number x Coordinate in the same units as the contours.
 -- @tparam number y Coordinate in the same units as the contours.
 -- @treturn boolean Whether the selected fill rule includes this point.
 function G.contains(region, x, y)
     local winding, point = 0, { x, y }
-    for _, contour in ipairs(region.contours or { region.points }) do
+    for _, contour in ipairs(region.contours) do
         for i, a in ipairs(contour) do
             local b = contour[i % #contour + 1]
             if a[2] <= y and b[2] > y and orient(a, b, point) > 0 then

@@ -1,0 +1,25 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\input tikz.tex
+\usetikzlibrary{femm}
+\tikzpicture[femm/import={file=tests/fixtures/uniform.fem},
+  femm/problem={mesh size=4,name=imported},
+  femm/export={format=fem,file=tex-import.fem},
+  femm/export={format=ans,file=tex-import.ans}]
+  \pic {femm geometry};
+  \pic[femm/lines=7] {femm field};
+\endtikzpicture
+\tikzpicture[femm/problem={xmin=-12,xmax=12,ymin=-12,ymax=12,
+  mesh size=3,depth=10,interpolation=femm},
+  femm/export={format=fem,file=tex-curved.fem},
+  femm/export={format=ans,file=tex-curved.ans}]
+  \path[femm/region={material=air,current density=100000}]
+    (-7,-5) .. controls (9,-9) and (8,9) .. (-6,6) -- cycle;
+  \pic {femm geometry};
+  \pic[femm/lines=7] {femm field};
+\endtikzpicture
+\femmexport[model=imported,format=ans,file=tex-delayed.ans]
+\bye

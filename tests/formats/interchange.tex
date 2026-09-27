@@ -1,0 +1,21 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\par
+\tikzpicture[femm/import={file=uniform.fem},
+  femm/problem={mesh size=4,name=exchange-model},
+  femm/cache={file=exchange-cache,mode=\CacheMode},
+  femm/export={format=fem,file=exchange-roundtrip.fem},
+  femm/export={format=ans,file=exchange-solution.ans}]
+  \pic {femm geometry};
+  \pic[femm/arrows=false,femm/lines=5] {femm field};
+  \directlua{
+    local bx,by=luafemm.sample(luafemm.current,8,9)
+    assert(math.abs(bx)<1e-8 and math.abs(by+.25)<1e-8)
+    assert(luafemm.current.options.depth==12)
+    texio.write_nl('LUAFEMM-INTERCHANGE: '..by)
+  }
+\endtikzpicture
+\femmexport[model=exchange-model,format=ans,file=exchange-delayed.ans]

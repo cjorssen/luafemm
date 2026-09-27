@@ -24,8 +24,8 @@
   local m=luafemm.current
   assert(m.options.mesher=='delaunay')
   assert(rawlen(m.regions)==5,'unexpected number of captured paths')
-  assert(math.abs(m.regions[1].points[1][1]+10)<.001)
-  assert(rawlen(m.regions[3].points)>16,'circle was not flattened')
+  assert(math.abs(m.regions[1].contours[1][1][1]+10)<.001)
+  assert(rawlen(m.regions[3].contours[1])>16,'circle was not flattened')
   assert(m.stats.residual<1e-7)
   texio.write_nl('TIKZ INTERFACE PASS')
 }
@@ -43,10 +43,10 @@
 \directlua{
   local m=luafemm.current
   assert(rawlen(m.regions)==3)
-  local a=m.regions[1].points[1]
+  local a=m.regions[1].contours[1][1]
   assert(math.abs(a[1]-2)<.002 and math.abs(a[2]-3)<.002,'scope transform was lost')
-  assert(rawlen(m.regions[2].points)>8,'rounded corners were lost')
-  assert(rawlen(m.regions[3].points)>8,'arc was lost')
+  assert(rawlen(m.regions[2].contours[1])>8,'rounded corners were lost')
+  assert(rawlen(m.regions[3].contours[1])>8,'arc was lost')
   texio.write_nl('TIKZ TRANSFORMS PASS')
 }
 \tikzset{femm/materials/magnet/.style={mu r=3,remanence=1.2}}

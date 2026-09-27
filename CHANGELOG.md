@@ -8,6 +8,30 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Changelog
 
+## 0.7.0-dev — 2026-09-27
+
+- Remove the prototype command compatibility layer and its manual appendix.
+  Use `femm/problem`, native `femm/region` paths and `pic {femm field}`.
+  Remove old Lua-to-TeX forwarding aliases and the model-region `points` alias;
+  use the TeX bridge directly and `region.contours[1]` respectively.
+  Rewrite the minimal plain-LuaTeX example using the current key interface.
+
+- Add a passive magnetic FEMM 4.0 reader/writer and planar DC import with units,
+  circular arcs, labeled faces, series-current excitation and true No Mesh holes.
+- Preserve native TikZ curves; export their computational polygonal interfaces.
+- Generalize imported domains and boundary assembly, including disconnected
+  components with independent Neumann compatibility checks and gauges.
+- Write static non-incremental ANS files from the actual converged mesh and
+  potentials; reject stale solutions and incompatible nonlinear material laws.
+- Add natural cubic FEMM B-H interpolation, bounded smoothing and endpoint-slope
+  extrapolation as an explicit policy; retain linear interpolation by default.
+- Add generic import/export keys, named delayed exports and geometry styles;
+  test interchange under plain LuaTeX, LuaLaTeX and ConTeXt MkIV.
+- Bump the private cache to format 5 and validate carved-domain coverage.
+- Add independent xfemm disk-reader and solver checks, plus three complete
+  interchange tutorials with their rendered output. Windows GUI validation
+  remains outstanding; no native library is required by the package.
+
 ## 0.6.0-dev — 2026-09-27
 
 Development series following the first public release candidate.
@@ -111,8 +135,8 @@ First release candidate of the generic TikZ and PGFPlots libraries.
 
 Install the `tex/` tree instead of copying files from the repository root.
 The documented TikZ path interface and `\femmplot` syntax are preserved.
-The original polygon commands remain available for existing plain examples;
-new documents should use `femm/region` on native TikZ paths.
+The original polygon commands were retained in 0.5 and 0.6, then removed
+in 0.7. Use `femm/region` on native TikZ paths.
 
 Private macros are now under `\luafemm@...`; old undocumented implementation
 macros are not compatibility interfaces. Numeric literal keys reject non-finite

@@ -37,6 +37,10 @@ end
 function B.set(m, side, p)
     check(m and m.boundaries, "create a problem before declaring boundary conditions")
     check(not m.nodes, "declare boundary conditions before meshing")
+    check(
+        not m.topology,
+        "imported boundaries come from FEM properties; side overrides are unsupported"
+    )
     check(not m.options.boundary, "cannot combine side conditions with the boundary callback")
     check(side == "all" or valid_sides[side], "unknown side " .. tostring(side))
     p = p or {}
@@ -85,10 +89,25 @@ function B.prepare(m, nodes, elements, exterior)
     local x0, x1, y0, y1 = o.xmin * o.unit, o.xmax * o.unit, o.ymin * o.unit, o.ymax * o.unit
     local epsilon = math.max(x1 - x0, y1 - y0) * 1e-10
     local candidates = {}
+    local parent = {}
+    for i in ipairs(nodes) do
+        parent[i] = i
+    end
+    local function root(i)
+        while parent[i] ~= i do
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        end
+        return i
+    end
     for _, ids in ipairs(elements) do
         for j = 1, 3 do
             local a, b = ids[j], ids[j % 3 + 1]
-            if exterior[a] and exterior[b] then
+            local ra, rb = root(a), root(b)
+            if ra ~= rb then
+                parent[math.max(ra, rb)] = math.min(ra, rb)
+            end
+            if m.topology or (exterior[a] and exterior[b]) then
                 if a > b then
                     a, b = b, a
                 end
@@ -101,14 +120,18 @@ function B.prepare(m, nodes, elements, exterior)
     end
     local edges = {}
     for _, edge in pairs(candidates) do
-        if edge.count == 1 then
+        if edge.count == 1 or m.topology then
             edges[#edges + 1] = edge
         end
     end
     table.sort(edges, function(a, b)
         return a.ids[1] < b.ids[1] or (a.ids[1] == b.ids[1] and a.ids[2] < b.ids[2])
     end)
-    local fixed, weak, anchored = {}, {}, false
+    local fixed, weak, anchored = {}, {}, {}
+    local components = {}
+    for i in ipairs(nodes) do
+        components[i] = root(i)
+    end
     for _, edge in ipairs(edges) do
         local p, q = nodes[edge.ids[1]], nodes[edge.ids[2]]
         local function distance(axis, value)
@@ -123,49 +146,81 @@ function B.prepare(m, nodes, elements, exterior)
                 best = i
             end
         end
-        check(distances[best] <= epsilon, "exposed edge is not on a domain side")
         local side = sides[best]
         local condition = m.boundaries[side]
-        if o.boundary or condition.type == "dirichlet" then
-            for _, id in ipairs(edge.ids) do
-                local value
-                if o.boundary then
-                    value = fixed[id]
-                    if value == nil then
-                        value = o.boundary(nodes[id][1], nodes[id][2])
-                    end
-                else
-                    value = data(condition, nodes[id])
+        if m.topology then
+            condition = nil
+            local top = require("luafemm-topology")
+            local a, b = { p[1] / o.unit, p[2] / o.unit }, { q[1] / o.unit, q[2] / o.unit }
+            for _, s in ipairs(m.topology.segments) do
+                if
+                    top.distance(a, m.topology.points[s[1]], m.topology.points[s[2]])
+                        <= m.topology.tolerance * 20
+                    and top.distance(b, m.topology.points[s[1]], m.topology.points[s[2]])
+                        <= m.topology.tolerance * 20
+                then
+                    condition = s.condition
+                    break
                 end
-                check(finite(value), "non-finite prescribed potential")
-                local old = fixed[id]
-                check(
-                    old == nil
-                        or math.abs(old - value)
-                            <= 1e-10 * math.max(1e-12, math.abs(old), math.abs(value)),
-                    "conflicting Dirichlet values at a corner"
-                )
-                fixed[id] = value
             end
-            anchored = true
+            if edge.count == 1 and not condition then
+                condition = { type = "neumann", value = 0, dx = 0, dy = 0, coefficient = 0 }
+            end
+            if condition and edge.count == 2 then
+                check(
+                    condition.type == "dirichlet",
+                    "mixed conditions on internal interfaces are unsupported"
+                )
+            end
         else
-            edge.side = side
-            edge.length = math.sqrt((q[1] - p[1]) ^ 2 + (q[2] - p[2]) ^ 2)
-            edge.g = { data(condition, p), data(condition, q) }
-            edge.coefficient = condition.coefficient
-            edge.count = nil
-            weak[#weak + 1] = edge
-            anchored = anchored or condition.coefficient > 0
+            check(distances[best] <= epsilon, "exposed edge is not on a domain side")
+        end
+        if condition then
+            if o.boundary or condition.type == "dirichlet" then
+                for _, id in ipairs(edge.ids) do
+                    local value
+                    if o.boundary then
+                        value = fixed[id]
+                        if value == nil then
+                            value = o.boundary(nodes[id][1], nodes[id][2])
+                        end
+                    else
+                        value = data(condition, nodes[id])
+                    end
+                    check(finite(value), "non-finite prescribed potential")
+                    local old = fixed[id]
+                    check(
+                        old == nil
+                            or math.abs(old - value)
+                                <= 1e-10 * math.max(1e-12, math.abs(old), math.abs(value)),
+                        "conflicting Dirichlet values at a corner"
+                    )
+                    fixed[id] = value
+                end
+                anchored[components[edge.ids[1]]] = true
+            else
+                edge.side = side
+                edge.length = math.sqrt((q[1] - p[1]) ^ 2 + (q[2] - p[2]) ^ 2)
+                edge.g = { data(condition, p), data(condition, q) }
+                edge.coefficient = condition.coefficient
+                edge.count = nil
+                weak[#weak + 1] = edge
+                if condition.coefficient > 0 then
+                    anchored[components[edge.ids[1]]] = true
+                end
+            end
+        end
+    end -- tagged condition
+    local gauge, gauges = nil, {}
+    for id in ipairs(nodes) do
+        local component = components[id]
+        if not anchored[component] and not gauges[component] then
+            gauges[component] = id
+            fixed[id] = 0
+            gauge = gauge or id
         end
     end
-    local gauge
-    if not anchored then
-        -- A single reference fixes only the additive constant. The source
-        -- compatibility check below must succeed before this system is solved.
-        gauge = 1
-        fixed[gauge] = 0
-    end
-    return fixed, weak, gauge
+    return fixed, weak, gauge, gauges, components
 end
 
 --- Reject incompatible all-Neumann loads before eliminating the gauge row.
@@ -176,19 +231,29 @@ function B.compatibility(m)
     if not m.gauge_node then
         return
     end
-    local balance, scale = 0, 0
-    for _, e in ipairs(m.triangles) do
-        local load = e.current * e.area
-        balance, scale = balance + load, scale + math.abs(load)
+    local gauges = m.gauge_nodes or { [1] = m.gauge_node }
+    for component in pairs(gauges) do
+        local balance, scale = 0, 0
+        local function belongs(id)
+            return not m.components or m.components[id] == component
+        end
+        for _, e in ipairs(m.triangles) do
+            if belongs(e.ids[1]) then
+                local load = e.current * e.area
+                balance, scale = balance + load, scale + math.abs(load)
+            end
+        end
+        for _, edge in ipairs(m.boundary_edges) do
+            if belongs(edge.ids[1]) then
+                balance = balance - edge.length * (edge.g[1] + edge.g[2]) / 2
+                scale = scale + edge.length * (math.abs(edge.g[1]) + math.abs(edge.g[2])) / 2
+            end
+        end
+        check(
+            math.abs(balance) <= 1e-10 * math.max(scale, 1e-30),
+            "incompatible Neumann data: net current must equal the counterclockwise integral of H.t"
+        )
     end
-    for _, edge in ipairs(m.boundary_edges) do
-        balance = balance - edge.length * (edge.g[1] + edge.g[2]) / 2
-        scale = scale + edge.length * (math.abs(edge.g[1]) + math.abs(edge.g[2])) / 2
-    end
-    check(
-        math.abs(balance) <= 1e-10 * math.max(scale, 1e-30),
-        "incompatible Neumann data: net current must equal the counterclockwise integral of H.t"
-    )
 end
 
 --- Add exact P1 edge integrals to a mu0-scaled residual and tangent.

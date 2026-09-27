@@ -7,7 +7,7 @@
 -- This module is usable by texlua without a running TeX interpreter.
 -- Public lengths use options.unit metres per model unit; assembly uses SI.
 -- @module luafemm
-local M = { version = "0.6.0-dev", mu0 = 4 * math.pi * 1e-7 }
+local M = { version = "0.7.0-dev", mu0 = 4 * math.pi * 1e-7 }
 local boundary_conditions = require("luafemm-boundary")
 local geometry = require("luafemm-geometry")
 local abs, sqrt, max = math.abs, math.sqrt, math.max
@@ -56,6 +56,7 @@ function M.new(o)
     local m = { materials = {}, regions = {}, options = o }
     o.unit = o.unit or 0.001
     o.h = o.h or 2
+    check(o.depth == nil or (finite(o.depth) and o.depth > 0), "depth must be positive")
     o.xmin = o.xmin or -90
     o.xmax = o.xmax or 90
     o.ymin = o.ymin or -75
@@ -152,6 +153,11 @@ function M.material(m, name, p)
             )
         end
     end
+    p.interpolation = p.interpolation or m.options.interpolation or "linear"
+    check(p.interpolation == "linear" or p.interpolation == "femm", "unknown B-H interpolation")
+    if p.bh and p.interpolation == "femm" then
+        p.curve = require("luafemm-bh").prepare(p.bh)
+    end
     m.materials[name] = p
 end
 
@@ -165,6 +171,10 @@ end
 function M.constitutive(p, b)
     if not p.bh then
         return 1 / p.mur, 1 / p.mur
+    end
+    if p.curve then
+        local h, d = require("luafemm-bh").evaluate(p.curve, b)
+        return b > 1e-15 and M.mu0 * h / b or M.mu0 * d, M.mu0 * d
     end
     local t = p.bh
     local lo, hi = t[1], t[2]
@@ -205,6 +215,7 @@ end
 -- @tparam[opt="nonzero"] string fill_rule "nonzero" or "even odd", as in PGF.
 function M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
     check(not m.nodes, "declare regions before meshing")
+    check(not m.topology, "imported topology is immutable; edit the FEM source before importing")
     check(m.materials[material], "unknown material " .. material)
     fill_rule = fill_rule or "nonzero"
     check(fill_rule == "nonzero" or fill_rule == "even odd", "unknown fill rule")
@@ -233,7 +244,6 @@ function M.region_contours(m, material, contours, current, angle, mesh_size, fil
     local owned = copy(contours)
     m.regions[#m.regions + 1] = {
         material = material,
-        points = owned[1], -- Compatibility alias for simple-region clients.
         contours = owned,
         fill_rule = fill_rule,
         current = current or 0,
@@ -277,6 +287,10 @@ function M.mesh(m)
     end
     if m.options.mesher == "delaunay" then
         local points, elements, stats = require("luafemm-mesh").generate(m.options, m.regions)
+        if m.topology then
+            points, elements, stats =
+                require("luafemm-topology").carve(m.topology, points, elements, stats)
+        end
         m.mesh_stats = stats
         M.import_mesh(m, points, elements)
         cache.store(m)
@@ -301,7 +315,7 @@ function M.mesh(m)
     ys = axis(o.ymin, o.ymax, o.h, ys)
     local nodes, tri, boundary = {}, {}, {}
     local nx, ny = #xs, #ys
-    check(nx * ny <= 150000, "mesh too large for this prototype; increase mesh size")
+    check(nx * ny <= 150000, "mesh exceeds the vertex limit; increase mesh size")
     for j, y in ipairs(ys) do
         for i, x in ipairs(xs) do
             local id = #nodes + 1
@@ -381,7 +395,8 @@ end
 -- @tparam table boundary Set of exterior node indices.
 function M.prepare_mesh(m, nodes, elements, boundary)
     local o = m.options
-    local fixed, edges, gauge = boundary_conditions.prepare(m, nodes, elements, boundary)
+    local fixed, edges, gauge, gauges, components =
+        boundary_conditions.prepare(m, nodes, elements, boundary)
     local tri, free, A = {}, {}, {}
     for id, p in ipairs(nodes) do
         p.dof = nil
@@ -405,6 +420,12 @@ function M.prepare_mesh(m, nodes, elements, boundary)
                 material, current, mx, my = reg.material, reg.current, reg.mx, reg.my
             end
         end
+        local face
+        if m.topology then
+            face = require("luafemm-topology").locate(m.topology, x / o.unit, y / o.unit)
+            check(face and not face.hole, "triangle outside computational domain")
+            material, current, mx, my = face.material, face.current, face.mx, face.my
+        end
         if o.source then
             current = o.source(x, y)
         end
@@ -418,6 +439,7 @@ function M.prepare_mesh(m, nodes, elements, boundary)
             gx = gx,
             gy = gy,
             area = twice / 2,
+            face = face and face.id,
             material = material,
             p = m.materials[material],
             current = current,
@@ -432,10 +454,13 @@ function M.prepare_mesh(m, nodes, elements, boundary)
         triangles = tri,
         boundary_edges = edges,
         gauge_node = gauge,
+        gauge_nodes = gauges,
+        components = components,
     })
     m.nodes, m.triangles, m.free, m.A = nodes, tri, free, A
     m.exterior_nodes, m.fixed_values = boundary, fixed
     m.boundary_edges, m.gauge_node = edges, gauge
+    m.gauge_nodes, m.components = gauges, components
     return m
 end
 
@@ -686,6 +711,7 @@ function M.update_fields(m)
     end
     m.stats.peak = peak
     m.stats.net_current = current
+    m.solution_signature = require("luafemm-cache").signature(m)
 end
 
 --- Evaluate a solved model, using the first containing triangle at an interface.
@@ -839,11 +865,20 @@ function M.parse_pairs(s)
     return out
 end
 
--- Compatibility forwarding is lazy: numerical users never load the TeX bridge.
-for _, name in ipairs({ "tikz_lines", "capture_path", "tikz_field_picture", "tikz_mesh_picture" }) do
-    M[name] = function(...)
-        return require("luafemm-tex")[name](...)
-    end
+--- Import a magnetic FEMM problem without solving it.
+function M.import_fem(file, options)
+    local codec = require("luafemm-fem")
+    return codec.model(codec.read(file), options)
+end
+
+--- Export the computational geometry without triggering a solve.
+function M.export_fem(m, file)
+    return require("luafemm-fem").write(m, file)
+end
+
+--- Export the existing converged mesh and potential to a static answer file.
+function M.export_ans(m, file)
+    return require("luafemm-ans").write(m, file)
 end
 
 return M

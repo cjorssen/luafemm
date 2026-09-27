@@ -40,10 +40,10 @@ or area. Smaller values increase both memory and solution time.
 \end{key}
 \begin{key}{/femm/problem/mesher=\meta{delaunay or grid} (initially delaunay)}
 |delaunay| uses the constrained Lua triangulator and accepts general
-polygonal interfaces. |grid| retains the prototype's structured algorithm,
+polygonal interfaces. |grid| uses the structured algorithm,
 which requires axis-aligned region edges. Local mesh sizes apply only to
-|delaunay|. The standalone Lua constructor retains |grid| as its default
-for compatibility; the TikZ interface explicitly selects |delaunay|.
+|delaunay|. The standalone Lua constructor defaults to |grid|; the TikZ interface
+explicitly selects |delaunay|.
 \end{key}
 \begin{key}{/femm/problem/mesh tolerance=\meta{nonnegative number} (initially 0)}
 Vertex-merging distance. Zero selects $10^{-12}$ times the greater domain

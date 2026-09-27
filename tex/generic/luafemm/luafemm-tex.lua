@@ -40,9 +40,11 @@ function T.boundary(side, options)
 end
 
 --- Initialise the current picture from validated strings and the PGF transform.
-function T.new_problem(options, transform, basis, cache)
+function T.new_problem(options, transform, basis, cache, import_file, explicit, name)
     for key, value in pairs(options) do
-        if key ~= "mesher" then
+        if value == "" then
+            options[key] = nil
+        elseif key ~= "mesher" and key ~= "interpolation" then
             options[key] = T.number(value, key)
         end
     end
@@ -63,7 +65,46 @@ function T.new_problem(options, transform, basis, cache)
         cache.file = status.output_directory .. "/" .. cache.file
     end
     options.cache = cache
-    M.current = M.new(options)
+    if import_file and import_file ~= "" then
+        local overrides = { cache = cache, log = options.log }
+        for key in (explicit or ""):gmatch("[^,]+") do
+            check(
+                key ~= "xmin" and key ~= "xmax" and key ~= "ymin" and key ~= "ymax",
+                "imported domain bounds come from the FEM file"
+            )
+            overrides[key] = options[key]
+        end
+        local file
+        if resolvers and resolvers.findfile then
+            file = resolvers.findfile(import_file)
+        elseif kpse then
+            file = kpse.find_file(import_file, "tex")
+        end
+        if file == "" then
+            file = nil
+        end
+        if not file and status and status.output_directory and status.output_directory ~= "" then
+            local candidate = status.output_directory .. "/" .. import_file
+            local stream = io.open(candidate, "rb")
+            if stream then
+                stream:close()
+                file = candidate
+            end
+        end
+        M.current = M.import_fem(file or import_file, overrides)
+    else
+        M.current = M.new(options)
+    end
+    T.models = T.models or {}
+    T.model_count = (T.model_count or 0) + 1
+    local id = tostring(T.model_count)
+    T.models[id] = M.current
+    if name and name ~= "" then
+        check(not name:match("^%d+$"), "numeric model names are reserved")
+        check(not T.models[name], "model name already registered: " .. name)
+        T.models[name] = M.current
+    end
+    tex.sprint("\\expandafter\\def\\csname luafemm@picturemodel\\endcsname{" .. id .. "}")
     M.current.frame = require("luafemm-path").frame(transform, basis)
     -- Shape dimensions use the original coordinate basis, independently of
     -- text metrics and later local x/y vector changes.
@@ -114,24 +155,6 @@ function T.field_value(x, y)
     tex.sprint(string.format("%.3f", math.sqrt(bx * bx + by * by)))
 end
 
---- Emit field contours for the legacy coordinate-based TeX API.
--- @tparam table m Solved model.
--- @tparam number count Number of potential levels.
-function T.tikz_lines(m, count)
-    local paths = M.contours(m, count)
-    local out = {}
-    for _, path in ipairs(paths) do
-        local parts = { "\\draw[femm field] " }
-        for i, p in ipairs(path) do
-            parts[#parts + 1] = string.format("%s(%.7f,%.7f)", i > 1 and "--" or "", p.x, p.y)
-        end
-        parts[#parts + 1] = ";"
-        out[#out + 1] = table.concat(parts)
-    end
-    tex.sprint(table.concat(out, " "))
-    return paths
-end
-
 --- Capture a closed material path and apply the PGF coordinate-precision convention.
 -- @tparam table m Unmeshed model with a frame.
 -- @tparam string s Evaluated soft-path tokens.
@@ -171,6 +194,15 @@ function T.capture_path(m, s, material, current, tolerance, angle, mesh_size, tu
         )
     end
     M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
+    -- The evaluated soft path is passive PGF token data, never executed on reload.
+    -- Retain it before flattening so a later geometry compilation can reproduce
+    -- the same primitives independently of the drawn approximation.
+    m.regions[#m.regions].source = {
+        soft_path = s,
+        frame = { table.unpack(m.frame) },
+        tolerance = tolerance,
+        turns = turns,
+    }
 end
 
 -- Saved shape IDs keep anchor geometry independent of the current model.
@@ -305,6 +337,46 @@ function T.tikz_mesh_picture(m)
     end
     out[#out + 1] = ";"
     tex.sprint(table.concat(out))
+end
+
+--- Export a named or current model; relative paths follow TeX's output directory.
+function T.export(format, file, name)
+    local m = name ~= "" and T.models and T.models[name] or M.current
+    check(m and (name == "" or T.models[name]), "unknown model " .. name)
+    if
+        status
+        and status.output_directory
+        and status.output_directory ~= ""
+        and not file:match("^[/\\]")
+        and not file:match("^%a:")
+    then
+        file = status.output_directory .. "/" .. file
+    end
+    if format == "fem" then
+        M.export_fem(m, file)
+    elseif format == "ans" then
+        M.export_ans(m, file)
+    else
+        error("luafemm: unknown export format")
+    end
+end
+
+--- Draw the compiled interfaces without registering physical geometry twice.
+function T.geometry_picture(m)
+    check(m and m.frame, "create a model before drawing its geometry")
+    local t = m.topology or require("luafemm-topology").native(m)
+    for _, s in ipairs(t.segments) do
+        local p, q = t.points[s[1]], t.points[s[2]]
+        tex.sprint(
+            "\\draw[femm geometry,femm current geometry,femm group/"
+                .. tostring(s.group or 0)
+                .. "/.try] "
+                .. canvas(m, p[1], p[2])
+                .. "--"
+                .. canvas(m, q[1], q[2])
+                .. ";"
+        )
+    end
 end
 
 -- Identifiers contain only ASCII letters, digits and hyphens: safe PGF keys.

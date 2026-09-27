@@ -120,7 +120,7 @@ function G.generate(o, regions)
         local size = r.mesh_size and r.mesh_size > 0 and min(h, r.mesh_size / scale) or h
         local contours = {}
         local box = { math.huge, math.huge, -math.huge, -math.huge }
-        for _, points in ipairs(r.contours or { r.points }) do
+        for _, points in ipairs(r.contours) do
             loop(points, false, size)
             local poly = {}
             for _, p in ipairs(points) do

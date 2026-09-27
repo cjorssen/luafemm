@@ -25,7 +25,8 @@
   mesh tolerance/.initial=0,
   minimum angle/.initial=0,maximum area/.initial=0,max Steiner points/.initial=5000,
   tolerance/.initial=0.0000001,curve tolerance/.initial=.03,
-  max iterations/.initial=60,
+  max iterations/.initial=60,depth/.initial=,name/.initial=,
+  interpolation/.initial=linear,
   /femm/region/.is family,/femm/region,
   material/.initial=air,library/.initial=,current density/.initial=material,curve tolerance/.initial=.03,
   magnetization angle/.initial=0,mesh size/.initial=0}
@@ -113,11 +114,17 @@
       min_angle='\luaescapestring{\luafemm@problemvalue{minimum angle}}',
       max_area='\luaescapestring{\luafemm@problemvalue{maximum area}}',
       max_steiner='\luaescapestring{\luafemm@problemvalue{max Steiner points}}',
+      depth='\luaescapestring{\luafemm@problemvalue{depth}}',
+      curve_tolerance='\luaescapestring{\luafemm@problemvalue{curve tolerance}}',
+      interpolation='\luaescapestring{\luafemm@problemvalue{interpolation}}',
       tolerance='\luaescapestring{\luafemm@problemvalue{tolerance}}',max_newton='\luaescapestring{\luafemm@problemvalue{max iterations}}'},
       '\luaescapestring{\luafemm@roottransform}',
       {'\the\pgf@xx','\the\pgf@xy','\the\pgf@yx','\the\pgf@yy'},
       {file='\luaescapestring{\pgfkeysvalueof{/femm/cache/file}}',
-       mode='\luaescapestring{\pgfkeysvalueof{/femm/cache/mode}}'})}%
+       mode='\luaescapestring{\pgfkeysvalueof{/femm/cache/mode}}'},
+      '\luaescapestring{\pgfkeysvalueof{/femm/import/file}}',
+      '\luaescapestring{\luafemm@explicitproblem}',
+      '\luaescapestring{\luafemm@problemvalue{name}}')}%
   \luafemm@modelstartedtrue
   \luafemm@pendingboundaries
   \let\luafemm@pendingboundaries\pgfutil@empty

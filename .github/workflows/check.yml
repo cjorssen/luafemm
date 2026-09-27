@@ -8,6 +8,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      interop:
+        description: Build xfemm and run independent file and solver checks
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -42,3 +47,29 @@ jobs:
             build/dist/*.zip
             build/dist/SHA256SUMS
             build/dist/installation.json
+
+  interoperability:
+    if: github.event_name == 'workflow_dispatch' && inputs.interop
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: crobarcro/xfemm
+          ref: 34ac6cc586a346066984526620dfb67383c8e3c5
+          path: build/upstream-xfemm
+      - name: Install optional native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends texlive-luatex cmake g++ make python3
+      - name: Validate disk interchange and independent solves
+        run: python3 scripts/interop.py --build --xfemm build/upstream-xfemm
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: luafemm-interoperability
+          path: |
+            build/interop/*.log
+            build/interop/*.json
+            build/interop/*.tsv
+            build/interop/*-lua.ans

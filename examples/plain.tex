@@ -7,12 +7,11 @@
 \input luafemm.tex
 \hsize=160mm
 \nopagenumbers
-\tikzpicture
-\femmbegin[xmin=-30,xmax=30,ymin=-25,ymax=25,mesh size=2]
-\femmregion[current density=1000000]{-10/-5,-6/-5,-6/5,-10/5}
-\femmregion[current density=-1000000]{6/-5,10/-5,10/5,6/5}
-\femmsolve
-\femmfieldlines[lines=17]
-\femmend
+\tikzpicture[femm/problem={xmin=-30,xmax=30,ymin=-25,ymax=25,mesh size=2}]
+  \filldraw[femm/region={material=air,current density=1000000},
+    draw=black,fill=gray!20] (-10,-5) rectangle (-6,5);
+  \filldraw[femm/region={material=air,current density=-1000000},
+    draw=black,fill=gray!20] (6,-5) rectangle (10,5);
+  \pic[femm/lines=17] {femm field};
 \endtikzpicture
 \bye

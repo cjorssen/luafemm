@@ -16,7 +16,7 @@
     local C=require('luafemm-components')
     for i=3,4 do
       local r=m.regions[i]
-      local area=1/C.current(r.points,m.options.unit,1)
+      local area=1/C.current(r.contours[1],m.options.unit,1)
       assert(math.abs(area*r.current-(i==3 and 6000 or -6000))<1e-8)
     end
     for i=1,2 do assert(m.regions[i].material=='pure-iron') end
@@ -36,8 +36,8 @@
     for i,r in ipairs(regs) do
       local old=luafemm.component_reference[i]
       assert(r.current==old.current)
-      for j,p in ipairs(r.points) do
-        assert(p[1]==old.points[j][1] and p[2]==old.points[j][2])
+      for j,p in ipairs(r.contours[1]) do
+        assert(p[1]==old.contours[1][j][1] and p[2]==old.contours[1][j][2])
       end
     end
   }
@@ -50,14 +50,14 @@
   \draw (R.left pole)--(R.left armature);
   \directlua{
     local r=luafemm.current.regions[1]
-    local x=(r.points[7][1]+r.points[8][1])/2
-    local y=(r.points[7][2]+r.points[8][2])/2
+    local x=(r.contours[1][7][1]+r.contours[1][8][1])/2
+    local y=(r.contours[1][7][2]+r.contours[1][8][2])/2
     assert(math.abs(x-7)<.003 and math.abs(y-8)<.003)
     assert(math.abs(r.angle-30)<.01)
     local C=require('luafemm-components')
     for i=3,4 do
       local q=luafemm.current.regions[i]
-      assert(math.abs(q.current/C.current(q.points,.001,1)-(i==3 and 6000 or -6000))<1e-8)
+      assert(math.abs(q.current/C.current(q.contours[1],.001,1)-(i==3 and 6000 or -6000))<1e-8)
     end
   }
 \endtikzpicture
@@ -76,8 +76,8 @@
     assert(rawlen(luafemm.current.regions)==2,'anchor queries duplicated domains')
     local a,b=luafemm.current.regions[1],luafemm.current.regions[2]
     assert(a.current==0 and b.current==0,'winding excitation leaked to later nodes')
-    assert(math.abs(a.points[2][1]-a.points[1][1]-20)<.003)
-    assert(math.abs(b.points[2][1]-b.points[1][1]-30)<.003)
+    assert(math.abs(a.contours[1][2][1]-a.contours[1][1][1]-20)<.003)
+    assert(math.abs(b.contours[1][2][1]-b.contours[1][1][1]-30)<.003)
     luafemm.component_reference=nil
     texio.write_nl('COMPONENT NODES PASS')
   }
@@ -90,8 +90,8 @@
   \draw (S.left pole)--(S.right pole);
   \directlua{
     local r=luafemm.current.regions[1]
-    local x=(r.points[7][1]+r.points[8][1])/2
-    local y=(r.points[7][2]+r.points[8][2])/2
+    local x=(r.contours[1][7][1]+r.contours[1][8][1])/2
+    local y=(r.contours[1][7][2]+r.contours[1][8][2])/2
     assert(math.abs(x)<.003 and math.abs(y)<.003,'model basis or affine anchor lost')
   }
 \endtikzpicture

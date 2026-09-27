@@ -75,8 +75,4 @@ function C.properties(id)
     end
     return props
 end
--- Kept for prototype API compatibility; registration belongs to the TeX bridge.
-function C.tikz_choices()
-    return require("luafemm-tex").register_material_choices()
-end
 return C

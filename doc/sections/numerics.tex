@@ -30,8 +30,9 @@ functions $N_i$, the element residual is
  R_i=|T|\left[\nu\nabla A_z\cdot\nabla N_i
  -J_z/3-H_c(m_x\partial_yN_i-m_y\partial_xN_i)\right].
 \]
-The differential tangent follows from the exact slope of each affine
-piece of H(B). The code scales the entire system by $\mu_0$ for numerical
+The differential tangent follows from the derivative of the selected
+$H(B)$ law: piecewise linear by default, or the FEMM-compatible cubic policy
+described in Section~\ref{sec:interchange}. The code scales the entire system by $\mu_0$ for numerical
 convenience; this does not change the solution. Dirichlet degrees of
 freedom are eliminated. Newton steps use backtracking to decrease the
 residual. Linear systems use conjugate gradients and incomplete Cholesky
@@ -60,11 +61,11 @@ keeps the intended working range moderate. This does not make the input
 geometry exact before its TeX rounding, nor make intersection construction
 exact: intersection coordinates still use floating-point arithmetic.
 
-The final audit checks positive areas, rectangular coverage, preservation
+The native staging-mesh audit checks positive areas, rectangular coverage, preservation
 of every constraint and vertex, at most two triangles per edge, exposed
 edges only on the tagged exterior, Euler's relation $V-E+F=1$, and local
 Delaunay legality of every unconstrained flippable edge. Failure stops
-the calculation. The prototype limit is 40000 vertices for Delaunay and
+the calculation. The vertex limit is 40000 vertices for Delaunay and
 150000 grid vertices.
 
 Triangle was studied as an algorithmic reference; its source and binary
@@ -113,8 +114,18 @@ results document sensitivity rather than absolute accuracy:
 \end{tabular}\end{center}
 The refinements change the gap field by about 0.6 percent, and the larger
 domain by about one percent. Material-model error is a separate issue.
-No quantitative comparison with an executable FEMM/xfemm solver is yet
-claimed by this release.
+The interchange suite additionally loads Lua-written ANS files through xfemm's
+independent disk postprocessor and compares $A$, unsmoothed $B$ and $H$.
+Independent solves of the exported U-coil and alnico models agree to within
+2 percent in the tested gap-field samples at the two draft mesh resolutions.
+This is a bounded validation result, not a universal accuracy guarantee;
+see Section~\ref{sec:interchange} and the reproducible reports in |build/interop|.
+
+Imported domains are carved from a constrained staging mesh. Their audit also
+checks active area, protected exposed edges and the Euler characteristic of the
+active cell complex; shared child boundaries are counted as a union. Exclusions
+are never silently replaced by air. Unanchored disconnected components have
+independent gauges and current-balance checks.
 
 \subsection{Supported physics and practical diagnostics}
 The solver is static, planar and isotropic, with either a linear law or

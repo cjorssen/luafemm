@@ -77,7 +77,7 @@ test("invalid geometry and malformed B-H input are rejected", function()
     assert(not pcall(f.parse_pairs, "0/0,invalid,1/100"))
     local m = f.new()
     f.region(m, "air", { { 0, 0 }, { 2, 0 }, { 1, 1 }, { 0, 1 } })
-    assert(not pcall(f.mesh, m), "the legacy grid must reject oblique edges")
+    assert(not pcall(f.mesh, m), "the structured grid must reject oblique edges")
     assert(
         not pcall(
             f.region,

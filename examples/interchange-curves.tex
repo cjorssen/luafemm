@@ -1,0 +1,40 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\begin{tikzpicture}[
+  femm/problem={xmin=-16,xmax=16,ymin=-13,ymax=13,
+    mesh size=2,curve tolerance=.12,depth=10,name=curved-source},
+  femm/export={format=fem,file=\jobname.fem},
+  femm/export={format=ans,file=\jobname.ans}]
+  \filldraw[femm/region={material=air,current density=100000},
+    fill=orange!20,draw=orange!80!black,thick]
+    (-10,-6) .. controls (12,-11) and (12,11) .. (-8,7) -- cycle;
+  \begin{scope}[rotate=20,xscale=1.3]
+    \filldraw[femm/region={material=air,current density=-100000},
+      fill=blue!15,draw=blue!60!black] (-4,0) ellipse (2 and 4);
+  \end{scope}
+  \pic[femm/geometry style={red,densely dotted}] {femm geometry};
+  \pic[femm/arrows=false,femm/lines=11] {femm field};
+  \draw[femm/profile={name=curve-scan,samples=61},dashed] (-12,9)--(12,9);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \begin{axis}[width=7cm,height=5cm,no markers,grid=major,
+    xlabel={Distance (mm)},ylabel={$B$ (T)}]
+    \femmplot[profile=curve-scan,component=B,plot options={blue}]
+  \end{axis}
+\end{tikzpicture}
+% Reload the exported polygonal problem, independently of the smooth drawing.
+\begin{tikzpicture}[femm/import={file=\jobname.fem},
+  femm/problem={mesh size=2}]
+  \pic {femm geometry};
+  \pic[femm/arrows=false,femm/lines=11] {femm field};
+\end{tikzpicture}
+\end{document}

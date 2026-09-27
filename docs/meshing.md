@@ -81,7 +81,7 @@ minimum angle. Path topology must survive flattening and vertex merging; feature
 these tolerances cannot be recovered later. Extremely large or ill-scaled models
 can exceed the practical range of the construction or its finite safety limits.
 
-The legacy `grid` mesher accepts axis-aligned region edges only. Use the native
+The structured `grid` mesher accepts axis-aligned region edges only. Use the native
 Delaunay path interface for rotated or curved media.
 
 ## Evidence

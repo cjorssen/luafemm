@@ -91,8 +91,9 @@ def formats():
     for name, engine in (("plain", "luatex"), ("latex", "lualatex"), ("context", None)):
         folder = BUILD / "formats" / name
         folder.mkdir(parents=True, exist_ok=True)
-        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex"):
+        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex"):
             shutil.copy2(ROOT / "tests" / "formats" / filename, folder / filename)
+        shutil.copy2(ROOT / "tests/fixtures/uniform.fem", folder / "uniform.fem")
         if engine:
             cmd = [engine, "--no-shell-escape", "-interaction=nonstopmode", "-halt-on-error", name + ".tex"]
         else:
@@ -103,6 +104,7 @@ def formats():
         component_file.unlink(missing_ok=True)
         boundary_file = folder / "boundary-cache.lfc"
         boundary_file.unlink(missing_ok=True)
+        (folder / "exchange-cache.lfc").unlink(missing_ok=True)
         passes = {}
         for stage, mode, expected in (("cold", "auto", "miss"),
                                       ("warm", "auto", "solution"),
@@ -113,6 +115,7 @@ def formats():
                 cache_file.write_bytes(shared_cache)
                 component_file.write_bytes(shared_component)
                 boundary_file.write_bytes(shared_boundary)
+                (folder / "exchange-cache.lfc").write_bytes(shared_exchange)
             settings = {"CacheMode": mode, "ExpectedCache": expected,
                         "CacheScale": "1" if stage == "cold" else "2",
                         "CacheColor": "blue" if stage == "cold" else "red",
@@ -146,14 +149,22 @@ def formats():
             if not boundary:
                 raise SystemExit(f"Missing boundary result in {name}/{stage}")
             values["BOUNDARY"] = float(boundary.group(1))
+            exchange = re.search(r"LUAFEMM-INTERCHANGE: ([+\d.eE-]+)", log)
+            if not exchange:
+                raise SystemExit(f"Missing interchange result in {name}/{stage}")
+            values["INTERCHANGE"] = float(exchange.group(1))
+            if (folder / "exchange-solution.ans").read_bytes() != (folder / "exchange-delayed.ans").read_bytes():
+                raise SystemExit("Delayed export differs from the picture-bound solution")
             passes[stage] = values
             if name == "plain" and stage == "cold":
                 shared_cache = cache_file.read_bytes()
                 shared_component = component_file.read_bytes()
                 shared_boundary = boundary_file.read_bytes()
+                shared_exchange = (folder / "exchange-cache.lfc").read_bytes()
             if stage == "frozen" and (cache_file.read_bytes() != shared_cache
                                       or component_file.read_bytes() != shared_component
-                                      or boundary_file.read_bytes() != shared_boundary):
+                                      or boundary_file.read_bytes() != shared_boundary
+                                      or (folder / "exchange-cache.lfc").read_bytes() != shared_exchange):
                 raise SystemExit("Frozen mode modified its input cache")
             if name == "context":
                 output = console.read_text(errors="replace")

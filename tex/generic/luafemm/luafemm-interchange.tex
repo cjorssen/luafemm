@@ -1,0 +1,60 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic import/export keys. Imported filenames are escaped data, never input TeX.
+% Track explicit problem settings so defaults cannot overwrite imported metadata.
+\let\luafemm@explicitproblem\pgfutil@empty
+\def\luafemm@trackproblem#1#2{%
+  \pgfkeys{/femm/problem/#1/.code={%
+    \pgfkeyssetvalue{/femm/problem/#1}{##1}%
+    \edef\luafemm@explicitproblem{\luafemm@explicitproblem,#2}}}}
+\luafemm@trackproblem{xmin}{xmin}
+\luafemm@trackproblem{xmax}{xmax}
+\luafemm@trackproblem{ymin}{ymin}
+\luafemm@trackproblem{ymax}{ymax}
+\luafemm@trackproblem{mesh size}{h}
+\luafemm@trackproblem{mesh tolerance}{mesh_tolerance}
+\luafemm@trackproblem{curve tolerance}{curve_tolerance}
+\luafemm@trackproblem{minimum angle}{min_angle}
+\luafemm@trackproblem{maximum area}{max_area}
+\luafemm@trackproblem{max Steiner points}{max_steiner}
+\luafemm@trackproblem{tolerance}{tolerance}
+\luafemm@trackproblem{max iterations}{max_newton}
+\luafemm@trackproblem{depth}{depth}
+\pgfkeys{/femm/problem/interpolation/.is choice,
+  /femm/problem/interpolation/linear/.code={%
+    \pgfkeyssetvalue{/femm/problem/interpolation}{linear}%
+    \edef\luafemm@explicitproblem{\luafemm@explicitproblem,interpolation}},
+  /femm/problem/interpolation/femm/.code={%
+    \pgfkeyssetvalue{/femm/problem/interpolation}{femm}%
+    \edef\luafemm@explicitproblem{\luafemm@explicitproblem,interpolation}}}
+\pgfkeys{/femm/import/.is family,/femm/import,file/.initial=,
+  /femm/export/.is family,/femm/export,
+  format/.is choice,
+  format/fem/.code={\def\luafemm@exportformat{fem}},
+  format/ans/.code={\def\luafemm@exportformat{ans}},
+  file/.initial=,model/.initial=}
+\tikzset{
+  femm/import/.code={%
+    \pgfqkeys{/femm/import}{#1}%
+    \tikzset{x=1mm,y=1mm,execute at begin picture={\luafemm@starttikz}}},
+  femm/export/.code={%
+    \tikzset{execute at end picture={\femmexport[#1,model=\luafemm@picturemodel]}}},
+  femm geometry/.style={draw=black!65,line width=.3pt},
+  femm current geometry/.style={},
+  femm/geometry style/.code={\tikzset{femm current geometry/.style={#1}}},
+  pics/femm geometry/.style={code={%
+    \begingroup\pgftransformreset
+    \directlua{luafemm.tex.geometry_picture(luafemm.current)}%
+    \endgroup}}}
+\protected\def\femmexport{\pgfutil@ifnextchar[{\luafemm@export}{\luafemm@export[]}}
+\def\luafemm@export[#1]{%
+  \begingroup
+  \pgfqkeys{/femm/export}{format=fem,file=,model=,#1}%
+  \directlua{luafemm.tex.export('\luaescapestring{\luafemm@exportformat}',
+    '\luaescapestring{\pgfkeysvalueof{/femm/export/file}}',
+    '\luaescapestring{\pgfkeysvalueof{/femm/export/model}}')}%
+  \endgroup}
+\endinput

@@ -11,7 +11,7 @@
 local C = {}
 -- Bump this revision for incompatible data changes OR numerical changes
 -- within a development series whose public version string is unchanged.
-local format_version = 4
+local format_version = 5
 local max_bytes = 256 * 1024 * 1024
 local modes = { off = true, auto = true, refresh = true, frozen = true }
 local function check(value, message)
@@ -149,6 +149,16 @@ local function descriptors(m)
     for _, key in ipairs({ "unit", "h", "xmin", "xmax", "ymin", "ymax", "mesher" }) do
         mesh[key] = o[key]
     end
+    mesh.topology = m.topology
+    if m.import_document then
+        mesh.import_document = {}
+        for key, value in pairs(m.import_document) do
+            if key ~= "filename" then
+                mesh.import_document[key] = value
+            end
+        end
+    end
+    mesh.curve_tolerance = o.curve_tolerance
     mesh.mesh_tolerance = o.mesh_tolerance or 0
     mesh.min_angle, mesh.max_area, mesh.max_steiner = o.min_angle, o.max_area, o.max_steiner
     local physical = {
@@ -160,17 +170,29 @@ local function descriptors(m)
     }
     local function material(name)
         local p = m.materials[name]
-        physical.materials[name] = { mur = p.mur, bh = p.bh, hc = p.hc }
+        physical.materials[name] =
+            { mur = p.mur, bh = p.bh, hc = p.hc, interpolation = p.interpolation }
     end
     material("air")
     for i, r in ipairs(m.regions) do
-        mesh.regions[i] =
-            { contours = r.contours, fill_rule = r.fill_rule, mesh_size = r.mesh_size }
+        mesh.regions[i] = {
+            contours = r.contours,
+            fill_rule = r.fill_rule,
+            mesh_size = r.mesh_size,
+            curve_tolerance = r.source and r.source.tolerance,
+        }
         physical.regions[i] = { material = r.material, current = r.current, mx = r.mx, my = r.my }
         material(r.material)
     end
     return encode(mesh), encode(physical)
 end
+
+--- Exact passive signature used to reject stale solution exports.
+function C.signature(m)
+    local mesh, physical = descriptors(m)
+    return mesh .. physical .. encode({ depth = m.options.depth })
+end
+C.encode = encode
 
 local function status(m, value, reason)
     local info = m.cache_info
@@ -207,7 +229,7 @@ local function validate(record, m, same_physics)
     check(type(mesh) == "table", "missing mesh")
     local n = array(mesh.nodes, 150000)
     local nt = array(mesh.elements, 300000)
-    check(n >= 4 and nt >= 2 and type(mesh.boundary) == "table", "incomplete mesh")
+    check(n >= 3 and nt >= 1 and type(mesh.boundary) == "table", "incomplete mesh")
     local o, area, edges, used = m.options, 0, {}, {}
     local x0, x1 = o.xmin * o.unit, o.xmax * o.unit
     local y0, y1 = o.ymin * o.unit, o.ymax * o.unit
@@ -221,7 +243,7 @@ local function validate(record, m, same_physics)
                 and p[2] <= y1 + epsilon,
             "node outside domain"
         )
-        if mesh.boundary[id] then
+        if mesh.boundary[id] and not m.topology then
             check(
                 math.min(
                     math.abs(p[1] - x0),
@@ -269,7 +291,30 @@ local function validate(record, m, same_physics)
         check(used[id] and (not mesh.boundary[id] or exterior[id]), "invalid mesh vertex")
     end
     local expected = (x1 - x0) * (y1 - y0)
-    check(n - ne + nt == 1 and math.abs(area / expected - 1) < 1e-8, "invalid mesh coverage")
+    if m.topology then
+        expected = 0
+        for _, f in ipairs(m.topology.faces) do
+            if not f.hole then
+                expected = expected + f.area * o.unit ^ 2
+            end
+        end
+        for _, e in ipairs(mesh.elements) do
+            local p, q, r = mesh.nodes[e[1]], mesh.nodes[e[2]], mesh.nodes[e[3]]
+            local f = require("luafemm-topology").locate(
+                m.topology,
+                (p[1] + q[1] + r[1]) / (3 * o.unit),
+                (p[2] + q[2] + r[2]) / (3 * o.unit)
+            )
+            check(f and not f.hole, "cached triangle outside domain")
+        end
+        check(
+            n - ne + nt == require("luafemm-topology").characteristic(m.topology),
+            "invalid domain topology"
+        )
+    else
+        check(n - ne + nt == 1, "invalid mesh topology")
+    end
+    check(math.abs(area / expected - 1) < 1e-8, "invalid mesh coverage")
     if o.mesher == "delaunay" then
         check(
             type(mesh.stats) == "table" and type(mesh.stats.boundary_nodes) == "table",

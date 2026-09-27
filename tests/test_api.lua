@@ -20,7 +20,7 @@ assert(model.materials.iron.bh[2][2] == 100 and material.hc == nil)
 local points = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }
 femm.region(model, "iron", points)
 points[1][1] = -50
-assert(model.regions[1].points[1][1] == -1)
+assert(model.regions[1].contours[1][1][1] == -1)
 femm.solve(model)
 assert(model.stats.peak == 0)
 assert(not pcall(femm.sample, model, 0 / 0, 0))

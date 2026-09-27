@@ -1,0 +1,69 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Compile from the repository root with make examples.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm,calc}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\begin{tikzpicture}[
+  femm/problem={xmin=-110,xmax=110,ymin=-95,ymax=115,mesh size=5,depth=20,interpolation=femm},
+  femm/cache={file=\jobname-field,mode=auto},
+  femm/export={format=fem,file=\jobname.fem},
+  femm/export={format=ans,file=\jobname.ans}]
+  \node[
+    femm/u electromagnet={
+      width=80,height=60,leg thickness=15,
+      gap=3,armature thickness=15,
+      coil width=6,coil height=26,coil clearance=2,coil center y=3,
+      ampere turns=6000,core material=pure-iron,
+      armature material=pure-iron,coil material=copper,
+      gap mesh size=1},
+    anchor=core center
+  ] (M) at (0,0) {};
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,57);
+    \pic[femm/lines=17,femm/arrow spacing=26mm,
+      femm/field style={teal!70!black}] {femm field};
+  \end{scope}
+  % A measurement path follows the named gaps, not hand-written coordinates.
+  \draw[femm/profile={name=gap-scan,samples=101},red,dashed,thick,-Stealth]
+    ($(M.left gap)+(-15,0)$)--($(M.right gap)+(15,0)$);
+  \node[fill=white,font=\small] at (M.armature center) {Armature};
+  \node[fill=white,font=\small] at (M.yoke center) {Soft iron};
+  \node[fill=white,align=center,font=\small] at (M.window center)
+    {$NI=6000\,\mathrm{A\,turns}$\\Two $3\,\mathrm{mm}$ gaps};
+  \node at (M.coil positive) {$\odot$};
+  \node at (M.coil negative) {$\otimes$};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=13cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Field (T)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmplot[profile=gap-scan,component=B,abscissa=x,plot options={black,thick}]
+  \addlegendentry{$|\mathbf B|$}
+  \femmplot[profile=gap-scan,component=By,abscissa=x,plot options={blue}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Draft mesh: \femmstat{triangles} triangles.
+\par\medskip
+\begin{tikzpicture}[femm/import={file=\jobname.fem},
+  femm/problem={mesh size=5},
+  femm/export={format=ans,file=\jobname-imported.ans}]
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,57);
+    \pic {femm geometry};
+    \pic[femm/lines=17,femm/arrows=false] {femm field};
+  \end{scope}
+\end{tikzpicture}
+\par\small Polygonal FEM problem, imported and solved again in Lua.
+\end{document}

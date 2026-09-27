@@ -7,7 +7,7 @@ PYTHON ?= python3
 STYLUA ?= stylua
 LUA_SOURCES = tex/generic/luafemm scripts tests
 
-.PHONY: all test formats examples manual materials convergence alnico-convergence format check-format dist
+.PHONY: all test formats examples manual materials convergence alnico-convergence format check-format dist interop
 all:
 	$(PYTHON) scripts/build.py all
 test formats examples manual:
@@ -22,5 +22,7 @@ format:
 	$(STYLUA) $(LUA_SOURCES)
 check-format:
 	$(STYLUA) --check $(LUA_SOURCES)
+interop:
+	$(PYTHON) scripts/interop.py --build --xfemm ../xfemm
 dist:
 	$(PYTHON) scripts/release.py

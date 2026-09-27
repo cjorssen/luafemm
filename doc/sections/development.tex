@@ -16,10 +16,18 @@ hold the loaded module and current model. Numerical scripts can use
 \begin{description}
 \item[luafemm.lua] Material laws, model ownership, assembly, Newton,
   preconditioning, field evaluation and contour topology.
-\item[luafemm-boundary.lua] Side conditions, corner constraints, gauge
+\item[luafemm-boundary.lua] Side/tagged conditions, corner constraints, component gauge
   compatibility and exact P1 boundary integrals.
 \item[luafemm-components.lua] Pure component geometry, physical anchors and
   area-based winding currents; no TeX or solver state.
+\item[luafemm-fem.lua] Passive magnetic file codec, supported-physics checks,
+  source metadata and the planar model adapter; computational problem export.
+\item[luafemm-topology.lua] Split planar constraints, oriented face walks,
+  nested face assignment, exclusion carving and active-domain topology audits.
+\item[luafemm-bh.lua] Natural cubic slopes, bounded FEMM-compatible smoothing
+  and constitutive derivatives without mutating the input table.
+\item[luafemm-ans.lua] Static answer-file serialization from a converged
+  problem/mesh snapshot, with no remeshing or solver invocation.
 \item[luafemm-cache.lua] Passive versioned disk records, exact mesh/solution
   descriptors, validation, atomic replacement and on-demand restoration.
 \item[luafemm-mesh.lua] PSLG subdivision, constrained Delaunay meshing,
@@ -81,8 +89,8 @@ For compound regions, use
 Each contour is an array of vertex pairs without a repeated closing vertex.
 The fill rule is |'nonzero'| (default) or |'even odd'|. Other arguments use
 the same units and defaults as |region|. Inputs are copied; every contour
-must be individually simple. The |points| field remains a compatibility
-alias for the first contour; new geometry code should use |contours|.
+must be individually simple. Model regions store their geometry in |contours|;
+use |region.contours[1]| to access the first contour.
 This API defines material holes, never exclusions from the PDE domain.
 
 |sample(model,x,y)| returns |Bx,By,Az,Hx,Hy| in SI; inputs use model
@@ -196,7 +204,7 @@ Expandable semantic version, currently |0.6.0-dev|.
 Expandable release date, currently |2026-09-27|.
 \end{command}
 \begin{command}{\luafemmversionnumber}
-Expandable integer for simple compatibility comparisons, currently |60000|.
+Expandable integer for simple compatibility comparisons, currently |70000|.
 It increases when a release changes the public interface; it is not the
 number of commits.
 \end{command}

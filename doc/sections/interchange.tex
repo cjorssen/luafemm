@@ -1,0 +1,275 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{FEMM problem and solution interchange}
+\label{sec:interchange}
+
+A drawing can now travel between your TeX document and a magnetic FEMM problem.
+There are three distinct operations: read a preprocessor |.fem| file, write a
+problem for another solver, and write the solution already computed by Lua as
+an |.ans| file. None requires FEMM, xfemm or a native library at document runtime.
+The optional xfemm tools used to validate this implementation are developer tools.
+This chapter describes the supported planar, real, static subset of magnetic
+format~4.0. It does not promise that every physical feature of FEMM is implemented.
+
+\subsection{First, keep drawing curves}
+
+Imagine that one side of a conductor is a Bezier curve and another conductor
+is a rotated ellipse. We need not replace these paths by hand-written circular
+arcs. PGF evaluates the drawing; luafemm approximates its curves by short straight
+segments before generating finite elements. This already happens in ordinary
+luafemm calculations. The FEM writer uses those computational interfaces.
+
+There are therefore three geometric representations to keep in mind:
+\begin{enumerate}
+\item The evaluated source path contains the PGF lines and cubic curves, or
+      the segments and circular arcs read from a FEM file. Native captured
+      soft-path data and their coordinate frame are retained in the model.
+\item The computational geometry is polygonal. Its faces carry materials and
+      excitations, and its edges carry boundary conditions. It is independent
+      of the interior triangle spacing.
+\item The solution consists of the actual triangles and nodal potential $A_z$.
+      ANS export preserves these data without remeshing or projection.
+\end{enumerate}
+
+The source TeX program, node anchors, text, colours and macros are not encoded
+in a FEM file. A round trip preserves the represented physical problem, not the
+original drawing program. Similarly, an imported circular arc may be preserved
+by the passive Lua document writer, whereas the computational exporter writes
+its polygonal approximation. No circular-arc fitting is performed on arbitrary
+TikZ curves.
+
+Start with a modest |curve tolerance| and |mesh size|. The first controls curve
+approximation, the second triangle spacing. Reducing the triangle size cannot
+recover curvature already removed by polygonalisation. As the drawing approaches
+its final form, reduce each independently and compare the field on the contour
+of interest. A narrow curved air gap deserves particular attention: its width
+must be resolved geometrically before refining triangles inside it.
+The chord tolerance is not a global error estimate for the magnetic field;
+PGF coordinate precision, snapping and constructed intersections also matter.
+
+Here is a complete example. The dotted interfaces expose the polygonal geometry;
+the last drawing comes from importing the exported FEM problem and solving again.
+The graph still refers to the original named profile.
+\luafemmexample{interchange-curves}
+
+\subsection{Reading a preprocessor problem}
+
+\begin{key}{/tikz/femm/import=\marg{options}}
+Create a model from a magnetic FEM file at the beginning of the picture, after
+picture options have been collected. The option family is |/femm/import|.
+This key installs the same millimetre coordinate convention as |femm/problem|.
+It can be combined with |femm/problem| to override numerical settings explicitly.
+Importing does not itself draw, mesh or solve anything.
+\end{key}
+\begin{key}{/femm/import/file=\meta{filename} (initially empty)}
+Required input filename, including |.fem|. The bridge first uses TeX's normal
+file search, then checks the output directory for a file generated earlier in
+the same document, and finally uses the supplied path. The passive Lua API uses
+ordinary working-directory paths. Imported content is never executed as Lua or TeX.
+\end{key}
+
+Only explicitly set problem keys override imported settings. In particular,
+unspecified luafemm defaults do not replace the file's depth or solver precision.
+The domain bounds come from the imported geometry; explicitly supplying |xmin|,
+|xmax|, |ymin| or |ymax| together with import is an error. Source length units are
+converted directly into model millimetres without a TikZ drawing/recapture step.
+The Lua API can instead request another model unit.
+
+The initial imported mesh size is one twelfth of the largest bounding-box extent.
+A block-label mesh control supplies a local spacing hint in converted model units.
+FEMM's diameter-like area control, minimum-angle setting and smart-mesh heuristics
+are retained in passive metadata but do not imply identical meshing algorithms.
+Use the documented luafemm mesh and quality keys explicitly for the Lua solve.
+
+An imported model's physical topology is immutable in this version. Add ordinary
+TikZ annotations, measurement contours and plots freely, but edit physical
+boundaries/material regions in the FEM source before reimporting. Additional
+|femm/region| declarations and rectangular side-condition overrides are rejected
+rather than being silently ignored. Native TikZ models retain their existing
+paths, components, painting precedence and fill-rule interface.
+
+\subsection{Showing the computational geometry}
+
+\begin{key}{/tikz/pics/femm geometry}
+Draw the compiled physical interfaces of the current model. This picture does
+not register another material region and does not start a magnetic solve.
+For a native TikZ model it displays the polygonal interfaces used by the
+computational exporter, including the exterior rectangle. For an imported model
+it includes the boundaries of true exclusions.
+\end{key}
+\begin{stylekey}{/tikz/femm geometry}
+Base drawing style, initially |draw=black!65,line width=.3pt|.
+\end{stylekey}
+\begin{key}{/tikz/femm/geometry style=\marg{TikZ options}}
+Set |femm current geometry|, applied after the base style. Use this to inspect
+interfaces in another colour or with a dotted line without changing the physics.
+\end{key}
+\begin{stylekey}{/tikz/femm current geometry}
+Additional geometry style, initially empty.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm group/\meta{integer}}
+Optional style for an imported segment group. It is tried after the base and
+current geometry styles. For example, |femm group/3/.style={red,thick}| highlights
+group~3. Undeclared group styles have no effect. Imported names are never turned
+into executable TeX control sequences.
+\end{stylekey}
+
+\subsection{Writing a problem or its existing solution}
+
+\begin{key}{/tikz/femm/export=\marg{options}}
+Append an export request to the picture's end hook. Repeated keys produce repeated
+exports, bound to that picture's model. All physical declarations precede export.
+A FEM request compiles geometry but does not mesh or solve. An ANS request requires
+a converged solution at that point: use a field picture or |\femmsolve| earlier.
+A missing solution is an error, not an implicit request for an expensive solve.
+\end{key}
+\begin{key}{/femm/export/format=\meta{choice} (initially fem)}
+A PGF |.is choice| selector with choices |fem| and |ans|. FEM writes a magnetic
+problem, ANS writes that problem followed by the existing solution.
+\end{key}
+\begin{key}{/femm/export/file=\meta{filename} (initially empty)}
+Required destination, including its extension. Relative paths follow TeX's
+|--output-directory|, as cache files do. Parent directories must already exist.
+The writer validates and serializes first, writes a temporary file beside the
+destination, then replaces the destination after success. Use a different filename
+from the imported source. Repeated exports to the same destination replace it.
+\end{key}
+\begin{key}{/femm/export/model=\meta{name} (initially empty)}
+Select the model for the explicit export command. Empty means the current Lua
+model. Picture-level export supplies its bound model automatically, so the option
+is intended for delayed command use. Named models remain available after their
+picture has ended.
+\end{key}
+\begin{command}{\femmexport\opt{\oarg{options}}}
+Immediately export using the same |/femm/export| family. This is useful after a
+profile outside the source picture has triggered its solve. Use |model| explicitly
+when subsequent pictures have created other models. It never starts a solve.
+\end{command}
+\begin{key}{/femm/problem/name=\meta{identifier} (initially empty)}
+Register the picture model under a unique name for delayed export. Duplicate
+names are errors. Prefer descriptive, nonnumeric names; internal picture IDs
+are reserved. Naming does not change the numerical problem or cache identity.
+\end{key}
+\begin{key}{/femm/problem/depth=\meta{positive number} (initially unset)}
+Planar thickness in model millimetres. A native model must specify it before
+FEM or ANS export. Imported depth is converted from the declared file unit.
+Depth does not change the planar $A_z$ solve, but it matters to FEMM's integrated
+quantities. It is included in the solution export signature.
+\end{key}
+\begin{key}{/femm/problem/interpolation=\meta{choice} (initially linear)}
+Choose |linear|, the existing piecewise-linear $H(B)$ law with vacuum-slope
+extrapolation, or |femm|, a natural cubic law with FEMM-compatible smoothing and
+endpoint-slope extrapolation. Imported nonlinear materials default to |femm|
+unless this key explicitly overrides it. Set it before declaring materials.
+Linear materials are unaffected.
+\end{key}
+
+Nonlinear ANS export requires |interpolation=femm| for every nonlinear material
+used by the mesh. The postprocessor reconstructs $B$ from nodal $A$, then computes
+$H$ from its own material law; preserving the B--H sample table alone is insufficient.
+The writer therefore rejects a nonlinear solution computed with the old law.
+FEM export remains available with either policy, but a subsequent FEMM solve
+uses FEMM's constitutive law and can produce a different solution.
+
+The static ANS writer includes zero-based element-to-label references, one current
+record per block label and explicit empty periodic/air-gap trailers. Prescribed
+current density is encoded in effective material records. The output uses the
+non-incremental four-column element dialect read by the audited postprocessors.
+It contains the actual converged mesh and physical potential in tesla metres.
+It is not a replacement for the private |.lfc| cache and cannot currently be
+imported as a solved luafemm model.
+
+\subsection{The order of operations}
+
+\begin{enumerate}
+\item Collect picture options and create or import exactly one model. Apply only
+      explicit overrides to imported numerical settings.
+\item Declare the native materials and physical paths, or draw a view of imported
+      geometry. Declare native boundary conditions before meshing.
+\item Compile geometry and mesh when a solve or mesh picture requires them.
+      A FEM-only export needs neither a mesh nor a solution.
+\item Solve explicitly or through a field picture/profile. Capture measurement
+      contours without turning them into physical interfaces.
+\item Run the queued exports at picture end. If solving occurs later, use a
+      named |\femmexport| command after that solve.
+\end{enumerate}
+
+Changing a source path, geometry tolerance, material or boundary requires a new
+model and solve. The writer rejects a stale solution whose input signature has
+changed. Cache format~5 validates geometry, physical settings and carved-domain
+coverage; imported solutions restored from a matching cache can be exported.
+Drawing scales, styles and profile sampling do not invalidate the physical cache.
+Neither a FEM nor an ANS file reconstructs the original TeX program.
+
+\subsection{Two U-shaped devices, in both directions}
+
+The coil example uses the familiar node component. We add a depth and select the
+FEMM material law before declaring the component, then request both exports at
+picture end. The final drawing imports the produced FEM file and solves again.
+The two coil regions are exported with their effective current densities. Their
+original separate turn count and current cannot be recovered from an $NI$ value.
+\luafemmexample{interchange-coil}
+
+The permanent-magnet example follows the same sequence. The alnico region carries
+a constant magnetisation direction; the surrounding iron remains nonlinear.
+The field profiles belong to the original model even after the final imported
+picture creates another model.
+\luafemmexample{interchange-alnico}
+
+\subsection{Supported features and explicit limits}
+
+The reader accepts LF/CRLF, case-insensitive section keywords, quoted names,
+optional label expressions as passive data, and all six FEMM length units.
+Names remain opaque byte strings in the Lua codec: no Windows code-page to UTF-8
+conversion is attempted. Numerical geometry rendering does not typeset those
+names. The writer rejects quotes/newlines that cannot be represented safely in a
+quoted scalar. Malformed input is diagnosed with filename and line number.
+
+The solver adapter supports closed planar graphs, circular arcs up to $180^\circ$
+per record, nested and disconnected regions, default labels, isotropic linear
+and B--H materials, constant coercive direction, prescribed real current density,
+series circuits, tagged prescribed-potential and constant real mixed conditions,
+and natural boundaries. No Mesh seeds exclude their faces entirely. Each
+unanchored connected component receives its own gauge and current-balance check.
+
+The adapter rejects AC, axisymmetry, previous-solution modes, anisotropy,
+unsupported lamination/fill physics, parallel circuits, point properties,
+functional magnetisation, periodic/antiperiodic/sliding-gap boundaries, negative
+Robin coefficients, and mixed conditions on internal interfaces. Open or isolated
+constraints that do not bound valid faces also receive diagnostics. Default labels
+with circuits, conflicting labels and labels on interfaces are rejected.
+Unspecified FEM boundaries retain natural conditions; they do not inherit the
+native rectangle's default prescribed potential.
+
+Exact export rejects arbitrary source/boundary callbacks and affine mixed data
+that a constant FEMM boundary property cannot represent. Segment groups are
+retained for drawing. The computational export uses effective material records
+per face and current density rather than claiming to recover original circuits
+or every preprocessor editing attribute. For an unmodified passive document,
+|luafemm-fem.serialize| retains its original property and arc records separately.
+
+\subsection{Lua interface and independent validation}
+
+The principal Lua entry points are:
+\begin{itemize}
+\item |luafemm.import_fem(file, options)| creates an unsolved model;
+\item |luafemm.export_fem(model, file)| writes its computational geometry;
+\item |luafemm.export_ans(model, file)| writes its converged solution.
+\end{itemize}
+The passive codec provides |read|, |parse|, |serialize| and |model|; parsing alone
+does not authorize unsupported physics for solving. Imported expressions are
+never passed to |load|, |dofile| or a TeX input command. The existing ownership
+rule applies: imported documents and material tables are copied into the model.
+
+Original small fixtures test units, indexing, malformed input, arc subdivision,
+exclusions, labels, series-current normalization, cubic derivatives and cache
+restoration. A separate optional C++ client loads emitted ANS files from disk
+through xfemm's FPProc. It compares $A$, unsmoothed $B$ and $H$ with Lua samples.
+Independent xfemm solves of the exported U devices are compared at two Lua mesh
+resolutions; different meshers are not expected to produce identical triangles.
+Run |python3 scripts/interop.py --build --xfemm ../xfemm| to reproduce these checks.
+The audited revision and local compiler are recorded with the generated reports.
+Windows FEMM GUI acceptance remains unverified on the macOS development host.
