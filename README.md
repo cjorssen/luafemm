@@ -14,6 +14,11 @@ solve a finite-element model inside LuaTeX, and draw oriented field lines or
 sample the field along a path. Works with **plain LuaTeX, LuaLaTeX and
 ConTeXt MkIV**. No native solver, external mesher or shell escape is required.
 
+**[Download the PDF manual (v0.9.0-dev, 128 pages)](https://github.com/cjorssen/luafemm/releases/download/v0.9.0-dev/luafemm-manual.pdf)**
+— complete English documentation, tutorials, key reference, and example code
+with rendered results. The PDF is published alongside the installation archives
+in the [GitHub release](https://github.com/cjorssen/luafemm/releases/tag/v0.9.0-dev).
+
 | A tilted armature, rounded iron and its field | A slotted stator and its air-gap field |
 | :---: | :---: |
 | [<img src="docs/images/tilted-u.png" width="420" alt="U-shaped electromagnet with a tilted armature, triangular mesh and oriented magnetic field lines.">](examples/curved-core.tex) | [<img src="docs/images/slotted-machine-field.png" width="420" alt="Circular stator with 24 conductor slots surrounding a smooth rotor, with oriented field lines and a circular gap measurement path.">](examples/tutorial-machine-sine.tex) |
