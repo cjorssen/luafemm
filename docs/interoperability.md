@@ -36,8 +36,9 @@ reference; this document records implementation choices and reproducible evidenc
    effective materials and verified interior labels per final face. Region
    current density is included in each effective material. The writer does not
    attempt to recover separate winding turns/current from a native NI input.
-4. **FEM input.** The adapter supports isotropic planar DC materials, constant
-   magnetisation, series excitation, default labels, circular arcs, true holes
+4. **FEM input.** The adapter supports planar DC diagonal linear anisotropy and isotropic B-H
+   materials, constant/restricted angular magnetisation, series excitation,
+   paired straight periodic boundaries, default labels, circular arcs, true holes
    and supported tagged boundaries. Source metadata are copied and retained;
    drawing is independent of physical registration. Imported physical topology
    is immutable in this release, with explicit errors for region/side overrides.
@@ -50,8 +51,10 @@ reference; this document records implementation choices and reproducible evidenc
    native default. Derivative tests and independent postprocessor H samples
    exercise this distinction. Nonlinear ANS output requires the compatible law.
 6. **ANS output.** `luafemm-ans.lua` writes physical nodal A and the actual mesh,
-   with labels, current records and empty periodic/air-gap trailers. It rejects
-   missing/stale solutions and never remeshes. Cache format 5 includes the new
+   with labels, current records, periodic nodal pairs and an empty air-gap trailer.
+   Spatial magnetisation uses elementwise blocks preserving the quadrature source.
+   It rejects
+   missing/stale solutions and never remeshes. Cache format 7 includes the new
    topology/physics descriptors and audits carved domains before restoration.
 7. **Generic interface and documentation.** Import/export families, format and
    interpolation choices, named delayed exports and ordinary geometry/group
@@ -121,9 +124,12 @@ work; upstream fixture collections and native binaries are not redistributed.
 
 Windows FEMM GUI acceptance remains unverified on the macOS host. Compatibility
 claims are limited to the audited source conventions and actual xfemm tests.
-AC, axisymmetry, previous-field modes, periodic/sliding-gap boundaries, point
-properties, anisotropy, unsupported laminations, parallel circuits and executable
-magnetisation expressions remain outside the solver subset. Open/isolated graph
+AC, axisymmetry, previous-field modes, sliding-gap boundaries, point properties,
+nonlinear anisotropy, unsupported laminations, FEMM parallel-circuit input,
+periodic circular-arc input and arbitrary executable magnetisation expressions
+remain outside the import subset. Native DC parallel/voltage circuits export
+as resolved series windings. Rotated tensor cross terms cannot be represented
+in FEMM mu_x/mu_y and are rejected on export. Open/isolated graph
 constraints and ambiguous geometry are diagnosed. Imported filenames and names
 are passive byte strings; no implicit Windows code-page conversion is performed.
 

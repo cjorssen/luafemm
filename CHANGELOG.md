@@ -8,6 +8,35 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Changelog
 
+## 0.10.0-dev — 2026-10-22
+
+- Publish an explicit capability matrix and reproducible static mesh/domain/force
+  sensitivity study; update the manual, source/TDS archives and release checks.
+- Bump passive cache format to 7; older frozen snapshots must be recomputed.
+- Add native computational domains and named path frontiers, including internal
+  Dirichlet contours, circular open boundaries and signed periodic trace pairing.
+- Synchronise paired boundary meshes and eliminate periodic/antiperiodic degrees
+  exactly; provide repeated oriented field pics with antiperiodic arrow reversal.
+- Add rotated linear permeability tensors, directional linear sheet mixtures and
+  passive uniform/radial/tangential/angular permanent-magnet source laws.
+- Add named DC series/parallel windings, current/voltage drive, conductivity and
+  fill/length controls; report resistance, power, linkage and secant inductance.
+- Extend FEM interchange to diagonal tensors, straight periodic pairs, restricted
+  angle laws and resolved circuits; preserve spatial-source ANS snapshots.
+- Add an extensive static-model chapter, three complete examples and analytic,
+  generic-format/cache and optional xfemm regression checks.
+
+- Add named material/path selections and regional area, volume, current, field
+  averages, energy and coenergy measurements, with an explicit magnet reference.
+- Add weighted Maxwell stress, closed air-contour stress and conductor Lorentz
+  forces and torques; configurable PGF keys, force glyphs, formatted values and
+  PGFPlots result series.
+- Document every new key and the computation order, with a complete U-armature
+  gap sweep and executed source/output pair. Retain the Tangle audit and the
+  magnetic/other-physics roadmaps.
+- Validate analytical conductor force/dipole torque, nonlinear energy primitives,
+  virtual work and optional independent xfemm postprocessing on two U meshes.
+
 ## 0.9.0-dev — 2026-09-27
 
 - Add rotor and circular/square stator nodes with compound iron domains, shafts,

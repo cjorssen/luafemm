@@ -138,16 +138,21 @@
   \pgfsyssoftpath@getcurrentpath\luafemm@capturedpath
   \pgfprocessround{\luafemm@capturedpath}{\luafemm@capturedpath}%
   \edef\luafemm@library{\luafemm@regionvalue{library}}%
-  \pgfqkeys{/tikz/femm/materials}{mu r={},bh={},remanence={},coercivity={}}%
+  \pgfqkeys{/tikz/femm/materials}{mu r={},bh={},remanence={},coercivity={},mu x={},mu y={},material angle=0,conductivity={},lamination=none,lamination fill=1}%
   \ifx\luafemm@library\pgfutil@empty
     \pgfqkeys{/tikz/femm/materials}{\luafemm@regionvalue{material}}%
   \fi
+  \luafemm@staticoptional{/tikz/femm/materials/mu x}\luafemm@smux
+  \luafemm@staticoptional{/tikz/femm/materials/mu y}\luafemm@smuy
+  \luafemm@staticoptional{/tikz/femm/materials/material angle}\luafemm@smatangle
+  \luafemm@staticoptional{/tikz/femm/materials/conductivity}\luafemm@ssigma
+  \luafemm@staticoptional{/tikz/femm/materials/lamination fill}\luafemm@slamfill
   \directlua{luafemm.tex.material('\luaescapestring{\luafemm@regionvalue{material}}',
     '\luaescapestring{\luafemm@library}',
     '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/mu r}}',
     '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/bh}}',
     '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/remanence}}',
-    '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/coercivity}}')}%
+    '\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/coercivity}}',{mur_x='\luaescapestring{\luafemm@smux}',mur_y='\luaescapestring{\luafemm@smuy}',material_angle='\luaescapestring{\luafemm@smatangle}',conductivity='\luaescapestring{\luafemm@ssigma}',lamination_fill='\luaescapestring{\luafemm@slamfill}',lamination='\luaescapestring{\pgfkeysvalueof{/tikz/femm/materials/lamination}}'})}%
   \edef\luafemm@currentinput{\luafemm@regionvalue{current density}}\def\luafemm@frommaterial{material}%
   \ifx\luafemm@currentinput\luafemm@frommaterial
     \edef\luafemm@current{\directlua{tex.sprint(luafemm.current.materials['\luaescapestring{\luafemm@regionvalue{material}}'].current)}}%
@@ -158,6 +163,12 @@
     \pgfkeys{/pgf/fpu=false}%
   \fi
   \pgfmathparse{\luafemm@regionvalue{magnetization angle}}\let\luafemm@angle\pgfmathresult
+  \luafemm@staticnumber{/femm/region/magnetization center x}\luafemm@scenterx
+  \luafemm@staticnumber{/femm/region/magnetization center y}\luafemm@scentery
+  \luafemm@staticnumber{/femm/region/magnetization order}\luafemm@sorder
+  \luafemm@staticnumber{/femm/region/turns}\luafemm@sturns
+  \luafemm@staticnumber{/femm/region/winding fill}\luafemm@sfill
+  \luafemm@staticnumber{/femm/region/conductor length}\luafemm@slength
   \directlua{luafemm.tex.capture_path(luafemm.current,
     '\luaescapestring{\meaning\luafemm@capturedpath}',
     '\luaescapestring{\luafemm@regionvalue{material}}',
@@ -167,7 +178,7 @@
     luafemm.tex.number('\luaescapestring{\luafemm@regionvalue{mesh size}}','mesh size'),
     '\luaescapestring{\luafemm@componentturns}',
     '\ifpgfsys@eorule even odd\else nonzero\fi',
-    '\luaescapestring{\luafemm@regionvalue{ideal domain}}')}%
+    '\luaescapestring{\luafemm@regionvalue{ideal domain}}',{magnetization='\luaescapestring{\luafemm@regionvalue{magnetization}}',circuit='\luaescapestring{\luafemm@regionvalue{circuit}}',winding='\luaescapestring{\luafemm@regionvalue{winding}}',center_x=luafemm.tex.number('\luafemm@scenterx','centerx'),center_y=luafemm.tex.number('\luafemm@scentery','centery'),order=luafemm.tex.number('\luafemm@sorder','order'),turns=luafemm.tex.number('\luafemm@sturns','turns'),fill=luafemm.tex.number('\luafemm@sfill','fill'),length=luafemm.tex.number('\luafemm@slength','length')})}%
   \endgroup
 }
 \endinput

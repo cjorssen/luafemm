@@ -223,12 +223,16 @@ local function with_payload(payload)
     return string.format("LUAFEMM-CACHE %d %08x\n", #payload, b * 65536 + a) .. payload
 end
 local version_pattern = f.version:gsub("(%W)", "%%%1")
+-- Preserve the passive string length and transport length: only the version
+-- value changes, so these cases isolate checksum and compatibility checks.
+local incompatible_version = f.version:gsub("%d", "9")
+assert(incompatible_version ~= f.version)
 local payload = baseline:match("^[^\n]+\n(.*)$")
-write((baseline:gsub(version_pattern, "9.9.9-dev")))
+write((baseline:gsub(version_pattern, incompatible_version)))
 fails(function()
     f.solve(model("frozen"))
 end, "checksum mismatch")
-write(with_payload((payload:gsub(version_pattern, "9.9.9-dev"))))
+write(with_payload((payload:gsub(version_pattern, incompatible_version))))
 fails(function()
     f.solve(model("frozen"))
 end, "incompatible package version")

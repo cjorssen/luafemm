@@ -51,9 +51,8 @@ reject(function()
 end, "duplicate")
 x = F.copy(d)
 x.materials[1].mu_y = 2
-reject(function()
-    F.model(x)
-end, "anisotropic")
+local anisotropic = F.model(x)
+assert(anisotropic.materials["fem:1"].mur_y == 2)
 x = F.copy(d)
 x.labels[1][10] = 'os.execute("false")'
 reject(function()

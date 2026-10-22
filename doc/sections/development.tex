@@ -18,6 +18,14 @@ hold the loaded module and current model. Numerical scripts can use
   preconditioning, field evaluation and contour topology.
 \item[luafemm-boundary.lua] Side/tagged conditions, corner constraints, component gauge
   compatibility and exact P1 boundary integrals.
+\item[luafemm-frontiers.lua] Native domains, tagged paths, signed periodic
+  constraints, trace synchronisation and circular exterior checks.
+\item[luafemm-static.lua] Linear tensors, sheet mixtures, spatial magnetisation
+  quadrature and named DC winding operating points and observables.
+\item[luafemm-static-exchange.lua] Representable static FEMM records, safe
+  angular expressions, straight periodic pairs and resolved circuit exchange.
+\item[luafemm-post.lua] Named selections, regional integrals, energy/coenergy,
+  Maxwell and Lorentz forces and torques, result formatting and field weights.
 \item[luafemm-ideal.lua] Confined-domain compilation, floating boundary
   degrees of freedom, exact section flux and component mean contours.
 \item[luafemm-integrals.lua] Segment/triangle intersection and exact integration
@@ -216,13 +224,13 @@ the material module and catalogue from the preserved source file.
 commit or tag a release. The contributor guide documents the release checks.
 
 \begin{command}{\luafemmversion}
-Expandable semantic version, currently |0.6.0-dev|.
+Expandable semantic version, currently |0.10.0-dev|.
 \end{command}
 \begin{command}{\luafemmversiondate}
-Expandable release date, currently |2026-09-27|.
+Expandable release date, currently |2026-10-22|.
 \end{command}
 \begin{command}{\luafemmversionnumber}
-Expandable integer for simple compatibility comparisons, currently |80000|.
+Expandable integer for simple compatibility comparisons, currently |100000|.
 It increases when a release changes the public interface; it is not the
 number of commits.
 \end{command}

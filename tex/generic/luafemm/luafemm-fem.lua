@@ -393,6 +393,7 @@ function F.model(d, options)
         check(p[3] == 0, "point conditions are unsupported")
         points[i] = point(p[1], p[2])
     end
+    local periodic_counts = {}
     local function condition(id)
         local b = reference(d.boundaries, id, "boundary")
         if not b then
@@ -414,6 +415,19 @@ function F.model(d, options)
                 coefficient = 0,
             }
         end
+        if b.bdrytype == 4 or b.bdrytype == 5 then
+            periodic_counts[id] = (periodic_counts[id] or 0) + 1
+            return {
+                type = "periodic",
+                path = "fem-pair-" .. id .. "-" .. periodic_counts[id],
+                fem_group = id,
+                sign = b.bdrytype == 4 and 1 or -1,
+                value = 0,
+                dx = 0,
+                dy = 0,
+                coefficient = 0,
+            }
+        end
         check(b.bdrytype == 2, "unsupported boundary type " .. tostring(b.bdrytype))
         check((b.c0 or 0) >= 0, "negative Robin coefficient is unsupported")
         return { type = "robin", value = b.c1 or 0, dx = 0, dy = 0, coefficient = b.c0 or 0 }
@@ -430,6 +444,11 @@ function F.model(d, options)
     local tolerance = o.curve_tolerance or 0.03
     check(finite(tolerance) and tolerance > 0, "invalid curve tolerance")
     for _, s in ipairs(d.arcs) do
+        local boundary = reference(d.boundaries, s[5], "boundary")
+        check(
+            not boundary or (boundary.bdrytype ~= 4 and boundary.bdrytype ~= 5),
+            "periodic arc import is unsupported; use paired straight segments"
+        )
         local a, b = points[s[1] + 1], points[s[2] + 1]
         local theta = math.rad(s[3])
         local dx, dy = b[1] - a[1], b[2] - a[2]
@@ -465,12 +484,27 @@ function F.model(d, options)
     local m = M.new(o)
     m.import_document = copy(d)
     for i, p in ipairs(d.materials) do
-        check((p.mu_x or 1) == (p.mu_y or 1), "anisotropic material is unsupported")
-        zero(p, { "j_im", "lamtype", "phi_h", "phi_hx", "phi_hy" }, "material physics")
-        check((p.lamfill or 1) == 1, "lamination fill is unsupported on import")
+        zero(p, { "j_im", "phi_h", "phi_hx", "phi_hy" }, "material physics")
+        check(
+            (p.lamtype or 0) >= 0 and (p.lamtype or 0) <= 2,
+            "unsupported imported lamination type"
+        )
+        check(
+            (p.lamtype or 0) ~= 0 or (p.lamfill or 1) == 1,
+            "nonlinear fill mixture import is unsupported"
+        )
         local name = "fem:" .. i
         M.material(m, name, {
             mur = p.mu_x or 1,
+            -- FEMM's directional sheet models use the permeability along
+            -- the sheets as the base in both principal directions.
+            mur_x = (p.lamtype == 2 and p.mu_y or p.mu_x) or 1,
+            mur_y = (p.lamtype == 1 and p.mu_x or p.mu_y) or 1,
+            conductivity = (p.sigma or 0) * 1e6,
+            lamination = p.lamtype == 1 and "parallel x"
+                or p.lamtype == 2 and "parallel y"
+                or "none",
+            lamination_fill = p.lamfill or 1,
             current = (p.j_re or 0) * 1e6,
             coercivity = p.h_c or 0,
             bh = p.bh and #p.bh > 0 and p.bh or nil,
@@ -483,13 +517,25 @@ function F.model(d, options)
         o.mesh_tolerance and o.mesh_tolerance > 0 and o.mesh_tolerance
             or math.max(xmax - xmin, ymax - ymin) * 1e-12
     )
+    for i, c in ipairs(d.circuits) do
+        check(
+            c.circuittype == 1,
+            "parallel FEMM circuit import is unsupported; export resolved series windings"
+        )
+        zero(c, { "totalamps_im" }, "complex circuit")
+        require("luafemm-static").circuit(
+            m,
+            c.circuitname or ("fem-circuit-" .. i),
+            { current = c.totalamps_re or 0 }
+        )
+    end
     local default
     for i, l in ipairs(d.labels) do
         reference(d.materials, l[3], "material")
         reference(d.circuits, l[5], "circuit")
         check(l[3] > 0, "missing material label")
         check((l[9] or 0) % 2 == 0, "external axisymmetric region is unsupported")
-        check(not l[10] or l[10] == "", "magnetisation expressions are unsupported")
+        require("luafemm-static-exchange").parse_expression(l[10], scale)
         local f = topology.locate(t, l[1] * scale, l[2] * scale, true)
         check(f, "label outside bounded domain")
         check(not f.label, "duplicate/conflicting block labels")
@@ -530,10 +576,41 @@ function F.model(d, options)
                 f.mesh_size,
                 "even odd"
             )
-            m.regions[#m.regions].face = f.id
+            local region = m.regions[#m.regions]
+            region.face, f.region = f.id, #m.regions
+            local law, offset = require("luafemm-static-exchange").parse_expression(l[10], scale)
+            if law then
+                region.angle = offset
+                region.mx, region.my = math.cos(math.rad(offset)), math.sin(math.rad(offset))
+                f.angle, f.mx, f.my = region.angle, region.mx, region.my
+                require("luafemm-static").region(region, law)
+            end
+            if circuit then
+                region.current = 0
+                require("luafemm-static").region(
+                    region,
+                    { circuit = circuit.circuitname or ("fem-circuit-" .. l[5]), turns = l[8] or 1 }
+                )
+                if law then
+                    require("luafemm-static").region(region, law)
+                end
+            end
         end
     end
     m.topology = t
+    require("luafemm-static").excite(m, t)
+    local periodic_groups = {}
+    for _, segment in ipairs(t.segments) do
+        local c = segment.condition
+        if c and c.fem_group then
+            local group = periodic_groups[c.fem_group] or {}
+            group[#group + 1] = segment
+            periodic_groups[c.fem_group] = group
+        end
+    end
+    if next(periodic_groups) then
+        require("luafemm-static-exchange").import_pairs(m, t, periodic_groups)
+    end
     return m
 end
 
@@ -553,7 +630,8 @@ function F.document(m)
         end
     end
     check(unitname, "model length unit cannot be represented in FEMM")
-    local t = m.topology or topology.native(m)
+    require("luafemm-frontiers").compile(m)
+    local t = require("luafemm-static-exchange").pairs(m, m.topology or topology.native(m))
     local d = {
         header = {
             format = 4,
@@ -567,7 +645,7 @@ function F.document(m)
             acsolver = 0,
             prevtype = 0,
             prevsoln = "",
-            comment = "luafemm computational geometry; excitations encoded as material current densities",
+            comment = "luafemm planar DC computational geometry; voltage/parallel windings resolved at the operating point",
         },
         points_properties = {},
         boundaries = {},
@@ -582,6 +660,7 @@ function F.document(m)
     for i, p in ipairs(t.points) do
         d.points[i] = { p[1], p[2], 0, 0 }
     end
+    local periodic_ids = {}
     for _, s in ipairs(t.segments) do
         local c = s.condition
         local id = 0
@@ -590,10 +669,15 @@ function F.document(m)
                 c.type == "dirichlet" or (c.dx == 0 and c.dy == 0),
                 "varying mixed data cannot be exported exactly"
             )
-            id = #d.boundaries + 1
+            id = c.fem_pair and periodic_ids[c.fem_pair] or #d.boundaries + 1
+            if c.fem_pair then
+                periodic_ids[c.fem_pair] = id
+            end
             local b = {
                 bdryname = "boundary " .. id,
-                bdrytype = c.type == "dirichlet" and 0 or 2,
+                bdrytype = c.type == "periodic" and (c.sign == 1 and 4 or 5)
+                    or c.type == "dirichlet" and 0
+                    or 2,
                 a_0 = 0,
                 a_1 = 0,
                 a_2 = 0,
@@ -614,6 +698,32 @@ function F.document(m)
         end
         d.segments[#d.segments + 1] = { s[1] - 1, s[2] - 1, -1, id, s.hidden or 0, s.group or 0 }
     end
+    local circuit_ids = {}
+    local names = {}
+    for name in pairs(m.static_circuits or {}) do
+        names[#names + 1] = name
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        local c = m.static_circuits[name]
+        local windings = {}
+        for w in pairs(c.windings) do
+            windings[#windings + 1] = w
+        end
+        table.sort(windings)
+        circuit_ids[name] = {}
+        for _, w in ipairs(windings) do
+            local id = #d.circuits + 1
+            circuit_ids[name][w] = id
+            local label = #windings == 1 and name or name .. ":" .. w
+            d.circuits[id] = {
+                circuitname = label,
+                totalamps_re = c.windings[w].current,
+                totalamps_im = 0,
+                circuittype = 1,
+            }
+        end
+    end
     local labels = {}
     for _, f in ipairs(t.faces) do
         if f.hole then
@@ -621,15 +731,25 @@ function F.document(m)
         else
             local p = m.materials[f.material]
             local id = #d.materials + 1
+            local mux, muy = require("luafemm-static-exchange").permeability(p)
+            local r = f.region and m.regions[f.region]
+            local circuit = r and r.circuit and circuit_ids[r.circuit][r.winding] or 0
+            local turns = circuit ~= 0
+                    and r.turns * f.area * o.unit ^ 2 / m.static_circuits[r.circuit].areas[f.region]
+                or 1
+            local sigma = p.conductivity
+            if circuit ~= 0 then
+                sigma = sigma * r.fill * o.depth / (r.length > 0 and r.length or o.depth)
+            end
             d.materials[id] = {
                 blockname = (p.fem_name or f.material) .. " [" .. id .. "]",
-                mu_x = p.mur,
-                mu_y = p.mur,
+                mu_x = mux,
+                mu_y = muy,
                 h_c = p.hc,
                 h_cangle = 0,
-                j_re = f.current / 1e6,
+                j_re = circuit == 0 and f.current / 1e6 or 0,
                 j_im = 0,
-                sigma = 0,
+                sigma = sigma / 1e6,
                 d_lam = 0,
                 phi_h = 0,
                 phi_hx = 0,
@@ -640,8 +760,18 @@ function F.document(m)
                 wired = 0,
                 bh = copy(p.bh or {}),
             }
-            d.labels[#d.labels + 1] =
-                { f.seed[1], f.seed[2], id, f.mesh_size or 0, 0, f.angle or 0, f.group or 0, 1, 0 }
+            d.labels[#d.labels + 1] = {
+                f.seed[1],
+                f.seed[2],
+                id,
+                f.mesh_size or 0,
+                circuit,
+                f.angle or 0,
+                f.group or 0,
+                turns,
+                0,
+                require("luafemm-static-exchange").expression(r),
+            }
             labels[f.id] = #d.labels - 1
         end
     end

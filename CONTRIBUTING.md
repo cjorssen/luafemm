@@ -75,7 +75,9 @@ ConTeXt uses an absolute cache directory because format creation changes its
 working directory. LaTeX font caches use a relative path for TeX's file-opening
 rules. No global TeX configuration is changed.
 
-`make convergence` and `make alnico-convergence` run longer sensitivity studies.
+`make convergence`, `make alnico-convergence` and `make static-convergence` run
+longer sensitivity studies. The last writes `build/convergence/static.csv` for
+antiperiodic field refinement, open-domain radius and nonlinear armature force.
 A small algebraic residual is not a discretization-error estimate. For physical
 changes, compare against an analytic result or an independent formulation,
 and check both mesh spacing and the artificial boundary location.

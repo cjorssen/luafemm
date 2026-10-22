@@ -91,7 +91,7 @@ def formats():
     for name, engine in (("plain", "luatex"), ("latex", "lualatex"), ("context", None)):
         folder = BUILD / "formats" / name
         folder.mkdir(parents=True, exist_ok=True)
-        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex", "ideal.tex", "machines.tex"):
+        for filename in (name + ".tex", "scene.tex", "components.tex", "boundaries.tex", "interchange.tex", "ideal.tex", "machines.tex", "post.tex", "static.tex"):
             shutil.copy2(ROOT / "tests" / "formats" / filename, folder / filename)
         shutil.copy2(ROOT / "tests/fixtures/uniform.fem", folder / "uniform.fem")
         if engine:
@@ -107,6 +107,9 @@ def formats():
         (folder / "exchange-cache.lfc").unlink(missing_ok=True)
         (folder / "ideal-cache.lfc").unlink(missing_ok=True)
         (folder / "machine-cache.lfc").unlink(missing_ok=True)
+        (folder / "post-cache.lfc").unlink(missing_ok=True)
+        (folder / "static-cache.lfc").unlink(missing_ok=True)
+        (folder / "circuit-cache.lfc").unlink(missing_ok=True)
         passes = {}
         for stage, mode, expected in (("cold", "auto", "miss"),
                                       ("warm", "auto", "solution"),
@@ -120,6 +123,9 @@ def formats():
                 (folder / "exchange-cache.lfc").write_bytes(shared_exchange)
                 (folder / "ideal-cache.lfc").write_bytes(shared_ideal)
                 (folder / "machine-cache.lfc").write_bytes(shared_machine)
+                (folder / "post-cache.lfc").write_bytes(shared_post)
+                (folder / "static-cache.lfc").write_bytes(shared_static)
+                (folder / "circuit-cache.lfc").write_bytes(shared_circuit)
             settings = {"CacheMode": mode, "ExpectedCache": expected,
                         "CacheScale": "1" if stage == "cold" else "2",
                         "CacheColor": "blue" if stage == "cold" else "red",
@@ -157,6 +163,15 @@ def formats():
             if not exchange:
                 raise SystemExit(f"Missing interchange result in {name}/{stage}")
             values["INTERCHANGE"] = float(exchange.group(1))
+            post = re.search(r"LUAFEMM-POST: ([+\d.eE-]+)", log)
+            if not post:
+                raise SystemExit(f"Missing postprocessing result in {name}/{stage}")
+            values["POST"] = float(post.group(1))
+            for extension in ("STATIC", "CIRCUIT"):
+                match = re.search(r"LUAFEMM-" + extension + r": ([+\d.eE-]+)", log)
+                if not match:
+                    raise SystemExit(f"Missing {extension} assertions in {name}/{stage}")
+                values[extension] = float(match.group(1))
             if (folder / "exchange-solution.ans").read_bytes() != (folder / "exchange-delayed.ans").read_bytes():
                 raise SystemExit("Delayed export differs from the picture-bound solution")
             ideal = re.search(r"LUAFEMM-IDEAL: ([+\d.eE-]+)", log)
@@ -175,6 +190,9 @@ def formats():
                 shared_exchange = (folder / "exchange-cache.lfc").read_bytes()
                 shared_ideal = (folder / "ideal-cache.lfc").read_bytes()
                 shared_machine = (folder / "machine-cache.lfc").read_bytes()
+                shared_post = (folder / "post-cache.lfc").read_bytes()
+                shared_static = (folder / "static-cache.lfc").read_bytes()
+                shared_circuit = (folder / "circuit-cache.lfc").read_bytes()
             if stage == "frozen" and (cache_file.read_bytes() != shared_cache
                                       or component_file.read_bytes() != shared_component
                                       or boundary_file.read_bytes() != shared_boundary

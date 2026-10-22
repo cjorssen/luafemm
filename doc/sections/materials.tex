@@ -111,14 +111,14 @@ a fill fraction $f$ is applied as
 \]
 This accounts for the ten records with fill fraction 0.98. The winding
 types 3 and 8 have unit relative permeability in the static model, as in
-FEMM's static assembly. Other lamination types and anisotropic permeability
-are not silently approximated if introduced in a future database: the
-adapter rejects unsupported cases.
+FEMM's static assembly. Custom linear anisotropy and directional sheet mixtures are described in
+Section~\ref{sec:static}. The catalogue adapter retains its audited isotropic
+interpretation and rejects unsupported database combinations.
 
-Conductivity, wire diameter, strand count, lamination thickness and
-harmonic loss parameters remain available as metadata. They do not add
-eddy currents, skin effects, AC loss or a circuit model to this static
-solver. The real material source |J_re| is converted from A/mm$^2$ to A/m$^2$.
+Conductivity is used by the named DC winding model in
+Section~\ref{sec:static}. Wire diameter, strand count, lamination thickness and
+harmonic loss parameters remain metadata; they do not introduce eddy currents,
+skin effects or AC losses. The real material source |J_re| is converted from A/mm$^2$ to A/m$^2$.
 \emph{Sixty-nine copper-clad aluminium wire records specify 1 A/mm$^2$.}
 Use |current density=0| to make one of those regions passive. This value
 is also shown in the machine-readable and Markdown catalogues.

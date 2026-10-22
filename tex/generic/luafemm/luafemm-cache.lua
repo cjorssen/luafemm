@@ -11,7 +11,7 @@
 local C = {}
 -- Bump this revision for incompatible data changes OR numerical changes
 -- within a development series whose public version string is unchanged.
-local format_version = 6
+local format_version = 7
 local max_bytes = 256 * 1024 * 1024
 local modes = { off = true, auto = true, refresh = true, frozen = true }
 local function check(value, message)
@@ -170,11 +170,19 @@ local function descriptors(m)
         max_newton = o.max_newton,
         boundary = m.boundaries,
         ideal_sources = m.ideal_sources,
+        circuits = m.circuits,
+        pairs = m.pairs,
     }
     local function material(name)
         local p = m.materials[name]
-        physical.materials[name] =
-            { mur = p.mur, bh = p.bh, hc = p.hc, interpolation = p.interpolation }
+        physical.materials[name] = {
+            mur = p.mur,
+            bh = p.bh,
+            hc = p.hc,
+            interpolation = p.interpolation,
+            tensor = p.tensor,
+            conductivity = p.conductivity,
+        }
     end
     material("air")
     for i, r in ipairs(m.regions) do
@@ -185,7 +193,18 @@ local function descriptors(m)
             mesh_size = r.mesh_size,
             curve_tolerance = r.source and r.source.tolerance,
         }
-        physical.regions[i] = { material = r.material, current = r.current, mx = r.mx, my = r.my }
+        physical.regions[i] = {
+            material = r.material,
+            current = r.current,
+            mx = r.mx,
+            my = r.my,
+            magnetization = r.magnetization,
+            circuit = r.circuit,
+            winding = r.winding,
+            turns = r.turns,
+            fill = r.fill,
+            length = r.length,
+        }
         material(r.material)
     end
     return encode(mesh), encode(physical)
@@ -361,10 +380,31 @@ local function validate(record, m, same_physics)
                 and type(solution.stats) == "table",
             "invalid solution"
         )
-        local fixed = same_physics
-                and o.field_model ~= "ideal"
-                and require("luafemm-boundary").prepare(m, mesh.nodes, mesh.elements, mesh.boundary)
-            or {}
+        local fixed = {}
+        if same_physics and o.field_model ~= "ideal" then
+            local weak, gauge, gauges, components
+            fixed, weak, gauge, gauges, components =
+                require("luafemm-boundary").prepare(m, mesh.nodes, mesh.elements, mesh.boundary)
+            if m.pairs and #m.pairs > 0 then
+                local shadow = { options = m.options, topology = m.topology, pairs = m.pairs }
+                local nodes = {}
+                for i, p in ipairs(mesh.nodes) do
+                    nodes[i] = { p[1], p[2] }
+                end
+                require("luafemm-frontiers").reduce(
+                    shadow,
+                    nodes,
+                    mesh.elements,
+                    fixed,
+                    gauges,
+                    components,
+                    weak
+                )
+                for _, p in ipairs(shadow.periodic_nodes) do
+                    check(solution.A[p[1]] == p[3] * solution.A[p[2]], "invalid periodic potential")
+                end
+            end
+        end
         if same_physics and o.field_model == "ideal" then
             require("luafemm-ideal").validate_potential(m, mesh.nodes, mesh.elements, solution.A)
         end

@@ -8,16 +8,16 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # luafemm
 
-**0.9.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
+**0.10.0-dev** — a generic TikZ and PGFPlots library for planar magnetostatics,
 written entirely in Lua and TeX. Declare materials on ordinary TikZ paths,
 solve a finite-element model inside LuaTeX, and draw oriented field lines or
 sample the field along a path. Works with **plain LuaTeX, LuaLaTeX and
 ConTeXt MkIV**. No native solver, external mesher or shell escape is required.
 
-**[Download the PDF manual (v0.9.0-dev, 128 pages)](https://github.com/cjorssen/luafemm/releases/download/v0.9.0-dev/luafemm-manual.pdf)**
+**[Download the PDF manual (v0.10.0-dev)](https://github.com/cjorssen/luafemm/releases/download/v0.10.0-dev/luafemm-manual.pdf)**
 — complete English documentation, tutorials, key reference, and example code
 with rendered results. The PDF is published alongside the installation archives
-in the [GitHub release](https://github.com/cjorssen/luafemm/releases/tag/v0.9.0-dev).
+in the [GitHub release](https://github.com/cjorssen/luafemm/releases/tag/v0.10.0-dev).
 
 | A tilted armature, rounded iron and its field | A slotted stator and its air-gap field |
 | :---: | :---: |
@@ -34,6 +34,11 @@ solver: it does not implement hysteresis history, eddy currents, axisymmetry
 or all of FEMM's material physics. Optional angle/area quality targets are
 enforced by bounded Lua refinement, with explicit failure when unattainable.
 This is not a complete Triangle port. See the manual for the model and limits.
+
+The [capability matrix](docs/capabilities.md) distinguishes supported models,
+approximations, exchange limits and deferred physics. Reproducible
+[validation and convergence studies](docs/validation.md) state the evidence
+behind this development release.
 
 ## Quick start
 
@@ -146,7 +151,9 @@ computational polygonal interfaces. Specify `depth` before exporting and choose
 \end{tikzpicture}
 ```
 
-Import supports isotropic DC materials, constant magnetisation, series circuits,
+Import supports planar DC materials (including diagonal linear anisotropy),
+constant/restricted angular magnetisation, series circuits and paired straight
+periodic boundaries,
 closed regions, circular arcs, true holes and supported tagged boundaries.
 Unsupported physics is rejected. Imported physical topology is immutable in
 this release; TikZ drawing overlays and field profiles remain available.
@@ -156,7 +163,65 @@ Optional independent checks use `python3 scripts/interop.py --build --xfemm ../x
 The native tools are for development only. Windows FEMM GUI acceptance has not
 been tested on the macOS development host.
 
+## Regional measurements and forces
+
+Select a body by material and an optional closed TikZ mask, then measure its
+energy, coenergy, current or force. The default force method uses a weighted
+Maxwell stress calculation in the surrounding air. Closed air contours and
+Lorentz forces on nonmagnetic conductors are also available. Set a physical
+`depth` before measuring; mechanical forces require `field model=open`.
+
+```tex
+% After declaring the geometry in a problem with depth=10:
+\path[femm/selection={name=armature,material=pure-iron}]
+  (-42,31) rectangle (42,55);
+\path[femm/measure={name=pull,selection=armature,quantity=force}];
+\pic[femm/force={result=pull}] {femm force};
+```
+
+Use `\femmvalue[component=Fy]{pull}` for a formatted value, or
+`\femmresult{pull}{torque}` for an expandable SI number. `\femmresultplot`
+plots named measurements across different models using ordinary PGFPlots axes.
+The complete [force example](examples/forces.tex) compares three U-core gaps.
+The [new manual chapter](doc/sections/postprocessing.tex) covers every key,
+selection semantics, signs, units and convergence checks.
+
+Optional independent validation: `python3 scripts/post-interop.py`, after
+building the xfemm oracle with `scripts/interop.py --build --xfemm ../xfemm`.
+
+## Static models and frontiers
+
+Draw the computational domain with `femm/domain` and tag physical paths with
+`femm/frontier`. Pair exterior traces by rotation or translation using
+`femm/pair`, including antiperiodic signs. The new static material keys cover
+rotated linear anisotropy and directional sheet mixtures; region keys describe
+radial, tangential and angular permanent-magnet directions.
+
+Declare a circuit with `femm/circuit={name=coil,current=2}`, associate its legs
+using `femm/region={material=copper,circuit=coil,turns=100}`, and give the return
+leg `turns=-100`. Measure it with
+`\femmmeasure[name=coil-result,quantity=circuit,circuit=coil]`; resistance,
+voltage, power, closed-winding flux linkage and secant inductance use the same
+formatted-result and PGFPlots interfaces as other measurements.
+
+Complete source/output examples in the [new manual chapter](doc/sections/static.tex):
+
+- [Antiperiodic permanent-magnet sector](examples/static-frontiers.tex).
+- [Angular magnetisation and a circular open boundary](examples/static-open.tex).
+- [Anisotropic core, named winding and linkage sweep](examples/static-circuits.tex).
+
+These additions remain planar DC. Nonlinear anisotropy, incremental inductance
+and sliding air gaps are separate future stages. The manual specifies circuit
+closure, coordinate frames, open-boundary assumptions and FEMM export limits.
+Optional independent validation: `python3 scripts/static-interop.py` with the
+previously built xfemm oracle.
+
 ## Documentation and examples
+
+Development assessments are retained in the [FEMM capability roadmap](docs/femm-capability-roadmap.md)
+and the [Tangle audit](docs/tangle-audit.md). They distinguish current support
+from proposed magnetic and other-physics extensions; proposed features are not
+part of the current API.
 
 The [manual source](doc/luafemm-manual.tex) uses PGF's documentation environments,
 following tikz-ext's reference-and-example presentation. It includes every
@@ -289,7 +354,7 @@ change. `refresh` recomputes, `off` leaves files untouched, and `frozen` require
 a compatible saved result. Drawing styles and measurement profiles do not
 invalidate the solution. `\femmcachestatus` reports the reuse outcome.
 
-Files use the private `.lfc` format (version 6). FEMM `.fem`/`.ans` interchange
+Files use the private `.lfc` format (version 7). FEMM `.fem`/`.ans` interchange
 is available separately for ordinary open-air models.
 Relative names follow TeX's output directory, if set. Parent directories must
 exist, and distinct problems need distinct filenames. The tutorial examples

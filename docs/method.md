@@ -45,5 +45,30 @@ overflow on very short segments.
 Analytic affine and manufactured Poisson solutions test signs and convergence.
 A nonlinear residual measures algebraic convergence only: domain truncation,
 mesh spacing, curve approximation, material data and interpolation all affect
-the physical answer. This release does not claim numerical equivalence with
-FEMM/xfemm; a direct cross-solver comparison remains future work.
+the physical answer. Selected planar DC cases have been compared with independent
+xfemm solves and postprocessing; see [the validation record](interoperability.md).
+Those checks do not establish universal numerical equivalence with FEMM/xfemm.
+
+
+## Static tensor, boundary and circuit extensions
+
+The linear constitutive law uses a rotated positive symmetric reluctivity
+tensor. Both residual and tangent use the same tensor; energy is
+`B^T nu B/2 - Hc m.B`. Isotropic nonlinear laws retain their radial tangent.
+Spatial coercive directions are integrated using the symmetric three-point
+triangle rule, consistently with reported H and magnet energy.
+
+Native domains and tagged paths compile through the same planar arrangement
+as FEM import/export. Paired exterior traces receive the union of their
+transformed boundary vertices. A signed union-find supplies the exact linear
+constraint `A_slave = sign*A_master`; assembly is reduced as `T^T K T` and
+`T^T R`. The nullspace check distinguishes a genuine additive constant from
+an antiperiodic constraint that already removes it. No penalty stiffness is
+introduced. Drawing repetitions use the same rigid transform and reverse
+antiperiodic arrows.
+
+DC circuit currents are resolved from active leg areas and explicit conductor
+resistances before magnetic assembly. Parallel branches split the current by
+conductance. Closed-winding linkage integrates the P1 potential exactly and
+uses signed turns; the tests check its independent relation to magnetic energy.
+These real static circuits do not model induction or dynamic circuit unknowns.

@@ -8,6 +8,115 @@ This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
 
 # Development-version validation
 
+## Release consolidation — 0.10.0-dev
+
+The [capability matrix](capabilities.md) is the current scope reference. This
+release retains pure Lua runtime and all three generic TeX formats. Source/TDS
+archives include the current manual; the distribution runner verifies catalogue
+reproducibility and the extracted installation. Previous cache format 6 and
+previous package-version snapshots must be recomputed; frozen mode fails
+explicitly, while automatic mode rebuilds an incompatible result.
+
+### Static mesh and exterior sensitivity
+
+Run `make static-convergence` to regenerate `build/convergence/static.csv`.
+The script uses no native oracle. Antiperiodic fields use a manufactured exact
+solution; the exterior problem uses a known infinite-air disk field. The nonlinear
+force study uses the same geometry and weighting convention as the independent
+xfemm postprocessing fixtures. The studies vary different controls deliberately.
+
+| Study | Control | Triangles | Observable | Error or successive change |
+| --- | --- | ---: | ---: | ---: |
+| Antiperiodic manufactured field | h = 0.16 m | 110 | Relative L2 B error | 12.823% |
+| Same | h = 0.08 m | 386 | Relative L2 B error | 6.334% |
+| Same | h = 0.04 m | 1,518 | Relative L2 B error | 3.155% |
+| Off-centre disk, h = 0.14 m | R = 0.9 m | 792 | Mean Bx = 0.491457 T | 1.709% |
+| Same | R = 1.5 m | 1,331 | Mean Bx = 0.484485 T | 3.103% |
+| Same | R = 2.5 m | 2,857 | Mean Bx = 0.483158 T | 3.368% |
+| Disk, R = 1.5 m | h = 0.07 m | 5,018 | Mean Bx = 0.495453 T | 0.909% |
+| Same | h = 0.035 m | 19,359 | Mean Bx = 0.499307 T | 0.139% |
+| Nonlinear U armature | h = 4 mm | 3,374 | Fy = -101.208792 N | First mesh |
+| Same | h = 2 mm | 12,768 | Fy = -103.446281 N | 2.163% |
+| Same | h = 1.5 mm | 22,144 | Fy = -104.437018 N | 0.949% |
+
+For A = sin(pi*x), the exact field is B = (0, -pi*cos(pi*x)). Symmetric
+three-point quadrature estimates the elementwise squared error including
+within-element field variation. Error ratios are 2.02 and 2.01, consistent
+with first-order P1 field convergence; the runner requires ratios above 1.6.
+
+The disk has radius 0.25 m, centre (0.4, 0) m, relative permeability 1 and
+mu0*Hc = 1 T. Its infinite-air internal Bx is exactly 0.5 T. The offset excites
+higher exterior modes that a first-multipole Robin boundary only approximates.
+During the radius sweep the 64-sided magnet polygon and its local spacing
+0.035 m remain fixed. During refinement the global and local spacing and the
+outer polygon edge target are reduced together; the magnet polygon stays fixed.
+The smaller coarse domain looks more accurate because truncation and finite
+mesh errors partly cancel. Increasing radius alone is therefore not a proof of
+accuracy. Refinement reduces the combined error at R = 1.5 m, but the last
+0.139% is still a combined error, not an isolated boundary-error estimate.
+
+The force study keeps the exterior half-width at 75 mm, depth at 20 mm and
+excitation at 3,000 ampere-turns. Its change is normalised by the finer force.
+There is no exact nonlinear force reference: a 0.949% last change does not
+certify a 1% physical error. Existing `make convergence` and
+`make alnico-convergence` provide additional mesh/domain sweeps for U devices.
+
+## Static extensions (0.10.0-dev)
+
+`tests/test_static.lua` exercises rotated tensor affine patches on an oblique
+native domain; arithmetic/harmonic sheet limits; strong periodic/antiperiodic
+matching with unequal boundary subdivisions; a manufactured antiperiodic
+Poisson field; a circular dipole/open-boundary analytic case; angular source
+quadrature; named current/voltage circuits; multi-branch parallel resistance
+splits; and the independent linear energy identity `W = I*linkage/2`.
+It also checks passive expression parsing, representability errors, straight
+periodic/circuit FEM round trips, cold/frozen circuit and antiperiodic caches,
+physical invalidation and the open-boundary net-current condition.
+
+The shared `tests/formats/static.tex` exercises public PGF styles, expressions,
+path domains/frontiers, periodic repeated fields, tensor materials, circuits,
+formatted resistance and linkage under plain LuaTeX, LuaLaTeX and ConTeXt MkIV.
+The runner compares cold/warm/shared-frozen caches and numerical observables
+across all three formats to 1e-10.
+
+`python3 scripts/static-interop.py` uses the previously built optional xfemm
+oracle. Four exported problems (diagonal tensor, antiperiodic source, named
+winding and angular magnet with an open circle) have two sample points each.
+All 16 comparisons pass: identical-mesh ANS A/B/H/J checks use scaled 1e-7 gates;
+independently meshed FEM solves use a 6% componentwise B gate relative to local
+field magnitude. The observed largest B component error is below 3e-13 relative
+for ANS and 2.90% for independent solves. The runner writes the detailed
+values to `build/static/xfemm-results.json`. Refining the source regions is
+necessary for the independent derivative samples; this is not an algebraic
+solver tolerance claim. The Windows FEMM GUI itself remains untested.
+
+Complete executed manual examples: `static-frontiers.tex`, `static-open.tex`,
+`static-circuits.tex`. The source and rendered output are included together.
+
+## Planar postprocessing checks (2026-10-22)
+
+`tests/test_post.lua` checks affine-field integrals, exact linear/cubic B-H
+primitives, conductor J cross B force, permanent-dipole torque, contour
+orientation and torque-origin transformations, fixed-current coenergy virtual
+work, and invalid selection/contour/material cases. These independent physical
+checks complement the existing field-solver tests.
+
+`python3 scripts/post-interop.py` uses the optional native oracle to read two
+Lua-written nonlinear U-device ANS files. It compares armature energy, coenergy,
+weighted force and torque on the identical mesh. The observed differences were
+below 1e-12 in SI values; this is postprocessor agreement, not an estimate of
+physical discretization error. For example, Fy was -101.20879230523616 N at
+spacing 4 mm and -103.44628131745358 N at spacing 2 mm. The different mesh results
+illustrate why numerical agreement on one mesh does not certify convergence.
+The reproducible report is `build/interop/post-results.json`; the oracle build
+revision is recorded by the existing interoperability runner.
+
+The generic format matrix includes path selections, styled measurements,
+transformed force glyphs, formatted values and result plots, with cold/warm/frozen
+physical caches. Auxiliary weight fields are recomputed from restored meshes.
+
+## Previous published baseline
+
 Version **0.9.0-dev**, verified on 2026-09-27. Local environment: TeX Live 2026,
 LuaTeX/LuaHBTeX 1.24.0, PGF 3.1.12, PGFPlots 1.18.3 (`compat=1.18`),
 ConTeXt MkIV 2026.09.10 10:02. Test commands and detailed logs are produced by
@@ -147,7 +256,7 @@ format tests against an extracted TDS installation outside the runtime tree.
 ## Manual examples
 
 Every standalone document under `examples/` is included in the manual as a
-complete source/output pair: 26 documents, including the three format wrappers.
+complete source/output pair: 30 documents, including the three format wrappers.
 Their shared `scene.tex` has its own listing. The coverage check rejects omitted
 examples and stale names. PGF's native `codeexample` machinery reads the actual
 files, and the manual includes every page of the resulting PDFs. pdfcrop with

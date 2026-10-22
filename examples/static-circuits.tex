@@ -1,0 +1,43 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=145mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{femm/materials/sheets/.style={mu x=600,mu y=80,material angle=25},
+  winding leg/.style={fill=orange!35,draw=orange!70!black,
+    femm/region={material=copper,current density=0,circuit=excitation,winding=coil,
+      winding fill=.6,turns=#1}}}
+\foreach \amperes in {1,2,3}{%
+\begin{tikzpicture}[femm/problem={xmin=-30,xmax=30,ymin=-25,ymax=25,
+    mesh size=2,depth=20},femm/circuit={name=excitation,current=\amperes},
+    femm/cache={file=\jobname-coil-\amperes,mode=auto}]
+  \filldraw[even odd rule,fill=gray!20,femm/region={material=sheets}]
+    (-15,-15) rectangle (15,15) (-8,-8) rectangle (8,8);
+  \filldraw[winding leg=100] (-21,-7) rectangle (-17,7);
+  \filldraw[winding leg=-100] (-6,-7) rectangle (-2,7);
+  \node at (-19,0) {$\odot$};
+  \node at (-4,0) {$\otimes$};
+  \pic[femm/lines=13,femm/arrows=false] {femm field};
+  \femmmeasure[name=coil-\amperes,quantity=circuit,circuit=excitation,parameter=\amperes]
+  \node[fill=white,font=\small] at (0,-21) {$I=\amperes\,\mathrm A$};
+\end{tikzpicture}\quad}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,grid=major,xlabel={Current (A)},
+  ylabel={Flux linkage (Wb)},scaled y ticks=false,
+  y tick label style={/pgf/number format/fixed, /pgf/number format/precision=4}]
+  \femmresultplot[results={coil-1,coil-2,coil-3},component=linkage,
+    plot options={blue!65!black,thick,mark=*}]
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+$R=\femmvalue[component=resistance]{coil-3}$,
+$L=\femmvalue[component=inductance,number format={sci,precision=3}]{coil-3}$.
+\end{document}

@@ -52,7 +52,14 @@ function T.arrange(raw, tolerance)
         check(distance(s[1], s[1], s[2]) == 0, "zero-length or invalid segment")
         local a, b = vertex(s[1]), vertex(s[2])
         check(a ~= b, "segment collapsed at geometry tolerance")
-        work[#work + 1] = { a, b, condition = s.condition, group = s.group, hidden = s.hidden }
+        work[#work + 1] = {
+            a,
+            b,
+            condition = s.condition,
+            group = s.group,
+            hidden = s.hidden,
+            priority = s.priority or 0,
+        }
     end
     for i, s in ipairs(work) do
         local a, b = points[s[1]], points[s[2]]
@@ -105,15 +112,20 @@ function T.arrange(raw, tolerance)
                     condition = s.condition,
                     group = s.group or 0,
                     hidden = s.hidden or 0,
+                    priority = s.priority,
                 }
                 segments[#segments + 1] = e
                 seen[k] = e
             else
-                check(
-                    same(seen[k].condition, s.condition),
-                    "conflicting conditions on coincident edges"
-                )
-                seen[k].condition = seen[k].condition or s.condition
+                local old = seen[k]
+                if s.condition and (not old.condition or s.priority > old.priority) then
+                    old.condition, old.priority = s.condition, s.priority
+                elseif s.condition and s.priority == old.priority then
+                    check(
+                        same(old.condition, s.condition),
+                        "conflicting conditions on coincident edges"
+                    )
+                end
             end
         end
     end
@@ -275,13 +287,36 @@ function T.native(m)
     local raw = {}
     local function loop(p, conditions)
         for i, a in ipairs(p) do
-            raw[#raw + 1] = { a, p[i % #p + 1], condition = conditions and conditions[i] }
+            raw[#raw + 1] =
+                { a, p[i % #p + 1], condition = conditions and conditions[i], priority = -1 }
         end
     end
-    loop(
-        { { o.xmin, o.ymin }, { o.xmax, o.ymin }, { o.xmax, o.ymax }, { o.xmin, o.ymax } },
-        { m.boundaries.bottom, m.boundaries.right, m.boundaries.top, m.boundaries.left }
-    )
+    if m.domain then
+        for _, p in ipairs(m.domain.contours) do
+            local conditions = {}
+            for i in ipairs(p) do
+                conditions[i] = { type = "dirichlet", value = 0, dx = 0, dy = 0, coefficient = 0 }
+            end
+            loop(p, conditions)
+        end
+    else
+        loop(
+            { { o.xmin, o.ymin }, { o.xmax, o.ymin }, { o.xmax, o.ymax }, { o.xmin, o.ymax } },
+            { m.boundaries.bottom, m.boundaries.right, m.boundaries.top, m.boundaries.left }
+        )
+    end
+    local names = {}
+    for name in pairs(m.frontiers or {}) do
+        names[#names + 1] = name
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        local f = m.frontiers[name]
+        for i = 1, #f.points - (f.closed and 0 or 1) do
+            raw[#raw + 1] =
+                { f.points[i], f.points[i % #f.points + 1], condition = f.condition, priority = 1 }
+        end
+    end
     for _, r in ipairs(m.regions) do
         for _, p in ipairs(r.contours) do
             loop(p)
@@ -294,8 +329,10 @@ function T.native(m)
     )
     for _, f in ipairs(t.faces) do
         f.material, f.current, f.angle, f.mx, f.my, f.mesh_size = "air", 0, 0, 1, 0, 0
-        for _, r in ipairs(m.regions) do
+        f.hole = m.domain and not geom.contains(m.domain, f.seed[1], f.seed[2]) or nil
+        for ri, r in ipairs(m.regions) do
             if geom.contains(r, f.seed[1], f.seed[2]) then
+                f.region = ri
                 for _, k in ipairs({ "material", "current", "angle", "mx", "my", "mesh_size" }) do
                     f[k] = r[k]
                 end

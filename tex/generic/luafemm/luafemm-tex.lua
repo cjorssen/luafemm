@@ -119,20 +119,24 @@ function T.cache_status()
 end
 
 --- Resolve one PGF material style; omitted overrides inherit library properties.
-function T.material(name, library, mur, bh, remanence, coercivity)
+function T.material(name, library, mur, bh, remanence, coercivity, extra)
     local function optional(value, key)
         if value ~= "" then
             return T.number(value, key)
         end
     end
     local points = M.parse_pairs(bh)
-    M.material(M.current, name, {
+    local properties = {
         library = library ~= "" and library or nil,
         mur = optional(mur, "mu r"),
         bh = next(points) and points or nil,
         remanence = optional(remanence, "remanence"),
         coercivity = optional(coercivity, "coercivity"),
-    })
+    }
+    for key, value in pairs(extra or {}) do
+        properties[key] = key == "lamination" and value or optional(value, key)
+    end
+    M.material(M.current, name, properties)
 end
 
 --- Print a solved-model statistic as plain numeric TeX input.
@@ -176,7 +180,8 @@ function T.capture_path(
     mesh_size,
     turns,
     fill_rule,
-    ideal_domain
+    ideal_domain,
+    static_options
 )
     check(m and m.frame, "set femm/problem on the tikzpicture first")
     local contours = require("luafemm-path").read_contours(s, m.frame, tolerance)
@@ -210,6 +215,7 @@ function T.capture_path(
         "invalid ideal domain flag"
     )
     M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
+    require("luafemm-static").region(m.regions[#m.regions], static_options)
     m.regions[#m.regions].ideal_domain = ideal_domain == "true"
     -- The evaluated soft path is passive PGF token data, never executed on reload.
     -- Retain it before flattening so a later geometry compilation can reproduce
@@ -438,6 +444,52 @@ function T.tikz_field_picture(m, count)
     end
 end
 
+--- Repeat oriented field contours using a declared periodic rigid transform.
+-- Antiperiodic copies reverse arrows; no material geometry or integral is copied.
+function T.tikz_repeated_field(m, count, copies, pair_index)
+    check(
+        copies >= 1 and copies % 1 == 0 and copies <= 1000,
+        "copies must be an integer in [1,1000]"
+    )
+    check(pair_index >= 1 and pair_index % 1 == 0, "invalid pair index")
+    check(count >= 1 and count % 1 == 0, "line count must be a positive integer")
+    M.solve(m)
+    local pair = m.pairs and m.pairs[pair_index]
+    check(pair, "unknown periodic pair")
+    local levels
+    if pair.sign == -1 then
+        local peak = 0
+        for _, a in ipairs(m.A) do
+            peak = math.max(peak, math.abs(a))
+        end
+        if peak < 1e-20 then
+            return
+        end
+        levels = {}
+        for i = 1, count do
+            levels[i] = -peak + 2 * peak * (i - 0.5) / count
+        end
+    end
+    local paths = M.contours(m, count, levels)
+    local c, s = math.cos(math.rad(pair.angle)), math.sin(math.rad(pair.angle))
+    for k = 0, copies - 1 do
+        for _, path in ipairs(paths) do
+            local out = { "\\draw[femm field,femm current field] " }
+            for j = 1, #path do
+                local p = path[pair.sign == -1 and k % 2 == 1 and #path - j + 1 or j]
+                local x, y = p.x, p.y
+                for step = 1, k do
+                    local a, b = x - pair.cx, y - pair.cy
+                    x, y = pair.cx + c * a - s * b + pair.x, pair.cy + s * a + c * b + pair.y
+                end
+                out[#out + 1] = (j > 1 and "--" or "") .. canvas(m, x, y)
+            end
+            out[#out + 1] = ";"
+            tex.sprint(table.concat(out))
+        end
+    end
+end
+
 --- Mesh if needed and emit each edge exactly once in the picture frame.
 -- @tparam table m Model with frame.
 function T.tikz_mesh_picture(m)
@@ -632,4 +684,52 @@ function T.harmonic(o, plot)
         tex.sprint(string.format("%.12g", value))
     end
 end
+--- Capture a computational domain or a tagged path in the physical frame.
+function T.static_path(kind, text, o)
+    local m = M.current
+    check(m and m.frame, "set femm/problem before paths")
+    local path = require("luafemm-path")
+    local F = require("luafemm-frontiers")
+    local function snap(p)
+        for _, v in ipairs(p) do
+            for axis = 1, 2 do
+                v[axis] = math.floor(v[axis] * 10000 + 0.5) / 10000
+                local lo = axis == 1 and m.options.xmin or m.options.ymin
+                local hi = axis == 1 and m.options.xmax or m.options.ymax
+                if math.abs(v[axis] - lo) < 0.001 then
+                    v[axis] = lo
+                end
+                if math.abs(v[axis] - hi) < 0.001 then
+                    v[axis] = hi
+                end
+            end
+        end
+    end
+    if kind == "domain" then
+        local contours = path.read_contours(text, m.frame, o.tolerance)
+        for _, p in ipairs(contours) do
+            snap(p)
+        end
+        F.domain(m, contours, o.fill_rule)
+    else
+        local p, closed = path.read(text, m.frame, o.tolerance, true)
+        if closed then
+            table.remove(p)
+        end
+        snap(p)
+        F.path(m, o.name, p, closed, o)
+    end
+end
+
+--- Dispatch queued declarations after the problem begin hook.
+function T.static_declare(kind, o)
+    check(M.current, "set femm/problem first")
+    if kind == "pair" then
+        o.sign = o.type == "antiperiodic" and -1 or 1
+        require("luafemm-frontiers").pair(M.current, o.first, o.second, o)
+    else
+        require("luafemm-static").circuit(M.current, o.name, o)
+    end
+end
+
 return T

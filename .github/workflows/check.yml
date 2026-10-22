@@ -28,6 +28,8 @@ jobs:
             texlive-fonts-recommended texlive-extra-utils ghostscript context python3 make
       - name: Numerical tests and format matrix
         run: make test
+      - name: Static mesh, exterior and force sensitivity
+        run: make static-convergence
       - name: Examples, manual, archives and isolated installation
         run: make dist
       - name: Check generated catalogue is current
@@ -39,6 +41,7 @@ jobs:
         with:
           name: luafemm-build
           path: |
+            build/convergence/*.csv
             build/tests/*.log
             build/formats/*/*.log
             build/formats/results.json
@@ -64,11 +67,17 @@ jobs:
           sudo apt-get install -y --no-install-recommends texlive-luatex cmake g++ make python3
       - name: Validate disk interchange and independent solves
         run: python3 scripts/interop.py --build --xfemm build/upstream-xfemm
+      - name: Validate static extensions and force postprocessing
+        run: |
+          python3 scripts/static-interop.py
+          python3 scripts/post-interop.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: luafemm-interoperability
           path: |
+            build/static/*.json
+            build/static/*.log
             build/interop/*.log
             build/interop/*.json
             build/interop/*.tsv

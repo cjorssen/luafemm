@@ -38,7 +38,7 @@ function B.set(m, side, p)
     check(m and m.boundaries, "create a problem before declaring boundary conditions")
     check(not m.nodes, "declare boundary conditions before meshing")
     check(
-        not m.topology,
+        not m.topology or m.native_topology,
         "imported boundaries come from FEM properties; side overrides are unsupported"
     )
     check(not m.options.boundary, "cannot combine side conditions with the boundary callback")
@@ -166,6 +166,13 @@ function B.prepare(m, nodes, elements, exterior)
             if edge.count == 1 and not condition then
                 condition = { type = "neumann", value = 0, dx = 0, dy = 0, coefficient = 0 }
             end
+            if condition and condition.type == "periodic" then
+                check(edge.count == 1, "periodic conditions require exterior paths")
+                condition = nil
+            end
+            if condition and condition.open_radius then
+                check(edge.count == 1, "open conditions require an exterior path")
+            end
             if condition and edge.count == 2 then
                 check(
                     condition.type == "dirichlet",
@@ -203,6 +210,7 @@ function B.prepare(m, nodes, elements, exterior)
                 edge.length = math.sqrt((q[1] - p[1]) ^ 2 + (q[2] - p[2]) ^ 2)
                 edge.g = { data(condition, p), data(condition, q) }
                 edge.coefficient = condition.coefficient
+                edge.open_radius = condition.open_radius
                 edge.count = nil
                 weak[#weak + 1] = edge
                 if condition.coefficient > 0 then
@@ -268,13 +276,18 @@ function B.assemble(m, A, R, K, mu0)
         local weight = mu0 * edge.length / 6
         for i = 1, 2 do
             local row = m.nodes[edge.ids[i]].dof
+            local si = m.nodes[edge.ids[i]].dof_sign or 1
             if row then
                 for j = 1, 2 do
                     local mass = weight * (i == j and 2 or 1)
-                    R[row] = R[row] + mass * (edge.coefficient * A[edge.ids[j]] + edge.g[j])
+                    R[row] = R[row] + si * mass * (edge.coefficient * A[edge.ids[j]] + edge.g[j])
                     local col = m.nodes[edge.ids[j]].dof
                     if K and col then
-                        K[row][col] = (K[row][col] or 0) + mass * edge.coefficient
+                        K[row][col] = (K[row][col] or 0)
+                            + si
+                                * (m.nodes[edge.ids[j]].dof_sign or 1)
+                                * mass
+                                * edge.coefficient
                     end
                 end
             end

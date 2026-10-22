@@ -128,10 +128,11 @@ are never silently replaced by air. Unanchored disconnected components have
 independent gauges and current-balance checks.
 
 \subsection{Supported physics and practical diagnostics}
-The solver is static, planar and isotropic, with either a linear law or
+The solver is static and planar, with a linear symmetric permeability tensor or
 a monotone tabulated law and prescribed permanent-magnet direction.
 It does not include axisymmetry, time dependence, hysteresis, irreversible
-demagnetisation, eddy currents, mechanical forces or open-boundary elements.
+demagnetisation, eddy currents or sliding air-gap elements. Forces and circular
+open-boundary approximations are available as described in their chapters.
 
 If Newton fails, inspect the material data, extreme element aspect ratios
 and current scale before raising |max iterations|. For a lost or collapsed

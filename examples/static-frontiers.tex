@@ -1,0 +1,45 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[border=3mm]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\tikzset{paired edge/.style={purple,dashed,thick,
+  femm/frontier={name=#1,type=periodic}},
+  femm/materials/recoil/.style={mu r=1.05,coercivity=800000}}
+\begin{tikzpicture}[femm/problem={xmin=0,xmax=42,ymin=-22,ymax=22,
+    mesh size=1.5,depth=20},
+    femm/pair={first=lower,second=upper,type=antiperiodic,rotation=60},
+    femm/cache={file=\jobname-sector,mode=auto}]
+  \draw[femm/domain] (-30:10)--(-30:40)
+    arc[start angle=-30,end angle=30,radius=40]--(30:10)
+    arc[start angle=30,end angle=-30,radius=10]--cycle;
+  \filldraw[fill=red!20,femm/region={material=recoil,
+      magnetization=angular,magnetization order=4}]
+    (-30:12)--(-30:20) arc[start angle=-30,end angle=30,radius=20]
+    --(30:12) arc[start angle=30,end angle=-30,radius=12]--cycle;
+  \draw[paired edge=lower] (-30:10)--(-30:40);
+  \draw[paired edge=upper] (30:10)--(30:40);
+  \pic[femm/lines=16,femm/arrow length=.8mm,femm/arrow width=.5mm] {femm field};
+  \node[align=center,font=\small,fill=white,inner sep=2pt] at (28,0) {One sector\\$A_2=-A_1$};
+\end{tikzpicture}
+\qquad
+% Reuse the solved model. These outlines are drawing paths only.
+\begin{tikzpicture}[x=1mm,y=1mm]
+  \foreach \sector in {0,60,...,300}{
+    \begin{scope}[rotate=\sector]
+      \draw[gray!35] (-30:10)--(-30:40)
+        arc[start angle=-30,end angle=30,radius=40]--(30:10)
+        arc[start angle=30,end angle=-30,radius=10]--cycle;
+      \filldraw[fill=red!12,draw=gray!50]
+        (-30:12)--(-30:20) arc[start angle=-30,end angle=30,radius=20]
+        --(30:12) arc[start angle=30,end angle=-30,radius=12]--cycle;
+    \end{scope}}
+  \pic[femm/repeat={copies=6},femm/lines=16,
+    femm/arrow length=.8mm,femm/arrow width=.5mm] {femm repeated field};
+  \node[font=\small] at (0,-44) {Six reconstructed sectors};
+\end{tikzpicture}
+\end{document}

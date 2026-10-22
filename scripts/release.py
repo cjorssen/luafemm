@@ -127,7 +127,10 @@ def main():
     entries.append(("doc/generic/luafemm/luafemm-manual.pdf", pdf))
     archive(tds, entries, timestamp)
     check_installation(tds)
-    sums = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}" for p in (source, tds)]
+    manual = OUT / "luafemm-manual.pdf"
+    shutil.copy2(pdf, manual)
+    sums = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}"
+            for p in (source, tds, manual)]
     (OUT / "SHA256SUMS").write_text("\n".join(sums) + "\n")
     print("Local release files verified; no commit, tag or publication performed.")
 

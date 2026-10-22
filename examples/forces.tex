@@ -1,0 +1,50 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=170mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\pgfkeys{/femm/measure/pull/.style={
+  quantity=force,selection=armature,method=weighted}}
+\tikzset{femm force arrow/.append style={red!75!black}}
+\begin{document}
+\centering
+\foreach \gap/\result in {2/gap-two,4/gap-four,6/gap-six}{%
+  \begin{tikzpicture}[scale=.5,femm/problem={
+    xmin=-70,xmax=70,ymin=-60,ymax=75,
+    mesh size=5,depth=10}]
+    \node[femm/u electromagnet={
+      width=80,height=60,leg thickness=15,
+      gap=\gap,armature thickness=15,
+      ampere turns=2000,gap mesh size=1,
+      core material=pure-iron,armature material=pure-iron},
+      anchor=core center] (M) {};
+    % This path only selects existing elements. It adds no physical interface.
+    \path[femm/selection={name=armature,material=pure-iron}]
+      (-42,31) rectangle (42,55);
+    \path[femm/measure={pull,name=\result,parameter=\gap}];
+    \begin{scope}
+      \clip (-53,-37) rectangle (53,65);
+      \pic[femm/lines=13] {femm field};
+    \end{scope}
+    \pic[femm/force={result=\result,length=16}] {femm force};
+    \node[font=\small] at (0,-43) {Gap: $\gap\,\mathrm{mm}$};
+  \end{tikzpicture}\hspace{1mm}%
+}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=12cm,height=5cm,grid=major,
+    xlabel={Gap (mm)},ylabel={Attraction magnitude (N)},
+    ymin=0,xtick={2,4,6},enlarge x limits=.12]
+    \femmresultplot[results={gap-two,gap-four,gap-six},
+      component=force,plot options={teal!70!black,thick,mark=*}]
+  \end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Depth: $10\,\mathrm{mm}$; excitation: $2000$ ampere-turns.
+Arrows indicate direction; their lengths are illustrative.
+\end{document}

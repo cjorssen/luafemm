@@ -1,0 +1,36 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=110mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{femm/materials/recoil/.style={mu r=1.05,coercivity=800000},
+  far field/.style={femm/frontier={name=far,type=open,radius=35}}}
+\begin{tikzpicture}[femm/problem={xmin=-36,xmax=36,ymin=-36,ymax=36,
+    mesh size=2.5,depth=20},femm/cache={file=\jobname-open,mode=auto}]
+  \path[femm/domain] (0,0) circle[radius=35];
+  \draw[far field,dashed,gray] (0,0) circle[radius=35];
+  \filldraw[even odd rule,fill=red!20,femm/region={material=recoil,
+    magnetization=angular,magnetization order=2,mesh size=1.2}]
+    (0,0) circle[radius=18] (0,0) circle[radius=11];
+  \pic[femm/lines=24,femm/arrow spacing=18mm] {femm field};
+  \draw[red,dashed,-Stealth,femm/profile={name=bore,samples=81}]
+    (-9,0)--(9,0);
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,grid=major,no markers,
+  xlabel={$x$ (mm)},ylabel={Bore field (T)},legend pos=south east]
+  \femmplot[profile=bore,component=Bx,abscissa=x,plot options={blue,thick}]
+  \addlegendentry{$B_x$}
+  \femmplot[profile=bore,component=By,abscissa=x,plot options={red}]
+  \addlegendentry{$B_y$}
+\end{axis}
+\end{tikzpicture}
+\end{document}

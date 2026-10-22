@@ -178,8 +178,11 @@ FEM export remains available with either policy, but a subsequent FEMM solve
 uses FEMM's constitutive law and can produce a different solution.
 
 The static ANS writer includes zero-based element-to-label references, one current
-record per block label and explicit empty periodic/air-gap trailers. Prescribed
-current density is encoded in effective material records. The output uses the
+record per block label, periodic nodal constraints when present, and an empty
+air-gap trailer. Current density is encoded in effective material records or
+in the associated circuit records. Spatially varying coercive directions use
+elementwise blocks to preserve the solved quadrature-averaged source; use the
+separate FEM file to edit the original angle law. The output uses the
 non-incremental four-column element dialect read by the audited postprocessors.
 It contains the actual converged mesh and physical potential in tesla metres.
 It is not a replacement for the private |.lfc| cache and cannot currently be
@@ -232,15 +235,18 @@ names. The writer rejects quotes/newlines that cannot be represented safely in a
 quoted scalar. Malformed input is diagnosed with filename and line number.
 
 The solver adapter supports closed planar graphs, circular arcs up to $180^\circ$
-per record, nested and disconnected regions, default labels, isotropic linear
-and B--H materials, constant coercive direction, prescribed real current density,
-series circuits, tagged prescribed-potential and constant real mixed conditions,
-and natural boundaries. No Mesh seeds exclude their faces entirely. Each
+per record, nested and disconnected regions, default labels, diagonal linear
+anisotropy, isotropic B--H materials, linear directional laminations, constant
+or supported angular coercive directions, prescribed real current density,
+series circuits, paired straight periodic/antiperiodic segments,
+tagged prescribed-potential and constant real mixed conditions, and natural
+boundaries. No Mesh seeds exclude their faces entirely. Each
 unanchored connected component receives its own gauge and current-balance check.
 
-The adapter rejects AC, axisymmetry, previous-solution modes, anisotropy,
-unsupported lamination/fill physics, parallel circuits, point properties,
-functional magnetisation, periodic/antiperiodic/sliding-gap boundaries, negative
+The adapter rejects AC, axisymmetry, previous-solution modes, nonlinear
+anisotropy, unsupported lamination/fill physics, FEMM parallel-circuit input,
+point properties, arbitrary executable magnetisation expressions, periodic
+circular-arc input, sliding-gap boundaries, negative
 Robin coefficients, and mixed conditions on internal interfaces. Open or isolated
 constraints that do not bound valid faces also receive diagnostics. Default labels
 with circuits, conflicting labels and labels on interfaces are rejected.
@@ -250,8 +256,13 @@ native rectangle's default prescribed potential.
 Exact export rejects arbitrary source/boundary callbacks and affine mixed data
 that a constant FEMM boundary property cannot represent. Segment groups are
 retained for drawing. The computational export uses effective material records
-per face and current density rather than claiming to recover original circuits
-or every preprocessor editing attribute. For an unmodified passive document,
+per face. Named DC windings export as series records with resolved currents;
+parallel connections and voltage control are reduced to the operating point.
+Rotated anisotropic tensors with cross terms cannot be exported. Supported
+angular laws export as passive expressions; only that restricted grammar and
+the presets |theta| and |theta+90| are accepted on import. Original prototype
+ampere-turn inputs still export as current density: the writer does not invent
+separate turns and current or recover every preprocessor editing attribute. For an unmodified passive document,
 |luafemm-fem.serialize| retains its original property and arc records separately.
 
 \subsection{Lua interface and independent validation}

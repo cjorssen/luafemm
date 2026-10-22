@@ -7,9 +7,11 @@
 -- This module is usable by texlua without a running TeX interpreter.
 -- Public lengths use options.unit metres per model unit; assembly uses SI.
 -- @module luafemm
-local M = { version = "0.9.0-dev", mu0 = 4 * math.pi * 1e-7 }
+local M = { version = "0.10.0-dev", mu0 = 4 * math.pi * 1e-7 }
 local boundary_conditions = require("luafemm-boundary")
 local geometry = require("luafemm-geometry")
+local static = require("luafemm-static")
+local frontiers = require("luafemm-frontiers")
 local abs, sqrt, max = math.abs, math.sqrt, math.max
 local function check(x, message)
     assert(x, "luafemm: " .. message)
@@ -160,6 +162,7 @@ function M.material(m, name, p)
     if p.bh and p.interpolation == "femm" then
         p.curve = require("luafemm-bh").prepare(p.bh)
     end
+    static.material(p)
     m.materials[name] = p
 end
 
@@ -172,7 +175,9 @@ end
 -- @treturn number mu0*dH_table/dB.
 function M.constitutive(p, b)
     if not p.bh then
-        return 1 / p.mur, 1 / p.mur
+        check(p.mur_x == p.mur_y, "scalar constitutive evaluation requires isotropic permeability")
+        local mur = p.mur_x or p.mur
+        return 1 / mur, 1 / mur
     end
     if p.curve then
         local h, d = require("luafemm-bh").evaluate(p.curve, b)
@@ -217,7 +222,13 @@ end
 -- @tparam[opt="nonzero"] string fill_rule "nonzero" or "even odd", as in PGF.
 function M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
     check(not m.nodes, "declare regions before meshing")
-    check(not m.topology, "imported topology is immutable; edit the FEM source before importing")
+    check(
+        not m.topology or m.native_topology,
+        "imported topology is immutable; edit the FEM source before importing"
+    )
+    if m.native_topology then
+        m.topology = nil
+    end
     check(m.materials[material], "unknown material " .. material)
     fill_rule = fill_rule or "nonzero"
     check(fill_rule == "nonzero" or fill_rule == "even odd", "unknown fill rule")
@@ -284,17 +295,22 @@ function M.mesh(m)
     if m.nodes then
         return m
     end
+    frontiers.compile(m)
     require("luafemm-ideal").compile(m)
     local cache = require("luafemm-cache")
     if cache.restore(m, false) then
         return m
     end
     if m.options.mesher == "delaunay" then
-        local points, elements, stats = require("luafemm-mesh").generate(m.options, m.regions)
+        local points, elements, stats = require("luafemm-mesh").generate(
+            m.options,
+            m.native_topology and m.topology.faces or m.regions
+        )
         if m.topology then
             points, elements, stats =
                 require("luafemm-topology").carve(m.topology, points, elements, stats)
         end
+        points, elements, stats = frontiers.synchronize(m, points, elements, stats)
         m.mesh_stats = stats
         M.import_mesh(m, points, elements)
         cache.store(m)
@@ -408,6 +424,11 @@ function M.prepare_mesh(m, nodes, elements, boundary)
         fixed, edges, gauge, gauges, components =
             boundary_conditions.prepare(m, nodes, elements, boundary)
     end
+    local periodic = frontiers.reduce(m, nodes, elements, fixed, gauges, components, edges)
+    representatives = representatives or periodic
+    if periodic then
+        gauge, gauges = nil, nil
+    end
     local tri, free, A = {}, {}, {}
     for id, p in ipairs(nodes) do
         p.dof = nil
@@ -424,9 +445,11 @@ function M.prepare_mesh(m, nodes, elements, boundary)
         for id, first in pairs(representatives) do
             nodes[id].dof = nodes[first].dof
         end
-        m.ideal_loads = {}
-        for id, value in pairs(loads) do
-            m.ideal_loads[nodes[id].dof] = value
+        if loads then
+            m.ideal_loads = {}
+            for id, value in pairs(loads) do
+                m.ideal_loads[nodes[id].dof] = value
+            end
         end
     end
     local function triangle(ids)
@@ -448,6 +471,22 @@ function M.prepare_mesh(m, nodes, elements, boundary)
             face = require("luafemm-topology").locate(m.topology, x / o.unit, y / o.unit)
             check(face and not face.hole, "triangle outside computational domain")
             material, current, mx, my = face.material, face.current, face.mx, face.my
+        end
+        local source_region = face and face.region and m.regions[face.region]
+        if not source_region and not m.topology then
+            for _, reg in ipairs(m.regions) do
+                if geometry.contains(reg, x / o.unit, y / o.unit) then
+                    source_region = reg
+                end
+            end
+        end
+        if source_region then
+            local vertices = {
+                { p[1] / o.unit, p[2] / o.unit },
+                { q[1] / o.unit, q[2] / o.unit },
+                { r[1] / o.unit, r[2] / o.unit },
+            }
+            mx, my = static.direction(source_region, vertices)
         end
         if o.source then
             current = o.source(x, y)
@@ -473,6 +512,8 @@ function M.prepare_mesh(m, nodes, elements, boundary)
     for _, ids in ipairs(elements) do
         triangle(ids)
     end
+    frontiers.open_check(tri, edges)
+    frontiers.compatibility(m, tri, edges, nodes)
     boundary_conditions.compatibility({
         triangles = tri,
         boundary_edges = edges,
@@ -502,26 +543,26 @@ local function assemble(m, A, tangent)
             ax = ax + e.gx[i] * A[e.ids[i]]
             ay = ay + e.gy[i] * A[e.ids[i]]
         end
-        local b = sqrt(ax * ax + ay * ay)
-        local nu, d = M.constitutive(e.p, b)
-        local v = {}
-        for i = 1, 3 do
-            v[i] = ax * e.gx[i] + ay * e.gy[i]
-        end
-        local correction = b > 1e-15 and (d - nu) / (b * b) or 0
+        local hx, hy, xx, xy, yy = static.law(e.p, ay, -ax)
         for i = 1, 3 do
             local row = e.dofs[i]
+            local si = m.nodes[e.ids[i]].dof_sign or 1
             if row > 0 then
-                -- H = nu(B) B - Hc m; test curl(Ni ez)=(Ni,y,-Ni,x).
                 local permanent = M.mu0 * e.p.hc * (e.mx * e.gy[i] - e.my * e.gx[i])
-                R[row] = R[row] + e.area * (nu * v[i] - permanent - M.mu0 * e.current / 3)
+                R[row] = R[row]
+                    + si
+                        * e.area
+                        * (hx * e.gy[i] - hy * e.gx[i] - permanent - M.mu0 * e.current / 3)
                 if K then
                     for j = 1, 3 do
                         local col = e.dofs[j]
+                        local sj = m.nodes[e.ids[j]].dof_sign or 1
                         if col > 0 then
                             K[row][col] = (K[row][col] or 0)
-                                + e.area
-                                    * (nu * (e.gx[i] * e.gx[j] + e.gy[i] * e.gy[j]) + correction * v[i] * v[j])
+                                + si
+                                    * sj
+                                    * e.area
+                                    * (xx * e.gy[i] * e.gy[j] - xy * (e.gy[i] * e.gx[j] + e.gx[i] * e.gy[j]) + yy * e.gx[i] * e.gx[j])
                         end
                     end
                 end
@@ -651,6 +692,10 @@ local function pcg(K, rhs, tol)
     error("luafemm: CG failed to converge")
 end
 
+--- Internal SPD solve shared with the auxiliary postprocessing weight problem.
+-- Sparse rows use one-based column keys; returns solution and iteration count.
+M.solve_spd = pcg
+
 --- Solve with damped Newton and IC(0)-preconditioned conjugate gradients.
 -- The mesh is generated on demand. Failure to converge raises an error.
 -- @tparam table m Model.
@@ -659,6 +704,7 @@ function M.solve(m)
     if m.stats then
         return m
     end
+    frontiers.compile(m)
     require("luafemm-ideal").compile(m)
     local cache = require("luafemm-cache")
     if cache.restore(m, true) then
@@ -709,7 +755,7 @@ function M.solve(m)
             end
             for id, node in ipairs(m.nodes) do
                 if node.dof then
-                    trial[id] = A[id] + alpha * delta[node.dof]
+                    trial[id] = A[id] + alpha * (node.dof_sign or 1) * delta[node.dof]
                 end
             end
             local r = assemble(m, trial, false)
@@ -736,8 +782,8 @@ function M.update_fields(m)
             by = by - e.gx[i] * m.A[e.ids[i]]
         end
         e.bx, e.by, e.b = bx, by, sqrt(bx * bx + by * by)
-        local nu = M.constitutive(e.p, e.b)
-        e.hx, e.hy = nu * bx / M.mu0 - e.p.hc * e.mx, nu * by / M.mu0 - e.p.hc * e.my
+        local hx, hy = static.law(e.p, bx, by)
+        e.hx, e.hy = hx / M.mu0 - e.p.hc * e.mx, hy / M.mu0 - e.p.hc * e.my
         peak = max(peak, e.b)
         current = current + e.current * e.area
     end

@@ -59,6 +59,7 @@ function C.properties(id)
     local props = {
         mur = p.LamType > 2 and 1 or p.LamFill * p.Mu_x + (1 - p.LamFill),
         coercivity = p.H_c,
+        conductivity = p.Sigma * 1e6,
         current = p.J_re * 1e6,
         magnetization_angle = p.H_cAngle,
         library = r,
