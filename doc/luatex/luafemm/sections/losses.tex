@@ -1,0 +1,229 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Complex permeability and laminated-core losses}
+\label{sec:losses}
+
+A conducting core can dissipate energy in two different ways: through resolved
+currents in the body, and through its magnetic constitutive law. A stack of
+insulated sheets adds a third scale: currents circulate within each sheet,
+although they cannot travel freely across the insulation. Meshing every sheet
+is often unnecessary. This chapter supplies a linear effective law, including
+its loss decomposition, and retains the peak $\exp(\mathrm i\omega t)$ convention.
+
+\subsection{A thinner stack, a different frequency response}
+Imagine replacing a core made from 0.5 mm sheets by an otherwise identical
+stack of 0.2 mm sheets. Give both stacks the same intrinsic material and the
+same stacking factor. A material style is the natural place for these choices:
+\begin{codeexample}[code only]
+\tikzset{femm/materials/core/.style={
+  mu r=300,conductivity=2000000,loss angle=10,
+  lamination=stacked,lamination fill=.95,lamination thickness=.5}}
+\end{codeexample}
+The permeability magnitude is 300, the conductivity is $2\,\mathrm{MS/m}$,
+and the intrinsic loss angle is $10^\circ$. These are illustrative parameters,
+not a fitted electrical-steel grade. |lamination thickness| is in millimetres,
+even when the drawing uses another model unit. The stacking factor is the
+fraction of magnetic sheet material; the remaining volume is nonmagnetic
+insulation with relative permeability one.
+
+First choose a coarse core mesh and a short list of frequencies. Once the
+geometry, signs and circuit are satisfactory, refine the core and the air
+around it. A sheet thickness is a \emph{material parameter}: it does not set
+triangle size. Mesh refinement resolves variations of the averaged field,
+while the effective law resolves the one-dimensional variation through a sheet.
+The following complete example uses ordinary PGF loops, named measurements
+and |\femmresultplot| to compare both stacks and separate the losses.
+
+\luafemmexample{harmonic-materials}
+
+The excitation is a prescribed peak current at every frequency. Field amplitudes
+therefore change with frequency and thickness. Do not interpret the loss curves
+as a fixed-flux material-characterisation test. The contour levels in the two
+pictures are chosen independently. Microscopic sheet currents are not drawn by
+|femm eddy currents|: they have been homogenised and are reported as a loss,
+not as a fictitious resolved current density in the drawing plane.
+
+\subsection{Material keys and their scope}
+All keys below belong to |/tikz/femm/materials| and may appear inside ordinary
+material styles. Material styles are evaluated afresh for each captured region.
+Optional empty values inherit a supported catalogue property, then the stated
+native default. They are not region keys. Declare all materials and regions
+before a solve, measurement, field pic or cached solution is requested.
+
+\Needspace{8\baselineskip}
+\begin{key}{/tikz/femm/materials/loss angle=\meta{degrees} (initially empty)}
+Common intrinsic magnetic loss angle. The native default is zero. For a linear
+material, its relative permeability is
+$\mu_r^*=|\mu_r|\exp(-\mathrm i\theta)$: the flux density lags the field.
+Accepts PGF expressions and finite values $0\leq\theta<90^\circ$.
+|mu r|, or the principal |mu x| and |mu y|, supplies the \emph{magnitude},
+not the real part. A negative angle would represent an active medium and is
+rejected. This parameter does not reconstruct a time-domain hysteresis loop.
+\end{key}
+\Needspace{8\baselineskip}
+\begin{key}{/tikz/femm/materials/loss angle x=\meta{degrees} (initially empty)}
+\begin{key}{/tikz/femm/materials/loss angle y=\meta{degrees} (initially empty)}
+Principal-axis loss angles. An unspecified angle inherits |loss angle|, whose
+native default is zero. Explicit principal angles take precedence over a common
+angle. An explicit common angle also replaces catalogue principal defaults;
+explicit principal overrides remain effective. |material angle| rotates both
+real and imaginary constitutive tensors together in the field plane.
+In axisymmetric geometry, the unrotated axes are $r$ and $z$.
+\end{key}
+\end{key}
+\Needspace{8\baselineskip}
+\begin{key}{/tikz/femm/materials/lamination=\meta{choice} (initially inherit)}
+A choice handler with |inherit|, |none|, |stacked|, |parallel x| and |parallel y|.
+|inherit| uses the catalogue interpretation when present, otherwise |none|.
+|none| describes a bulk material: its conductivity participates in resolved
+eddy-current diffusion unless the region is a stranded winding.
+
+|stacked| describes insulated sheets parallel to the two-component magnetic
+field plane, with stacking normal to that plane. Both in-plane principal
+permeabilities receive the effective-sheet correction. It suppresses bulk
+transport conductivity in the finite-element equation, because the sheet
+currents are already included in the effective law. At zero thickness it
+means the ideal infinitely fine insulated-sheet limit. It never means a solid
+conducting block of thickness zero.
+
+The existing |parallel x| and |parallel y| choices retain their static mixing
+interpretation and remain rejected in harmonic problems. |material angle|
+rotates principal axes within the sheets; it does not tilt the sheet normal.
+In axisymmetry the sheet approximation is local to the meridional field plane;
+check that it is appropriate for the physical construction.
+\end{key}
+\Needspace{7\baselineskip}
+\begin{key}{/tikz/femm/materials/lamination thickness=\meta{millimetres} (initially empty)}
+Nonnegative thickness of one conducting sheet, excluding insulation. The native
+default is zero. Supply a number in millimetres, not a TeX dimension.
+A positive value requires |lamination=stacked|. The value is
+independent of |mesh size|, picture scale and model length units. A zero value
+or zero conductivity removes microscopic sheet-current loss, while intrinsic
+magnetic loss may remain. No individual insulation layer is added to the TikZ
+geometry or mesh.
+\end{key}
+\Needspace{7\baselineskip}
+\begin{key}{/tikz/femm/materials/lamination fill=\meta{fraction} (initially empty)}
+The native default is one; supported catalogue values may supply another value.
+Require $0<f\leq1$. For |stacked|, $f$ weights the magnetic sheets and $1-f$
+the nonmagnetic insulation. It is unrelated to |winding fill|, which describes
+copper occupancy in a stranded winding. A value other than one still requires
+a lamination choice. Static |stacked| materials use the zero-frequency arithmetic
+mixture along both in-plane axes.
+\end{key}
+
+The model is linear. Native stacked sheets require linear intrinsic permeability.
+Loss models on captured nonlinear operating points and in the separate axial
+$H_z$ diffusion formulation are rejected. A homogenised sheet region cannot
+also prescribe an impressed current, belong to a transport circuit, use a
+stranded conductor interpretation, or request an isolated-current constraint.
+Drive it magnetically from a separate winding or from boundary data.
+
+At frequency zero, loss angles and sheet thickness do not create losses; the
+static solve uses the real intrinsic permeability and static fill mixture.
+Native cache signatures retain these properties. Static FEM export rejects
+new loss metadata instead of silently stripping it. Public harmonic FEM/ANS
+interchange is still outside the supported subset.
+
+\subsection{Which loss should be plotted?}
+Harmonic regional measurements expose the following SI components. All are
+cycle averages in watts and work with selections, saved |name| values,
+|\femmvalue| and |\femmresultplot|. No additional integration key is needed.
+\begin{center}
+\begin{tabular}{lp{.63\linewidth}}
+\toprule
+Component & Meaning\\
+\midrule
+|joule_loss| & Resolved bulk-current loss and stranded-winding copper loss.\\
+|eddy_loss| & The existing resolved induced-current or zero-net redistribution loss; it is a part of the electrical loss, not an extra addend.\\
+|hysteresis_loss| & Dissipation of the intrinsic complex permeability, integrated through the microscopic sheet field when applicable.\\
+|lamination_loss| & Microscopic Joule loss inside insulated conducting sheets.\\
+|magnetic_loss| & |hysteresis_loss| plus |lamination_loss|.\\
+|total_loss| & |joule_loss| plus |magnetic_loss|.\\
+\bottomrule
+\end{tabular}
+\end{center}
+For an ordinary lossless material, the new magnetic components are zero.
+For a homogenised sheet with no transport source, |J|, |Jeddy| and |joule_loss|
+are zero at the resolved scale, even when |lamination_loss| is positive.
+Do not add |eddy_loss| to |total_loss|, and do not infer that a zero resolved
+current means zero heating. The intrinsic term is called |hysteresis_loss|
+for consistency with magnetic engineering terminology; its constant-angle
+linear law is not a microscopic hysteresis model.
+
+The existing energy observable is
+$\tfrac14\int\operatorname{Re}(\widehat{\mathbf B}\cdot
+\widehat{\mathbf H}^{\,*})\,dV$.
+The historical |coenergy| component remains an alias of this average; it is
+not a conservative potential from which to differentiate harmonic forces.
+In a source-free exterior with zero Dirichlet potential, driven circuit ports
+satisfy
+\[
+ \sum_b\tfrac12\operatorname{Re}(\widehat V_b\widehat I_b^*)
+      =P_{\rm total},\qquad
+ \sum_b\tfrac12\operatorname{Im}(\widehat V_b\widehat I_b^*)
+      =2\omega W.
+\]
+Boundary excitation or impressed sources outside the measured ports contribute
+additional work. These identities check assembly and integration; they do not
+replace mesh/domain convergence or material calibration. The energy observable
+is not a general thermodynamic energy formula for an arbitrary dispersive medium.
+Profiles of |Hx| and |Hy|, including phase, RMS and instantaneous views, use the
+full complex law rather than applying a real permeability to each phasor part.
+
+\subsection{Effective law, microscopic losses and numerical checks}
+For one principal direction let $\mu^*=\mu_0\mu_r^*$ be the intrinsic absolute
+permeability and let $d$ be the sheet thickness in metres. Define
+\[
+ k=\sqrt{\mathrm i\omega\sigma\mu^*},\quad
+ z=kd/2,\quad F(z)=\frac{\tanh z}{z},\quad
+ \mu_{r,\mathrm{eff}}^*=1-f+f\mu_r^*F(z).
+\]
+The passive square-root branch has nonnegative real part. For $z=0$ the
+analytic limit is $F(0)=1$. The solver assembles the inverse effective tensor,
+including its imaginary stiffness, and the mass term only for resolved bulk
+conductivity. Axisymmetric integration retains the usual radial weights.
+
+The intrinsic loss is not obtained by subtracting a second finite-element
+solve. The exact sheet field
+$H(s)=H_s\cosh(ks)/\cosh(kd/2)$ supplies its mean square. With
+$Q=d^{-1}\int_{-d/2}^{d/2}|H(s)/H_s|^2\,ds$, the two physical loss densities are
+\[
+ p_h=\frac{f\omega\mu_0(-\operatorname{Im}\mu_r^*)}{2}Q|H_s|^2,
+ \qquad
+ p_e=\frac{f}{2\sigma d}\int_{-d/2}^{d/2}
+                    \left|\frac{dH}{ds}\right|^2ds.
+\]
+Their sum equals
+$\tfrac\omega2\operatorname{Im}(\widehat{\mathbf H}\cdot
+\widehat{\mathbf B}^{\,*})$ per homogenised volume. The implementation obtains
+the sheet term from this power identity, with an explicit passivity check.
+It uses a small-argument series and decaying exponentials to avoid cancellation
+and overflow in the thin-sheet and deep-skin limits.
+
+\nolinkurl{tests/test_losses.lua} checks affine complex anisotropy and rotation,
+independent numerical integration of the exact microscopic field, extreme
+skin-depth limits, phase covariance, coupled planar/axisymmetric power balance,
+cache reconstruction and invalid combinations. The optional
+\nolinkurl{scripts/losses-interop.py} compares independently meshed xfemm solutions
+for intrinsic loss, ordinary and deep-skin sheets, axisymmetry, and a core
+excited by neighbouring currents. This follows the linear |LamType=0| and
+|Theta_hx|/|Theta_hy| conventions in xfemm's harmonic solver; unsupported
+in-plane stacking choices are not guessed.
+
+The full catalogue remains available. Supported linear |LamType=0| records
+map principal permeability, phase angles, conductivity, sheet thickness and
+fill into this law. Catalogue B/H curves retain their nonlinear static meaning:
+adding this linear loss model does not turn them into nonlinear harmonic laws.
+The supplied catalogue currently has no linear record with nonzero sheet/loss
+metadata; the example therefore defines its assumptions explicitly. Detailed
+wire/strand models and nonlinear harmonic approximations remain unsupported models.
+
+Cache revision 13 fingerprints the intrinsic axes and their orientation, loss angles, fill and
+thickness, in addition to frequency. Older snapshots must be recomputed.
+Compatible meshes can be reused after a constitutive change, and frozen caches
+reconstruct the effective tensors without solving again. Generic cold/warm/shared
+frozen tests exercise these properties in plain LuaTeX, LuaLaTeX and ConTeXt MkIV.

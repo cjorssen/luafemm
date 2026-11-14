@@ -1,0 +1,105 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{amsmath,tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\definecolor{weakbias}{RGB}{20,85,135}
+\definecolor{strongbias}{RGB}{185,65,45}
+\newbox\BiasCalculation
+\def\CoreMesh{.25}
+% Illustrative single-valued law; conductivity is in S/m.
+\tikzset{
+  femm/materials/conducting iron/.style={conductivity=2000000,
+    bh={0/0,.25/25.293,.5/59.375,.75/146.191,1/400,
+      1.25/1040.527,1.5/2428.125,1.75/5098.926,2/9800,
+      2.25/17524.512,2.5/29546.875,3/73200}},
+  biased rod/.style={femm/problem={type=axisymmetric,
+      xmax=25,ymin=-25,ymax=25,mesh size=1.5,interpolation=femm},
+    femm/circuit={name=drive,current=#1}},
+  ac response/.style 2 args={femm/problem={operating point=rod-#1,
+    frequency=#2,permeability=incremental,
+    circuit currents={drive=1},circuit phases={drive=0}}},
+  femm/arrow spacing=14mm}
+\newcommand\RodGeometry{%
+  \path[femm/region={material=air,mesh size=.6}] (0,-14) rectangle (11,14);
+  \path[femm/region={material=conducting iron,mesh size=\CoreMesh}]
+    (0,-12) rectangle (5,12);
+  \path[femm/region={material=copper,circuit=drive,turns=100,
+    winding fill=.6,mesh size=.8}] (7,-8) rectangle (10,8);}
+\newcommand\PaintRod{%
+  \filldraw[fill=blue!8,draw=black!45] (0,-12) rectangle (5,12);
+  \filldraw[fill=orange!30,draw=black!45] (7,-8) rectangle (10,8);
+  \draw[dash dot,gray] (0,-18)--(0,18);}
+\begin{document}
+\centering
+% The same captured mesh is reused at every frequency for one bias.
+\foreach \Case/\Bias in {low/5,high/50}{%
+  \setbox\BiasCalculation=\hbox{%
+    \begin{tikzpicture}[biased rod=\Bias,
+      femm/cache={file=\jobname-bias-\Case,mode=auto},
+      femm/operating point={name=rod-\Case}]
+      \RodGeometry
+    \end{tikzpicture}}
+  \foreach \Frequency in {5,10,20,50,100,200}{%
+    \setbox\BiasCalculation=\hbox{%
+      \begin{tikzpicture}[ac response={\Case}{\Frequency},
+        femm/cache={file=\jobname-\Case-\Frequency,mode=auto}]
+        \femmmeasure[name=port-\Case-\Frequency,quantity=circuit,
+          circuit=drive,parameter=\Frequency]
+        \femmmeasure[name=loss-\Case-\Frequency,parameter=\Frequency]
+      \end{tikzpicture}}}}
+\foreach \Case/\Bias/\Colour in {low/5/weakbias,high/50/strongbias}{%
+  \begin{tikzpicture}[ac response={\Case}{200},scale=1.25,
+    femm/cache={file=\jobname-\Case-200,mode=auto}]
+    \clip (-3,-18) rectangle (24,22);
+    \PaintRod
+    \pic[femm/phase=0,femm/lines=13,femm/field style={\Colour}]
+      {femm field};
+    \pic[femm/currents={view=symbols,phase=0,spacing=1.5},
+      femm/eddy style={color=\Colour}] {femm eddy currents};
+    \node[fill=white,font=\small,align=center] at (11,19)
+      {$I_0=\Bias\,\mathrm A$\\$f=200\,\mathrm{Hz}$, $\omega t=0$};
+    \draw[->] (0,-15)--(12,-15) node[right,font=\scriptsize] {$r$};
+    \node[font=\scriptsize,fill=white] at (2.5,-13) {Iron};
+    \node[font=\scriptsize,fill=white,rotate=90] at (8.5,0) {Coil};
+  \end{tikzpicture}\hspace{8mm}}
+\par\medskip
+\def\LowPorts{port-low-5,port-low-10,port-low-20,port-low-50,port-low-100,port-low-200}
+\def\HighPorts{port-high-5,port-high-10,port-high-20,port-high-50,port-high-100,port-high-200}
+\def\LowLoss{loss-low-5,loss-low-10,loss-low-20,loss-low-50,loss-low-100,loss-low-200}
+\def\HighLoss{loss-high-5,loss-high-10,loss-high-20,loss-high-50,loss-high-100,loss-high-200}
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=7.5cm,height=5.7cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={$\operatorname{Re}L_{\rm inc}^{*}$ (mH)},
+  y filter/.expression={1000*y},scaled y ticks=false,
+  legend style={font=\scriptsize,at={(.03,.03)},anchor=south west}]
+  \femmresultplot[results={\LowPorts},component=incremental_inductance_real,
+    plot options={weakbias,thick,mark=*}]
+  \addlegendentry{$I_0=5\,\mathrm A$}
+  \femmresultplot[results={\HighPorts},component=incremental_inductance_real,
+    plot options={strongbias,thick,mark=square*}]
+  \addlegendentry{$I_0=50\,\mathrm A$}
+\end{semilogxaxis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{loglogaxis}[width=7.5cm,height=5.7cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Rod eddy-current loss (W)},
+  legend style={font=\scriptsize,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\LowLoss},component=eddy_loss,
+    plot options={weakbias,thick,mark=*}]
+  \addlegendentry{$I_0=5\,\mathrm A$}
+  \femmresultplot[results={\HighLoss},component=eddy_loss,
+    plot options={strongbias,thick,mark=square*}]
+  \addlegendentry{$I_0=50\,\mathrm A$}
+\end{loglogaxis}
+\end{tikzpicture}
+\par\smallskip
+\small Unit peak AC current normalises the small-signal response.
+Fields exclude the DC bias; contour levels are independent in the two panels.
+Rod losses exclude stranded-coil copper losses and DC heating.
+\end{document}

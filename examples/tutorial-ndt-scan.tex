@@ -1,0 +1,109 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=165mm,border=4mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\definecolor{ndtblue}{RGB}{25,83,112}
+\definecolor{ndtred}{RGB}{192,69,44}
+\def\Mesh{.4}\def\Frequency{2000}
+\newbox\NDTCalculation
+\def\ShallowR{}\def\ShallowX{}\def\ShallowPlane{}
+\def\DeepR{}\def\DeepX{}\def\DeepPlane{}
+\tikzset{ndt/model/.style={femm/problem={type=axisymmetric,
+    frequency=\Frequency,xmax=45,ymin=-45,ymax=45,mesh size=2},
+    femm/circuit={name=probe,current=1},
+    femm/materials/specimen/.style={mu r=1,conductivity=58000000}}}
+\pgfplotsset{ndt/axis/.style={grid=major,grid style={gray!15},
+    axis line style={gray!60},tick label style={font=\small},
+    legend style={draw=none,fill=white,font=\small},
+    scaled ticks=false},
+  ndt/shallow/.style={ndtblue,thick,mark=*,mark size=1.3pt},
+  ndt/deep/.style={ndtred,thick,mark=square*,mark size=1.5pt}}
+\pgfmathsetmacro{\NearMesh}{1.5*\Mesh}
+\pgfmathsetmacro{\GrooveMesh}{\Mesh/2}
+\begin{document}
+\centering
+% Each position is an independent steady harmonic calculation. The coil
+% moves between solves: there is no velocity or motional-current term.
+\foreach \Position [count=\Index] in {-12,-10,-8,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,8,10,12}{%
+  \foreach \Case/\Depth in {sound/0,shallow/.5,deep/1.5}{%
+    % Discard the picture box, retaining the named numerical measurement.
+    \setbox\NDTCalculation=\hbox{%
+      \tikzpicture[ndt/model,
+          femm/cache={file=\jobname-\Case-\Index,mode=auto}]
+        \path[femm/region={material=air,mesh size=\NearMesh}]
+          (0,-15) rectangle (12,15);
+        \path[femm/region={material=specimen,mesh size=\Mesh}]
+          (5,-25) rectangle (8,25);
+        \ifdim\Depth pt>0pt
+          \path[femm/region={material=air,mesh size=\GrooveMesh}]
+            ({8-\Depth},-1.5) rectangle (8,1.5);
+        \fi
+        \path[femm/region={material=copper,circuit=probe,turns=60,
+            winding fill=.6,mesh size=\Mesh}]
+          (9,{\Position-1.5}) rectangle (11,{\Position+1.5});
+        \femmmeasure[name=\Case-\Index,quantity=circuit,circuit=probe,
+          parameter=\Position]
+      \endtikzpicture}%
+  }
+  % Use PGF's floating-point unit for differences of nearby impedances.
+  % Convert ohms to milliohms only after subtracting the matched reference.
+  \begingroup\pgfkeys{/pgf/fpu=true,/pgf/fpu/output format=fixed}
+    \foreach \Case/\Prefix in {shallow/Shallow,deep/Deep}{%
+      \pgfmathparse{1000*(\femmresult{\Case-\Index}{impedance_real}
+        -\femmresult{sound-\Index}{impedance_real})}
+      \edef\RealSignal{\pgfmathresult}
+      \expandafter\xdef\csname\Prefix R\endcsname{%
+        \csname\Prefix R\endcsname (\Position,\RealSignal)}
+      \pgfmathparse{1000*(\femmresult{\Case-\Index}{impedance_imaginary}
+        -\femmresult{sound-\Index}{impedance_imaginary})}
+      \expandafter\xdef\csname\Prefix X\endcsname{%
+        \csname\Prefix X\endcsname (\Position,\pgfmathresult)}
+      \expandafter\xdef\csname\Prefix Plane\endcsname{%
+        \csname\Prefix Plane\endcsname (\RealSignal,\pgfmathresult)}
+    }
+  \endgroup
+}
+\begin{tikzpicture}
+  \begin{axis}[ndt/axis,width=8cm,height=6cm,xmin=-12,xmax=12,
+      xlabel={Probe centre $s$ (mm)},ylabel={$\Delta R$ (m$\Omega$)},
+      title={Resistive channel},legend pos=south east]
+    \addplot[gray,densely dashed,forget plot] coordinates {(-12,0)(12,0)};
+    \addplot[ndt/shallow] coordinates {\ShallowR};
+    \addlegendentry{$d=0.5$ mm}
+    \addplot[ndt/deep] coordinates {\DeepR};
+    \addlegendentry{$d=1.5$ mm}
+  \end{axis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+  \begin{axis}[ndt/axis,width=8cm,height=6cm,xmin=-12,xmax=12,
+      xlabel={Probe centre $s$ (mm)},ylabel={$\Delta X$ (m$\Omega$)},
+      title={Reactive channel}]
+    \addplot[gray,densely dashed,forget plot] coordinates {(-12,0)(12,0)};
+    \addplot[ndt/shallow] coordinates {\ShallowX};
+    \addplot[ndt/deep] coordinates {\DeepX};
+  \end{axis}
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[ndt/axis,width=10cm,height=7cm,
+      xlabel={$\Delta R$ (m$\Omega$)},ylabel={$\Delta X$ (m$\Omega$)},
+      title={The same scan in the impedance plane},legend pos=north east]
+    \addplot[ndt/shallow] coordinates {\ShallowPlane};
+    \addlegendentry{$d=0.5$ mm}
+    \addplot[ndt/deep] coordinates {\DeepPlane};
+    \addlegendentry{$d=1.5$ mm}
+    \node[anchor=north east,font=\small] at (axis cs:0,0) {Far from groove};
+  \end{axis}
+\end{tikzpicture}
+\par\smallskip\small
+$\Delta Z(s)=Z_{\rm groove}(s)-Z_{\rm sound}(s)$;
+$f=2$ kHz, 60 turns, $\widehat I=1$ A, groove width 3 mm.
+Markers are solved positions; straight segments only guide the eye.
+The symmetric passage nearly retraces its impedance-plane trajectory.
+\end{document}

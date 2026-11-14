@@ -19,7 +19,7 @@ Bug tracker: <https://github.com/cjorssen/luafemm/issues>.
 
 The original luafemm code, tests, tooling and documentation may be distributed
 and/or modified under the conditions of the **LaTeX Project Public License,
-version 1.3c**, dated 2008-05-04. The full, unmodified licence is in `LICENSE`;
+version 1.3c or later**, dated 2008-05-04. The full, unmodified licence is in `LICENSE`;
 the [official text](https://www.latex-project.org/lppl/lppl-1-3c.txt) is also
 available online. Source headers use `SPDX-License-Identifier: LPPL-1.3c`.
 The copyright on the licence text itself belongs to the LaTeX3 Project.
@@ -39,7 +39,7 @@ The following are upstream data, notices or data derivatives:
 
 - `data/femm/matlib.dat`: unchanged FEMM material library.
 - `data/femm/LICENSE.txt`: unchanged upstream distribution terms and notices.
-- `tex/generic/luafemm/luafemm-materials-data.lua`: generated transcription.
+- `tex/luatex/luafemm/lua/luafemm-materials-data.lua`: generated transcription.
 - `docs/materials-catalog.md` and the manual's material appendix: generated index.
 
 These retain their upstream FEMM terms, including the **Aladdin Free Public
@@ -68,7 +68,3 @@ The manual uses PGF documentation macros supplied by the user's TeX installation
 Its presentation follows tikz-ext; its original prose and examples are written
 for luafemm. Neither PGF's nor tikz-ext's source is redistributed here. Build
 tools and TeX dependencies retain their own licences and are not in the archives.
-
-The development used Codex/GPT-6-Astra for "vibe coding". Christophe Jorssen is
-the package author and maintainer. The manual and README describe the need for
-independent validation of AI-assisted numerical code.

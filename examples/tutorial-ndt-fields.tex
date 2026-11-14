@@ -1,0 +1,90 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=165mm,border=4mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm,arrows.meta}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\definecolor{ndtblue}{RGB}{25,83,112}
+\definecolor{ndtred}{RGB}{192,69,44}
+\def\Mesh{.4}\def\Frequency{2000}\def\Position{0}
+\tikzset{ndt/model/.style={femm/problem={type=axisymmetric,
+    frequency=\Frequency,xmax=45,ymin=-45,ymax=45,mesh size=2},
+    femm/circuit={name=probe,current=1},
+    femm/materials/specimen/.style={mu r=1,conductivity=58000000}},
+  ndt/tube/.style={fill=ndtblue!12,draw=ndtblue!55,
+    femm/region={material=specimen,mesh size=\Mesh}},
+  ndt/coil/.style={fill=orange!25,draw=orange!80!black,
+    femm/region={material=copper,circuit=probe,turns=60,
+      winding fill=.6,mesh size=\Mesh}}}
+\pgfmathsetmacro{\NearMesh}{1.5*\Mesh}
+\pgfmathsetmacro{\GrooveMesh}{\Mesh/2}
+\begin{document}
+\centering
+\foreach \Case/\Depth/\Title in {sound/0/Sound tube,groove/1.5/Annular groove}{%
+  \begin{tikzpicture}[ndt/model,scale=2,
+      femm/cache={file=\jobname-\Case,mode=auto},font=\small]
+    % Refine the near field before painting the two physical materials.
+    \path[femm/region={material=air,mesh size=\NearMesh}]
+      (0,-15) rectangle (12,15);
+    \begin{scope}
+      \clip (-.5,-12) rectangle (19,12);
+      \filldraw[ndt/tube] (5,-25) rectangle (8,25);
+      \ifdim\Depth pt>0pt
+        % Air removes metal. It remains part of the electromagnetic domain.
+        \filldraw[fill=white,draw=ndtred,thick,
+          femm/region={material=air,mesh size=\GrooveMesh}]
+          ({8-\Depth},-1.5) rectangle (8,1.5);
+      \fi
+      \filldraw[ndt/coil] (9,{\Position-1.5}) rectangle (11,{\Position+1.5});
+      \path[femm/profile={name=ndt-\Case,samples=161}]
+        (6.25,-10)--(6.25,10);
+      \pic[femm/phase=0,femm/lines=17,femm/arrow spacing=11mm,
+        femm/arrow length=1mm,femm/arrow width=.65mm,
+        femm/field style={ndtblue,line width=.35pt}] {femm field};
+      \pic[femm/currents={material=specimen,phase=0,spacing=.9,
+        reference current=2000000,symbol radius=.9pt},
+        femm/eddy style={ndtred}] {femm eddy currents};
+      \draw[ndtred,densely dashed] (6.25,-10)--(6.25,10);
+    \end{scope}
+    \draw[gray,dash dot,-Stealth] (0,-13)--(0,13) node[above] {$z$};
+    \draw[gray,-Stealth] (0,-13)--(18,-13) node[right] {$r$};
+    \node[anchor=west,text=ndtblue,font=\bfseries] at (1,15) {\Title};
+    \draw[orange!80!black,-Stealth] (14,6)
+      node[above,fill=white,inner sep=1pt] {60-turn probe}
+      --(11,1.5);
+    \ifdim\Depth pt>0pt
+      \draw[ndtred,-Stealth] (15,-6)
+        node[below,fill=white,inner sep=1pt] {$d=1.5$ mm}--(7,-1);
+    \else
+      \draw[ndtblue,-Stealth] (15,-8)
+        node[below,fill=white,inner sep=1pt] {Copper}--(7,-7);
+    \fi
+    \femmmeasure[name=terminal-\Case,quantity=circuit,circuit=probe]
+  \end{tikzpicture}\hspace{4mm}%
+}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=13cm,height=5.8cm,grid=major,
+    grid style={gray!15},axis line style={gray!60},
+    xlabel={Axial coordinate $z$ (mm)},
+    ylabel={$|\widehat J_\varphi|$ ($\mathrm{MA/m^2}$)},
+    xmin=-10,xmax=10,ymin=0,no markers,
+    legend style={draw=none,fill=white,font=\small},legend pos=north east,
+    y filter/.code={\pgfmathparse{#1/1000000}},scaled y ticks=false]
+    \femmplot[profile=ndt-sound,component=Jeddy,abscissa=z,
+      representation=amplitude,plot options={ndtblue,thick}]
+    \addlegendentry{Sound tube}
+    \femmplot[profile=ndt-groove,component=Jeddy,abscissa=z,
+      representation=amplitude,plot options={ndtred,thick,dashed}]
+    \addlegendentry{1.5 mm groove}
+  \end{axis}
+\end{tikzpicture}
+\par\smallskip\small
+Meridional close-ups: magnetic lines and current symbols at $\omega t=0$.
+The dashed profiles lie in copper at $r=6.25$ mm, below the groove floor.
+The complete tube extends to $z=\pm25$ mm; only the drawing is cropped.
+\end{document}

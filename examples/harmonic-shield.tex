@@ -1,0 +1,52 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=145mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{induction/.style={femm/problem={type=axisymmetric,frequency=1000,
+    xmax=40,ymin=-40,ymax=40,mesh size=2},
+    femm/circuit={name=drive,current=2,phase=0}},
+  femm/materials/solid copper/.style={mu r=1,conductivity=58000000}}
+\begin{tikzpicture}[induction,scale=.9,
+    femm/cache={file=\jobname,mode=auto}]
+  \path[femm/region={material=air,mesh size=.6}] (0,-32) rectangle (6,32);
+  \filldraw[fill=orange!25,draw=orange!70!black,
+    femm/region={material=copper,circuit=drive,turns=100,winding fill=.6,mesh size=1}]
+    (14,-15) rectangle (18,15);
+  % Rotation about r=0 makes a conducting tube, not a stranded winding.
+  \filldraw[fill=gray!30,draw=gray,
+    femm/region={material=solid copper,mesh size=.5}]
+    (7,-12) rectangle (10,12);
+  \pic[femm/phase=0,femm/lines=17,femm/arrow spacing=14mm] {femm field};
+  \draw[red,dashed,femm/profile={name=shield-axis,samples=101}]
+    (0,-30)--(0,30);
+  \femmselect[name=tube,material=solid copper]
+  \femmmeasure[name=tube-loss,selection=tube]
+  \femmmeasure[name=drive-terminal,quantity=circuit,circuit=drive]
+  \node[above] at (20,40) {$\omega t=0^\circ$};
+\end{tikzpicture}
+\quad
+\begin{tikzpicture}
+\begin{axis}[width=8cm,height=6cm,grid=major,no markers,
+    xlabel={$z$ (mm)},ylabel={$B_z$ (T)},legend style={at={(.5,1.03)},anchor=south}]
+  \femmplot[profile=shield-axis,component=Bz,abscissa=z,
+    representation=amplitude,plot options={blue!65!black,thick}]
+  \addlegendentry{Phasor amplitude}
+  \femmplot[profile=shield-axis,component=Bz,abscissa=z,
+    representation=snapshot,phase=0,plot options={red!70!black,dashed}]
+  \addlegendentry{Instantaneous field at $0^\circ$}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+Tube loss:
+$P_{\rm tube}=\femmvalue[component=joule_loss,number format={fixed,precision=3}]{tube-loss}$.
+Input power:
+$P_{\rm in}=\femmvalue[component=power,number format={fixed,precision=3}]{drive-terminal}$.
+\end{document}

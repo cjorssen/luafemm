@@ -1,0 +1,274 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{A small excitation around a saturated operating point}
+\label{sec:operating}
+
+\subsection{Kamil asks which inductance his students should use}
+Kamil has plotted the flux linkage of a coil as its current increases.
+The curve bends as the iron saturates. He would now like to connect that
+large-signal curve to the inductance seen by a small additional excitation.
+Dividing flux linkage by current gives a secant slope; a small perturbation
+sees the tangent slope. These are different questions, even when the geometry
+and the winding have not changed.
+
+An \emph{operating point} captures a converged static solution and its exact
+ordered mesh. A second picture inherits the geometry and material declarations,
+but uses a linear constitutive law evaluated at that saved state. Two modes
+are available: |frozen| uses the local secant permeability, while
+|incremental| uses the differential tensor. Both planar and axisymmetric
+static models are supported. Section~\ref{sec:biased-harmonic} extends incremental
+mode to a small harmonic excitation. Neither mode advances time or moves the rotor.
+
+\subsection{First solve, then capture, then perturb}
+The order matters. Kamil declares his materials, boundaries and winding in
+an ordinary |femm/problem|. At picture level he adds:
+\begin{codeexample}[code only]
+\tikzset{biased coil/.style={
+  femm/problem={xmin=-30,xmax=30,ymin=-25,ymax=25,depth=20},
+  femm/circuit={name=drive,current=5},
+  femm/operating point={name=bias},
+  femm/cache={file=coil-bias,mode=auto}}}
+\end{codeexample}
+The |femm/operating point| key schedules the capture at the end of that
+picture, after all its physical paths have been declared. It solves if
+necessary, then takes an independent copy. The snapshot is available only
+after the picture has ended. Alternatively,
+|\femmoperatingpoint[name=bias]| performs the capture immediately at its
+position in the input; place it after the last physical declaration.
+A capture does not replace the current model.
+
+The next picture selects the saved name. It does \emph{not} repeat the
+physical paths, material definitions or circuit declarations:
+\begin{codeexample}[code only]
+\begin{tikzpicture}[
+  femm/problem={operating point=bias,permeability=incremental,
+    circuit currents={drive=1}},
+  femm/cache={file=coil-increment,mode=auto}]
+  \pic {femm geometry};
+  \pic[femm/field style={orange!75!black}] {femm field};
+  \femmmeasure[name=small,quantity=circuit,circuit=drive]
+\end{tikzpicture}
+\end{codeexample}
+Here the current is $\delta I=1\,\mathrm A$. This is a normalisation of a
+linear response: the resulting linkage is numerically the differential
+inductance in henries. It is not a claim that the nonlinear circuit stays
+linear over a finite one-ampere excursion. For an actual small change $\epsilon$,
+$\mathbf B(I_0+\epsilon)\simeq\mathbf B_0+
+\epsilon\,\partial\mathbf B/\partial I$.
+
+In incremental mode every independent bias source is zeroed: circuit currents,
+impressed current densities, coercive sources and imposed boundary loads.
+The specified |circuit currents| then supply the perturbation. Unlisted
+circuits have zero perturbation current. Robin coefficients, boundary kinds
+and periodic ties are inherited; their additive loads are homogeneous.
+The resulting lines and profiles describe $\delta\mathbf B$ and
+$\delta\mathbf H$, not the total field. Ordinary |femm/profile|,
+|\femmplot|, |\femmmeasure| and |\femmresultplot| keep their usual syntax.
+
+For a reconstruction of the bias, Kamil instead writes:
+\begin{codeexample}[code only]
+\begin{tikzpicture}[
+  femm/problem={operating point=bias,permeability=frozen}]
+  \pic {femm geometry};
+  \pic {femm field};
+\end{tikzpicture}
+\end{codeexample}
+Frozen mode retains every bias source by default. With unchanged sources its
+solution recovers the nonlinear bias to solver tolerance. An explicit circuit
+current replaces that circuit's current; it is not added to it. This permits
+source decomposition when all other sources are accounted for. Retained
+magnets or nonzero boundary loads must not be mistaken for zero excitation.
+
+\subsection{One core, two slopes}
+The complete example below compares the bias and incremental fields of a
+closed rectangular core, then plots its flux linkage and both inductances.
+The B--H table is illustrative, not a measured steel specification. The field
+panels deliberately use separate contour levels; counting lines across the
+two panels does not measure their flux ratio.
+
+Start with |\Mesh=3| while arranging the figures, then try |1.5| and a finer
+value before interpreting the curves quantitatively. Each bias solve has its
+own mesh, but its frozen and incremental responses reuse that mesh exactly.
+Within a bias-response pair there is no remeshing or transfer error. Across a
+current sweep, geometry-driven meshing is deterministic for unchanged inputs.
+Convergence of the tangent solve on one mesh does not establish convergence
+of the spatial discretisation.
+
+\luafemmexample{operating-point}
+
+The result component |inductance| is $\lambda/I$ for the ordinary static
+model under its existing eligibility rules. On an incremental response with
+one nonzero circuit excitation it is $\delta\lambda/\delta I$; the explicit
+alias |incremental_inductance| names the same value. Kamil uses the alias in
+his plot to make its interpretation unambiguous. Its SI unit is the henry:
+\begin{codeexample}[code only]
+\femmvalue[component=incremental_inductance]{small}
+\femmresultplot[results={small-a,small-b,small-c},
+  component=incremental_inductance,abscissa=parameter,
+  plot options={orange!75!black,thick,mark=square*}]
+\end{codeexample}
+Record |parameter=| as the bias current, as the complete example does.
+The result's |current| is the perturbation current, not the bias current.
+
+For several windings, excite one port at a time and measure the linkage of
+all ports. With a unit excitation at port $j$, the linkage at port $i$ gives
+$L_{ij}$. Unexcited ports still report linkage but cannot report a self
+inductance by division by zero. When several circuits are excited together,
+the response does not report an |inductance| ratio: use the individual
+linkages and the declared excitation vector. A matrix is assembled by the
+caller; there is no automatic matrix-valued result or circuit-network solver.
+For frozen responses the ratio is also omitted in the presence of other
+independent sources. In either mode a planar winding must be closed in signed
+turns for its linkage to be gauge independent.
+
+\subsection{Key reference}
+\begin{key}{/tikz/femm/operating point=\marg{options}}
+Schedule a capture at the end of the originating picture. Options belong to
+|/femm/operating point|. Use once for each named snapshot; names are
+unique across the document. Reusing a name is an error, which prevents a
+later picture from silently changing the meaning of an earlier response.
+\end{key}
+\begin{command}{\femmoperatingpoint\oarg{options}}
+Capture immediately, solving first if required. This command and the picture
+key have the same options. A capture owns its data and does not borrow a
+mutable potential array from the original model.
+\end{command}
+\begin{key}{/femm/operating point/name=\meta{name} (initially empty)}
+Required nonempty snapshot identifier. Prefer letters, digits and hyphens in
+examples. A snapshot name is separate from a measurement or profile name.
+\end{key}
+\begin{key}{/femm/operating point/model=\meta{model name} (initially empty)}
+Select a registered |/femm/problem/name| for immediate capture; empty means
+the current model. The picture-level key supplies its own originating model
+identifier automatically, so another picture cannot redirect that capture.
+\end{key}
+\begin{key}{/femm/problem/operating point=\meta{name} (initially empty)}
+Start a response from a previously captured operating point. Empty starts an
+ordinary problem. Geometry, units, problem type, material laws, solver settings,
+depth and mesh all come from the snapshot. Explicit geometry or solver options
+in the same problem declaration are rejected, rather than silently ignored.
+Set those options on the bias problem. |name| may name the new response model;
+|femm/cache| and presentation keys remain independent. The one physical override
+is |frequency|, for the incremental harmonic extension described next.
+\end{key}
+\begin{key}{/femm/problem/permeability=\meta{choice} (initially incremental)}
+A PGF choice, either |incremental| or |frozen|. It selects the linear material
+law and the source defaults explained above. It is distinct from
+|/femm/cache/mode=frozen|, which only requires an existing disk cache.
+\end{key}
+\begin{key}{/femm/problem/circuit currents=\marg{name=value list} (initially empty)}
+Replace selected circuit currents, in amperes, in the inherited problem.
+For example |circuit currents={drive=1,sense=0}|. PGF evaluates the numerical
+expressions, so |drive=1/2| is allowed. Circuit names must already exist in
+the bias. An empty list retains the mode's defaults; in incremental mode
+this gives a zero response. Use this key instead of redeclaring inherited
+circuits with |femm/circuit|. The enclosing problem remains styleable:
+\begin{codeexample}[code only]
+\tikzset{unit response/.style={femm/problem={
+  operating point=#1,permeability=incremental,
+  circuit currents={drive=1}}}}
+\end{codeexample}
+\end{key}
+
+\subsection{What is actually linearised?}
+Let the isotropic material table describe the noncoercive law
+$\mathbf H_{\mathrm{tab}}=\nu(B)\mathbf B$, where $\nu(B)=H(B)/B$ in SI.
+At the static bias $\mathbf B_0$, define $B_0=|\mathbf B_0|$ and
+$\mathbf n=\mathbf B_0/B_0$. Frozen permeability uses the scalar reluctivity
+$\nu_0=H(B_0)/B_0$. The incremental law is
+\[
+ \delta\mathbf H=\boldsymbol\nu_{\mathrm{inc}}\,\delta\mathbf B,
+ \qquad
+ \boldsymbol\nu_{\mathrm{inc}}=
+ \nu_0\mathbf I+
+ \left(\left.\frac{\mathrm dH}{\mathrm dB}\right|_{B_0}-\nu_0\right)
+ \mathbf n\mathbf n^{\mathsf T}.
+\]
+Thus parallel and perpendicular perturbations see different slopes. At zero
+bias the initial table slope is used in both directions. An already linear
+tensor retains its tensor in both modes. Permanent-magnet coercivity belongs
+to the source term, not to this derivative; incremental mode removes that
+source while preserving the recoil law.
+
+The implementation uses the same B--H interpolation and material tangent as
+the nonlinear solver. At a corner of a piecewise-linear B--H table the
+classical derivative is not unique: the selected interval's tangent is used.
+Avoid interpreting a centred finite difference crossing such a corner as an
+exact derivative check. Smooth FEMM-style interpolation is available, but
+its smoothing changes the effective input curve as described in the material
+chapter.
+
+For planar P1 elements the bias curl and tangent are constant in each
+triangle. For axisymmetry, $B_r=-\partial_zA_\phi$ and
+$B_z=\partial_rA_\phi+A_\phi/r$ vary within an element. The bias and material
+tangent are therefore evaluated at each volume quadrature point, with the
+same radial weights as the nonlinear solve. Pointwise H profiles use the
+local tensor at the sampled point. The static weak operator and its signed
+boundary constraints are otherwise unchanged.
+
+Regional |energy| and |coenergy| on an incremental response both mean the
+quadratic response energy $\tfrac12\int\delta\mathbf B\cdot
+\delta\mathbf H\,\mathrm dV$. They exclude the bias energy and the first-order
+cross term in a total-energy expansion. For a single unit-current response,
+$2W=L_{\mathrm{inc}}$. In frozen mode the energy refers to the frozen linear
+material and retained coercive source; it is not the original nonlinear
+stored energy even when the field reconstruction agrees.
+
+\subsection{Persistence, checks and current limits}
+Named operating points live for the TeX run. Across compilations, keep the
+bias declarations and use their ordinary native solution cache: capture can
+then copy the restored solution without repeating Newton iterations. Give
+each response its own cache filename. Passive cache format 13 includes the
+ordered bias mesh, nodal bias field, constitutive mode, source provenance and
+response excitations. A changed bias cannot reuse an old response silently.
+Older caches must be recomputed. There is no transfer between unrelated meshes
+and no reader for a native FEMM |.ans| operating point yet.
+
+The operating-point model accepts native planar/axisymmetric static models with
+single-valued isotropic nonlinear or positive linear tensor laws, including
+supported permanent magnets. Named circuits must use prescribed series
+currents. Source/boundary callbacks, imported operating points, ideal confined
+models, voltage/parallel circuit drives and capture of an already linearised
+response are rejected. Geometry and physics are locked after creating a
+response: draw labels or untagged decorative paths, but do not add regions,
+change materials or redeclare boundaries. Create a new nonlinear bias for a
+changed geometry. Small harmonic responses are described in
+Section~\ref{sec:biased-harmonic}. Force/torque derivatives, combination with
+sliding-position models and FEM/ANS export of response models remain unsupported
+and fail explicitly. Independent static rotor positions are described in
+Section~\ref{sec:sliding}.
+The nonlinear bias itself retains its ordinary supported export capabilities.
+
+The regression suite checks frozen reconstruction, the analytic oblique
+material tensor, permanent-magnet source removal, zero/linear limits,
+reciprocity, response energy and finite differences of planar and
+axisymmetric nonlinear solves. The optional xfemm study compares against
+independent ordinary nonlinear solves; its pinned command-line solver rejects
+DC previous-field modes. These checks validate the stated static response
+model, not a complete FEMM previous-solution workflow. Detailed tolerances
+and measured errors are recorded in \nolinkurl{docs/validation.md}.
+
+\subsection{Lua entry points}
+The numerical module |require("luafemm-operating")| does not access TeX globals.
+|capture(model)| returns an owned snapshot of a converged static problem;
+|new(snapshot,options)| constructs an unsolved response. Options are |mode|,
+|currents| (a table from circuit names to amperes), |frequency| (hertz),
+|phases| (a table from circuit names to degrees) and |cache| (the ordinary
+native cache options). They default to |incremental|, empty current/phase tables,
+zero frequency and caching off. Unknown options are rejected. For example:
+\begin{codeexample}[code only]
+local O = require("luafemm-operating")
+local bias = O.capture(model) -- model has already converged
+local response = O.new(bias, {
+  mode = "incremental", currents = {drive = 1},
+  cache = {file = "unit-response", mode = "auto"}
+})
+require("luafemm").solve(response)
+local r = require("luafemm-static").result(response, "drive")
+-- r.incremental_inductance is in henries when available.
+\end{codeexample}
+A snapshot may also come from a compatible restored native cache. The snapshot
+itself is an in-memory object; |capture| does not create an extra disk format.

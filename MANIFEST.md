@@ -1,78 +1,79 @@
-<!--
-SPDX-License-Identifier: LPPL-1.3c
-Copyright (C) 2026 Christophe Jorssen
-Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
-LPPL maintenance status: maintained
-This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
--->
-
-# File inventory and LPPL work definition
+# Public distribution manifest and LPPL work definition
 
 The original Work is luafemm, copyright (C) 2026 Christophe Jorssen,
-licensed under LPPL 1.3c with maintenance status `maintained`.
-Christophe Jorssen <christophe.jorssen@gmail.com> is the author and
-Current Maintainer. See `LICENSES.md` for the licence scope, Base Interpreters,
-upstream exceptions and the planned CTAN distribution.
+licensed under LPPL 1.3c or later, with maintenance status `maintained`.
+Christophe Jorssen <christophe.jorssen@gmail.com> is the author and Current
+Maintainer. See LICENSES.md for the scope, Base Interpreters and upstream terms.
 
-## Original source components (LPPL-1.3c)
+This is the explicit distribution inventory. The GitHub tree and browsable CTAN
+archive contain the same README and preview assets. The compiled
+`doc/luatex/luafemm/luafemm-manual.pdf` is added by the documentation build.
+Internal tools, tests, assessments, roadmaps, configuration and work history are
+excluded. The documentation builder and its inputs are included solely to make
+the published manual reproducible. No runtime native solver is distributed.
 
-- `.editorconfig`
-- `.gitattributes`
-- `.github/workflows/check.yml`
-- `.gitignore`
-- `.stylua.toml`
-- `.styluaignore`
-- `CHANGELOG.md`
-- `CONTRIBUTING.md`
+## Original source and documentation (LPPL 1.3c or later)
+
+- `LICENSE`
 - `LICENSES.md`
 - `MANIFEST.md`
-- `Makefile`
 - `README.md`
+- `RELEASE.md`
 - `data/femm/README.md`
-- `doc/luafemm-manual.tex`
-- `doc/manual-examples.tex`
-- `doc/sections/boundaries.tex`
-- `doc/sections/cache.tex`
-- `doc/sections/components.tex`
-- `doc/sections/development.tex`
-- `doc/sections/domains.tex`
-- `doc/sections/field.tex`
-- `doc/sections/format-examples.tex`
-- `doc/sections/getting-started.tex`
-- `doc/sections/ideal.tex`
-- `doc/sections/interchange.tex`
-- `doc/sections/machines.tex`
-- `doc/sections/materials.tex`
-- `doc/sections/mesh-quality.tex`
-- `doc/sections/model.tex`
-- `doc/sections/numerics.tex`
-- `doc/sections/postprocessing.tex`
-- `doc/sections/profiles.tex`
-- `doc/sections/project.tex`
-- `doc/sections/static.tex`
-- `doc/sections/status.tex`
-- `doc/sections/tutorial-machines.tex`
-- `doc/sections/tutorial.tex`
-- `docs/capabilities.md`
-- `docs/femm-capability-roadmap.md`
-- `docs/femm-interoperability-audit.md`
-- `docs/images/README.md`
-- `docs/interoperability.md`
-- `docs/materials.md`
-- `docs/meshing.md`
-- `docs/method.md`
-- `docs/permanent-magnets.md`
-- `docs/profiles.md`
-- `docs/tangle-audit.md`
-- `docs/validation.md`
+- `doc/luatex/luafemm/build-manual.py`
+- `doc/luatex/luafemm/luafemm-manual.tex`
+- `doc/luatex/luafemm/manual-catalog.lua`
+- `doc/luatex/luafemm/manual-examples.tex`
+- `doc/luatex/luafemm/manual-fragments.py`
+- `doc/luatex/luafemm/sections/ac-circuits.tex`
+- `doc/luatex/luafemm/sections/axisymmetric.tex`
+- `doc/luatex/luafemm/sections/biased-harmonic.tex`
+- `doc/luatex/luafemm/sections/boundaries.tex`
+- `doc/luatex/luafemm/sections/cache.tex`
+- `doc/luatex/luafemm/sections/components.tex`
+- `doc/luatex/luafemm/sections/currents.tex`
+- `doc/luatex/luafemm/sections/development.tex`
+- `doc/luatex/luafemm/sections/domains.tex`
+- `doc/luatex/luafemm/sections/field.tex`
+- `doc/luatex/luafemm/sections/format-examples.tex`
+- `doc/luatex/luafemm/sections/getting-started.tex`
+- `doc/luatex/luafemm/sections/harmonic.tex`
+- `doc/luatex/luafemm/sections/ideal.tex`
+- `doc/luatex/luafemm/sections/interchange.tex`
+- `doc/luatex/luafemm/sections/losses.tex`
+- `doc/luatex/luafemm/sections/machines.tex`
+- `doc/luatex/luafemm/sections/materials.tex`
+- `doc/luatex/luafemm/sections/mesh-quality.tex`
+- `doc/luatex/luafemm/sections/model.tex`
+- `doc/luatex/luafemm/sections/numerics.tex`
+- `doc/luatex/luafemm/sections/operating.tex`
+- `doc/luatex/luafemm/sections/postprocessing.tex`
+- `doc/luatex/luafemm/sections/profiles.tex`
+- `doc/luatex/luafemm/sections/project.tex`
+- `doc/luatex/luafemm/sections/sliding.tex`
+- `doc/luatex/luafemm/sections/static.tex`
+- `doc/luatex/luafemm/sections/status.tex`
+- `doc/luatex/luafemm/sections/tutorial-machines.tex`
+- `doc/luatex/luafemm/sections/tutorial-ndt.tex`
+- `doc/luatex/luafemm/sections/tutorial.tex`
+- `doc/luatex/luafemm/validation.md`
 - `examples/alnico-u.tex`
+- `examples/axisymmetric-magnet.tex`
+- `examples/axisymmetric-solenoid.tex`
+- `examples/biased-harmonic.tex`
 - `examples/boundary-conditions.tex`
 - `examples/curved-core.tex`
+- `examples/eddy-current-bundle.tex`
+- `examples/eddy-current-views.tex`
 - `examples/forces.tex`
 - `examples/formats/context.tex`
 - `examples/formats/latex.tex`
 - `examples/formats/plain.tex`
 - `examples/formats/scene.tex`
+- `examples/harmonic-circuits.tex`
+- `examples/harmonic-materials.tex`
+- `examples/harmonic-shield.tex`
+- `examples/harmonic-skin.tex`
 - `examples/ideal-e.tex`
 - `examples/ideal-paths.tex`
 - `examples/ideal-toroids.tex`
@@ -84,7 +85,9 @@ upstream exceptions and the planned CTAN distribution.
 - `examples/materials-profiles.tex`
 - `examples/mesh-quality.tex`
 - `examples/nested-domains.tex`
+- `examples/operating-point.tex`
 - `examples/plain.tex`
+- `examples/sliding-band.tex`
 - `examples/static-circuits.tex`
 - `examples/static-frontiers.tex`
 - `examples/static-open.tex`
@@ -94,136 +97,70 @@ upstream exceptions and the planned CTAN distribution.
 - `examples/tutorial-machine-sine.tex`
 - `examples/tutorial-machine-single.tex`
 - `examples/tutorial-machine-uniform.tex`
+- `examples/tutorial-ndt-fields.tex`
+- `examples/tutorial-ndt-scan.tex`
+- `examples/tutorial-ndt-setup.tex`
 - `examples/u-electromagnet-node.tex`
 - `examples/u-electromagnet.tex`
-- `scripts/build.py`
-- `scripts/import-materials.lua`
-- `scripts/interop.py`
-- `scripts/manual-catalog.lua`
-- `scripts/post-interop.py`
-- `scripts/readme-images.py`
-- `scripts/release.py`
-- `scripts/static-interop.py`
-- `tests/alnico_convergence.lua`
-- `tests/alnico_model.lua`
-- `tests/bootstrap.lua`
-- `tests/check_predicates.py`
-- `tests/components-invalid.tex`
-- `tests/convergence.lua`
-- `tests/fixtures/uniform.fem`
-- `tests/formats/boundaries.tex`
-- `tests/formats/components.tex`
-- `tests/formats/context.tex`
-- `tests/formats/ideal.tex`
-- `tests/formats/interchange.tex`
-- `tests/formats/latex.tex`
-- `tests/formats/machines.tex`
-- `tests/formats/plain.tex`
-- `tests/formats/post.tex`
-- `tests/formats/scene.tex`
-- `tests/formats/static.tex`
-- `tests/interop_cases.lua`
-- `tests/interop_machines.lua`
-- `tests/machine-model.lua`
-- `tests/post_reference.lua`
-- `tests/static_convergence.lua`
-- `tests/static_reference.lua`
-- `tests/test_api.lua`
-- `tests/test_boundary.lua`
-- `tests/test_cache.lua`
-- `tests/test_components.lua`
-- `tests/test_domains.lua`
-- `tests/test_ideal.lua`
-- `tests/test_interchange.lua`
-- `tests/test_machines.lua`
-- `tests/test_magnets.lua`
-- `tests/test_materials.lua`
-- `tests/test_mesh.lua`
-- `tests/test_mesh_stress.lua`
-- `tests/test_post.lua`
-- `tests/test_profiles.lua`
-- `tests/test_quality.lua`
-- `tests/test_solver.lua`
-- `tests/test_static.lua`
-- `tests/tikz-boundaries.tex`
-- `tests/tikz-components.tex`
-- `tests/tikz-domains.tex`
-- `tests/tikz-ideal.tex`
-- `tests/tikz-interchange.tex`
-- `tests/tikz-interface.tex`
-- `tests/tikz-machines.tex`
-- `tests/tikz-post.tex`
-- `tests/tikz-profiles.tex`
-- `tests/tikz-quality.tex`
-- `tests/u_model.lua`
-- `tests/xfemm_probe.cpp`
-- `tex/context/third/luafemm/t-luafemm.mkiv`
-- `tex/generic/luafemm/luafemm-ans.lua`
-- `tex/generic/luafemm/luafemm-bh.lua`
-- `tex/generic/luafemm/luafemm-boundary.lua`
-- `tex/generic/luafemm/luafemm-boundary.tex`
-- `tex/generic/luafemm/luafemm-cache.lua`
-- `tex/generic/luafemm/luafemm-components.lua`
-- `tex/generic/luafemm/luafemm-components.tex`
-- `tex/generic/luafemm/luafemm-fem.lua`
-- `tex/generic/luafemm/luafemm-frontiers.lua`
-- `tex/generic/luafemm/luafemm-geometry.lua`
-- `tex/generic/luafemm/luafemm-ideal.lua`
-- `tex/generic/luafemm/luafemm-ideal.tex`
-- `tex/generic/luafemm/luafemm-integrals.lua`
-- `tex/generic/luafemm/luafemm-interchange.tex`
-- `tex/generic/luafemm/luafemm-machines.lua`
-- `tex/generic/luafemm/luafemm-machines.tex`
-- `tex/generic/luafemm/luafemm-materials.lua`
-- `tex/generic/luafemm/luafemm-mesh.lua`
-- `tex/generic/luafemm/luafemm-path.lua`
-- `tex/generic/luafemm/luafemm-post.lua`
-- `tex/generic/luafemm/luafemm-post.tex`
-- `tex/generic/luafemm/luafemm-predicates.lua`
-- `tex/generic/luafemm/luafemm-profiles.lua`
-- `tex/generic/luafemm/luafemm-profiles.tex`
-- `tex/generic/luafemm/luafemm-refine.lua`
-- `tex/generic/luafemm/luafemm-shapes.lua`
-- `tex/generic/luafemm/luafemm-static-exchange.lua`
-- `tex/generic/luafemm/luafemm-static.lua`
-- `tex/generic/luafemm/luafemm-static.tex`
-- `tex/generic/luafemm/luafemm-tex.lua`
-- `tex/generic/luafemm/luafemm-tikz.tex`
-- `tex/generic/luafemm/luafemm-topology.lua`
-- `tex/generic/luafemm/luafemm.lua`
-- `tex/generic/luafemm/luafemm.tex`
-- `tex/generic/luafemm/tikzlibraryfemm.code.tex`
-- `tex/generic/luafemm/tikzlibrarypgfplots.femm.code.tex`
-- `tex/latex/luafemm/luafemm.sty`
+- `images/slotted-machine-field.png`
+- `images/tilted-u.png`
+- `tex/luatex/luafemm/lua/luafemm-ac-circuits.lua`
+- `tex/luatex/luafemm/lua/luafemm-ans.lua`
+- `tex/luatex/luafemm/lua/luafemm-axial.lua`
+- `tex/luatex/luafemm/lua/luafemm-axisymmetric.lua`
+- `tex/luatex/luafemm/lua/luafemm-bh.lua`
+- `tex/luatex/luafemm/lua/luafemm-boundary.lua`
+- `tex/luatex/luafemm/lua/luafemm-cache.lua`
+- `tex/luatex/luafemm/lua/luafemm-complex.lua`
+- `tex/luatex/luafemm/lua/luafemm-components.lua`
+- `tex/luatex/luafemm/lua/luafemm-currents.lua`
+- `tex/luatex/luafemm/lua/luafemm-fem.lua`
+- `tex/luatex/luafemm/lua/luafemm-frontiers.lua`
+- `tex/luatex/luafemm/lua/luafemm-geometry.lua`
+- `tex/luatex/luafemm/lua/luafemm-harmonic.lua`
+- `tex/luatex/luafemm/lua/luafemm-ideal.lua`
+- `tex/luatex/luafemm/lua/luafemm-integrals.lua`
+- `tex/luatex/luafemm/lua/luafemm-loader.lua`
+- `tex/luatex/luafemm/lua/luafemm-losses.lua`
+- `tex/luatex/luafemm/lua/luafemm-machines.lua`
+- `tex/luatex/luafemm/lua/luafemm-materials.lua`
+- `tex/luatex/luafemm/lua/luafemm-mesh.lua`
+- `tex/luatex/luafemm/lua/luafemm-operating.lua`
+- `tex/luatex/luafemm/lua/luafemm-path.lua`
+- `tex/luatex/luafemm/lua/luafemm-post.lua`
+- `tex/luatex/luafemm/lua/luafemm-predicates.lua`
+- `tex/luatex/luafemm/lua/luafemm-profiles.lua`
+- `tex/luatex/luafemm/lua/luafemm-refine.lua`
+- `tex/luatex/luafemm/lua/luafemm-shapes.lua`
+- `tex/luatex/luafemm/lua/luafemm-sliding.lua`
+- `tex/luatex/luafemm/lua/luafemm-static-exchange.lua`
+- `tex/luatex/luafemm/lua/luafemm-static.lua`
+- `tex/luatex/luafemm/lua/luafemm-tex.lua`
+- `tex/luatex/luafemm/lua/luafemm-topology.lua`
+- `tex/luatex/luafemm/lua/luafemm.lua`
+- `tex/luatex/luafemm/luafemm-boundary.tex`
+- `tex/luatex/luafemm/luafemm-components.tex`
+- `tex/luatex/luafemm/luafemm-currents.tex`
+- `tex/luatex/luafemm/luafemm-ideal.tex`
+- `tex/luatex/luafemm/luafemm-interchange.tex`
+- `tex/luatex/luafemm/luafemm-machines.tex`
+- `tex/luatex/luafemm/luafemm-operating.tex`
+- `tex/luatex/luafemm/luafemm-post.tex`
+- `tex/luatex/luafemm/luafemm-profiles.tex`
+- `tex/luatex/luafemm/luafemm-sliding.tex`
+- `tex/luatex/luafemm/luafemm-static.tex`
+- `tex/luatex/luafemm/luafemm-tikz.tex`
+- `tex/luatex/luafemm/luafemm.sty`
+- `tex/luatex/luafemm/luafemm.tex`
+- `tex/luatex/luafemm/t-luafemm.mkiv`
+- `tex/luatex/luafemm/tikzlibraryfemm.code.tex`
+- `tex/luatex/luafemm/tikzlibrarypgfplots.femm.code.tex`
 
-## Rendered README previews (LPPL-1.3c)
+## Separately licensed upstream data and derivatives
 
-These previews are generated from the original examples with
-`scripts/readme-images.py`; see `docs/images/README.md` for provenance.
-
-- `docs/images/slotted-machine-field.png`
-- `docs/images/slotted-rotor.png`
-- `docs/images/tilted-u.png`
-
-## Aggregated upstream notices and data derivatives (separate FEMM terms)
+These files retain their FEMM/AFPL terms; they are not relicensed as LPPL.
 
 - `data/femm/LICENSE.txt`
 - `data/femm/matlib.dat`
 - `docs/materials-catalog.md`
-- `tex/generic/luafemm/luafemm-materials-data.lua`
-
-## Licence text (verbatim LaTeX3 Project text)
-
-- `LICENSE`
-
-## Compiled and generated components
-
-The manual is compiled as `build/doc/luafemm-manual.pdf` and installed as
-`doc/generic/luafemm/luafemm-manual.pdf`. Its original text is LPPL; the
-material appendix generated from the FEMM catalogue retains upstream terms.
-Example PDFs are compiled from the files under `examples/` and inherit the
-corresponding original-work licence, subject to any included third-party data.
-`build/doc/materials-catalog.tex` is an intermediate catalogue derivative.
-Logs, caches, tool downloads and release ZIP containers are build products,
-not additional original source components. Source and TDS archives preserve
-the notices applicable to each included component.
+- `tex/luatex/luafemm/lua/luafemm-materials-data.lua`

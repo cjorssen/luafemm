@@ -1,0 +1,96 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+% R is the equal-metal-area radius, not the bundle's enclosing radius.
+% This compact packing accepts 1 <= N <= 19; N=19 gives 1+6+12 rods.
+\def\Radius{6}\def\Strands{19}\def\Gap{.12}\def\Epsilon{1.5}
+\def\Frequency{50}\def\AppliedB{.01}\def\Length{100}
+\pgfmathsetmacro{\RodRadius}{\Radius/sqrt(\Strands)}
+\pgfmathsetmacro{\Pitch}{2*\RodRadius+\Gap}
+\pgfmathsetmacro{\OuterRing}{\Pitch/(2*sin(15))}
+\pgfmathsetmacro{\CoilRadius}{\Radius+\Epsilon}
+\pgfmathsetmacro{\Envelope}{\RodRadius+(\Strands>7 ? \OuterRing : (\Strands>1 ? \Pitch : 0))}
+\ifnum\Strands<1 \errmessage{Strands must be between 1 and 19}\fi
+\ifnum\Strands>19 \errmessage{This example packing supports at most 19 strands}\fi
+\ifdim\Envelope pt>\CoilRadius pt \errmessage{Increase Epsilon to fit the insulated bundle}\fi
+\tikzset{axial induction/.style={femm/problem={type=axial,
+    frequency=\Frequency,applied field=\AppliedB,depth=\Length,
+    xmin=-8,xmax=8,ymin=-8,ymax=8,mesh size=.65},scale=3,
+    femm/arrow spacing=7mm,femm/arrow length=1mm,femm/arrow width=.65mm},
+  metal/.style={draw=black!65,fill=gray!25,
+    femm/region={material=copper,mesh size=\MetalMesh,curve tolerance=.002}},
+  exciting coil/.style={draw=blue!65!black,dashed,thick}}
+\pgfmathsetmacro{\MetalMesh}{\Radius/25}
+\begin{tikzpicture}[axial induction,femm/cache={file=\jobname-solid,mode=auto}]
+  \fill[gray!7] (0,0) circle[radius=\CoilRadius];
+  \filldraw[metal] (0,0) circle[radius=\Radius];
+  \draw[exciting coil] (0,0) circle[radius=\CoilRadius];
+  \path[femm/profile={name=solid-radius,samples=81}] (0,0)--({.999*\Radius},0);
+  \pic[femm/currents={phase=90,lines=6}] {femm eddy currents};
+  \femmselect[name=solid-metal,material=copper]
+  \femmmeasure[name=solid-loss,selection=solid-metal]
+  \node[above] at (0,8) {One solid cylinder, radius $R$};
+  \node[below] at (0,-8) {$P_1=\femmvalue[component=joule_loss,
+    number format={sci,precision=3}]{solid-loss}$};
+\end{tikzpicture}
+\quad
+\pgfmathsetmacro{\MetalMesh}{\RodRadius/15}
+\begin{tikzpicture}[axial induction,femm/cache={file=\jobname-bundle,mode=auto}]
+  \fill[gray!7] (0,0) circle[radius=\CoilRadius];
+  \foreach \i in {1,...,\Strands}{
+    \ifnum\i=1
+      \def\CentreRadius{0}\def\Angle{0}
+    \else\ifnum\i<8
+      \let\CentreRadius\Pitch\pgfmathsetmacro{\Angle}{60*(\i-2)}
+    \else
+      \let\CentreRadius\OuterRing\pgfmathsetmacro{\Angle}{15+30*(\i-8)}
+    \fi\fi
+    \filldraw[metal] (\Angle:\CentreRadius) circle[radius=\RodRadius];
+  }
+  \draw[exciting coil] (0,0) circle[radius=\CoilRadius];
+  \path[femm/profile={name=rod-radius,samples=81}] (0,0)--({.999*\RodRadius},0);
+  \pic[femm/currents={phase=90,lines=6}] {femm eddy currents};
+  \femmselect[name=bundle-metal,material=copper]
+  \femmmeasure[name=bundle-loss,selection=bundle-metal]
+  \node[above] at (0,8) {$N=\Strands$ isolated rods, $a=R/\sqrt N$};
+  \node[below] at (0,-8) {$P_N=\femmvalue[component=joule_loss,
+    number format={sci,precision=3}]{bundle-loss}$};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=12cm,height=6cm,grid=major,no markers,
+    xlabel={Relative radius $r/a$},ylabel={$J_\theta$ (RMS, $\mathrm{A/m^2}$)},
+    legend pos=north west,
+    x filter/.code={\pgfmathparse{.999*#1}}]
+  \femmplot[profile=solid-radius,component=Jn,abscissa=t,representation=rms,
+    plot options={blue!65!black,thick}]
+  \addlegendentry{Solid cylinder}
+  \femmplot[profile=rod-radius,component=Jn,abscissa=t,representation=rms,
+    plot options={red!70!black,thick}]
+  \addlegendentry{Central isolated rod}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\begingroup\pgfkeys{/pgf/fpu=true,/pgf/fpu/output format=fixed}
+$P_N/P_1=\pgfmathparse{\femmresult{bundle-loss}{joule_loss}/%
+  \femmresult{solid-loss}{joule_loss}}%
+\pgfmathprintnumber[fixed,precision=4]{\pgfmathresult}$;
+weak-skin prediction $1/N=\pgfmathparse{1/\Strands}%
+\pgfmathprintnumber[fixed,precision=4]{\pgfmathresult}$.
+\endgroup
+\par\smallskip\small
+Long-solenoid model: $B_0=\AppliedB\,\mathrm{T}$, $f=\Frequency\,\mathrm{Hz}$,
+$L=\Length\,\mathrm{mm}$, $R+\varepsilon=\CoilRadius\,\mathrm{mm}$.
+Radial samples stop just inside the metal surface.
+Current loops are shown at $\omega t=90^\circ$; line levels are automatic
+in each picture and do not encode a common current scale.
+\end{document}

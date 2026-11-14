@@ -1,0 +1,35 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=135mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{femm/materials/recoil/.style={mu r=1.05,coercivity=800000}}
+\begin{tikzpicture}[femm/problem={type=axisymmetric,xmax=65,
+    ymin=-65,ymax=65,mesh size=3},scale=.7,
+    femm/cache={file=\jobname,mode=auto}]
+  \path[femm/region={material=air,mesh size=1}]
+    (0,-35) rectangle (28,35);
+  \filldraw[draw=red!60!black,fill=red!20,
+    femm/region={material=recoil,magnetization angle=90,mesh size=.7}]
+    (0,-15) rectangle (15,15);
+  \pic[femm/lines=19,femm/arrow spacing=16mm] {femm field};
+  \draw[dashed,gray] (0,-65)--(0,65) node[above] {$z$};
+  \draw[thick,-Stealth,red!65!black] (7.5,-8)--(7.5,8);
+  \path[femm/profile={name=magnet-axis,samples=151}] (0,-45)--(0,45);
+\end{tikzpicture}
+\quad
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=6cm,grid=major,no markers,
+    xlabel={$z$ (mm)},ylabel={$B_z$ (T)}]
+  \femmplot[profile=magnet-axis,component=Bz,abscissa=z,
+    plot options={blue!65!black,thick}]
+\end{axis}
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,38 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=145mm,border=3mm]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\centering
+\begin{tikzpicture}[femm/problem={type=axisymmetric,frequency=1000,
+    xmax=30,ymin=-25,ymax=25,mesh size=2},
+    femm/circuit={name=drive,current=2},
+    femm/cache={file=\jobname,mode=auto},scale=1.2]
+  \filldraw[fill=orange!20,draw=orange!70!black,
+    femm/region={material=copper,circuit=drive,turns=100,mesh size=1}]
+    (12,-12) rectangle (16,12);
+  \filldraw[fill=gray!25,draw=gray,
+    femm/region={material=copper,mesh size=.5}]
+    (5,-10) rectangle (8,10);
+  \pic[femm/currents={view=symbols,spacing=1.5,phase=90},
+    femm/eddy style={color=red!70!black}] {femm eddy currents};
+  \draw[dashed] (0,-25)--(0,25) node[above] {$z$};
+  \draw[dashed,blue!60!black] (0,0)--(25,0) node[right] {$z=0$};
+  \node[above] at (15,26) {Meridional section $(r,z)$};
+  % In the transverse x,y view, positive azimuthal current runs anticlockwise.
+  \fill[gray!25,even odd rule] (55,0) circle[radius=8] (55,0) circle[radius=5];
+  \draw[gray] (55,0) circle[radius=8] (55,0) circle[radius=5];
+  \pic[femm/currents={view=loops,section=0,center x=55,spacing=.6,phase=90},
+    femm/arrow spacing=10mm] {femm eddy currents};
+  \node[above] at (55,12) {Transverse section $(x,y)$};
+  \node[below] at (55,-12) {$\omega t=90^\circ$};
+\end{tikzpicture}
+\par\smallskip
+The coil is stranded: only the solid tube carries resolved eddy currents.
+Dots and crosses show current out of and into the meridional page;
+positive $J_\varphi$ points into that page.
+\end{document}

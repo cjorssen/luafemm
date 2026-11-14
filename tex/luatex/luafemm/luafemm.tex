@@ -1,0 +1,62 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% luafemm generic loader. LuaTeX is the engine requirement, not the format.
+% No LaTeX allocation, error, package-loading or document commands are used.
+\ifdefined\luafemmversion \expandafter\endinput\fi
+\ifdefined\directlua\else
+  \errmessage{luafemm requires LuaTeX (plain, LaTeX or ConTeXt MkIV)}%
+  \expandafter\endinput
+\fi
+\ifdefined\usetikzlibrary\else\input tikz.tex\relax\fi
+\usetikzlibrary{arrows.meta,decorations.markings}%
+\usepgflibrary{fpu}%
+% Restore the incoming catcode even when this file is loaded by a format wrapper.
+\edef\luafemmRestoreAt{\catcode64=\the\catcode64\relax}%
+\catcode64=11\relax
+\def\luafemmversion{0.11.0-dev}%
+\def\luafemmversiondate{2026-11-12}%
+\def\luafemmversionnumber{110000}%
+% The only Lua global owned by the package. Numerical modules return tables.
+% status.filename identifies the file actually being read, including explicit
+% paths. Resolve a bare name through the active format's own resolver only.
+\directlua{
+  local filename = status.filename
+  if not filename:find('/',1,true) then
+    if resolvers and resolvers.findfile then
+      filename = resolvers.findfile(filename)
+    else
+      filename = kpse.find_file(filename,'tex')
+    end
+  end
+  local directory = assert(filename:match('^(.+)/[^/]+$'),
+    'luafemm: cannot locate the selected TeX installation')
+  assert(loadfile(directory..'/lua/luafemm-loader.lua'))().select(directory..'/lua')
+  luafemm = require('luafemm')
+  luafemm.tex = require('luafemm-tex')
+  token.set_macro('luafemm@directory',directory)
+}%
+% Quoted input names preserve spaces in an installed TEXMF directory.
+\def\luafemm@input#1{\input "\luafemm@directory/#1"\relax}%
+% Public result commands are expandable so that numeric output can be reused.
+\def\femmstat#1{\directlua{luafemm.tex.statistic('\luaescapestring{#1}',false)}}%
+\def\femmmeshstat#1{\directlua{luafemm.tex.statistic('\luaescapestring{#1}',true)}}%
+\def\femmB#1#2{\directlua{luafemm.tex.field_value('\luaescapestring{#1}','\luaescapestring{#2}')}}%
+\def\femmcachestatus{\directlua{luafemm.tex.cache_status()}}%
+\protected\def\femmsolve{\directlua{luafemm.solve(luafemm.current)}}%
+\luafemm@input{luafemm-tikz.tex}
+\luafemm@input{luafemm-boundary.tex}
+\luafemm@input{luafemm-static.tex}
+\luafemm@input{luafemm-interchange.tex}
+\luafemm@input{luafemm-ideal.tex}
+\luafemm@input{luafemm-machines.tex}
+\luafemm@input{luafemm-components.tex}
+\luafemm@input{luafemm-profiles.tex}
+\luafemm@input{luafemm-post.tex}
+\luafemm@input{luafemm-currents.tex}
+\luafemm@input{luafemm-operating.tex}
+\luafemm@input{luafemm-sliding.tex}
+\luafemmRestoreAt
+\endinput

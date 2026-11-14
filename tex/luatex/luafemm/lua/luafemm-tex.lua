@@ -1,0 +1,893 @@
+-- SPDX-License-Identifier: LPPL-1.3c
+-- Copyright (C) 2026 Christophe Jorssen
+-- Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+-- LPPL maintenance status: maintained
+-- This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+--- LuaTeX boundary: validated key values, path capture and generated TeX.
+-- Numerical modules do not access TeX globals. This module deliberately does.
+-- @module luafemm-tex
+local T = {}
+local M = require("luafemm")
+local abs, max = math.abs, math.max
+local function check(value, message)
+    assert(value, "luafemm: " .. message)
+end
+
+--- Parse a finite numeric key without evaluating user text as Lua code.
+-- @tparam string value Numeric literal supplied through luaescapestring.
+-- @tparam string key Name included in diagnostics.
+-- @param default Value returned for an empty string, if supplied.
+function T.number(value, key, default)
+    if value == "" and default ~= nil then
+        return default
+    end
+    local number = tonumber(value)
+    check(
+        number and number == number and abs(number) < math.huge,
+        "expected a finite number for " .. key .. ", got " .. tostring(value)
+    )
+    return number
+end
+
+--- Apply one key-based exterior condition to the current model.
+function T.boundary(side, options)
+    for key, value in pairs(options) do
+        if key ~= "type" then
+            options[key] = T.number(value, "boundary " .. key)
+        end
+    end
+    M.boundary(M.current, side, options)
+end
+
+--- Initialise the current picture from validated strings and the PGF transform.
+function T.new_problem(
+    options,
+    transform,
+    basis,
+    cache,
+    import_file,
+    explicit,
+    name,
+    operating,
+    sliding
+)
+    for key, value in pairs(options) do
+        if value == "" then
+            options[key] = nil
+        elseif
+            key ~= "mesher"
+            and key ~= "interpolation"
+            and key ~= "field_model"
+            and key ~= "problem_type"
+        then
+            options[key] = T.number(value, key)
+        end
+    end
+    options.log = function(message)
+        texio.write_nl("luafemm: " .. message)
+    end
+    -- Follow TeX's output directory for relative cache names. The standalone
+    -- Lua API deliberately retains ordinary working-directory semantics.
+    if
+        cache
+        and cache.file
+        and status
+        and status.output_directory
+        and status.output_directory ~= ""
+        and not cache.file:match("^[/\\]")
+        and not cache.file:match("^%a:")
+    then
+        cache.file = status.output_directory .. "/" .. cache.file
+    end
+    options.cache = cache
+    local position = sliding and sliding.name ~= ""
+    if not position then
+        check(
+            not sliding or T.number(sliding.angle, "rotor angle") == 0,
+            "rotor angle requires a sliding band"
+        )
+    end
+    if not operating or operating.name == "" then
+        check(
+            position or not T.operating_currents or not next(T.operating_currents),
+            "circuit currents require an operating point or sliding band"
+        )
+        check(
+            not T.operating_phases or not next(T.operating_phases),
+            "circuit phases require an operating point"
+        )
+        check(
+            not operating or operating.mode == "incremental",
+            "permeability requires an operating point"
+        )
+    end
+    if position then
+        check(
+            not operating or operating.name == "",
+            "cannot combine sliding band and operating point"
+        )
+        check(not import_file or import_file == "", "cannot combine sliding band and FEM import")
+        check(not explicit or explicit == "", "a sliding band owns its problem settings")
+        local template = T.sliding_bands and T.sliding_bands[sliding.name]
+        check(template, "unknown sliding band " .. sliding.name)
+        M.current = require("luafemm-sliding").new(template, {
+            angle = T.number(sliding.angle, "rotor angle"),
+            currents = T.operating_currents,
+            cache = cache,
+        })
+    elseif operating and operating.name ~= "" then
+        check(not import_file or import_file == "", "cannot combine operating point and FEM import")
+        for key in (explicit or ""):gmatch("[^,]+") do
+            check(
+                key == "frequency",
+                "an operating point owns its geometry and problem settings; only frequency may be overridden"
+            )
+        end
+        local bias = T.operating_points and T.operating_points[operating.name]
+        check(bias, "unknown operating point " .. operating.name)
+        M.current = require("luafemm-operating").new(bias, {
+            mode = operating.mode,
+            currents = T.operating_currents,
+            phases = T.operating_phases,
+            frequency = options.frequency,
+            cache = cache,
+        })
+    elseif import_file and import_file ~= "" then
+        check(options.field_model ~= "ideal", "FEM import cannot be combined with ideal mode")
+        local overrides = { cache = cache, log = options.log }
+        for key in (explicit or ""):gmatch("[^,]+") do
+            check(
+                key ~= "xmin" and key ~= "xmax" and key ~= "ymin" and key ~= "ymax",
+                "imported domain bounds come from the FEM file"
+            )
+            overrides[key] = options[key]
+        end
+        local file
+        if resolvers and resolvers.findfile then
+            file = resolvers.findfile(import_file)
+        elseif kpse then
+            file = kpse.find_file(import_file, "tex")
+        end
+        if file == "" then
+            file = nil
+        end
+        if not file and status and status.output_directory and status.output_directory ~= "" then
+            local candidate = status.output_directory .. "/" .. import_file
+            local stream = io.open(candidate, "rb")
+            if stream then
+                stream:close()
+                file = candidate
+            end
+        end
+        M.current = M.import_fem(file or import_file, overrides)
+    else
+        M.current = M.new(options)
+    end
+    T.models = T.models or {}
+    T.model_count = (T.model_count or 0) + 1
+    local id = tostring(T.model_count)
+    T.models[id] = M.current
+    if name and name ~= "" then
+        check(not name:match("^%d+$"), "numeric model names are reserved")
+        check(not T.models[name], "model name already registered: " .. name)
+        T.models[name] = M.current
+    end
+    tex.sprint("\\expandafter\\def\\csname luafemm@picturemodel\\endcsname{" .. id .. "}")
+    M.current.frame = require("luafemm-path").frame(transform, basis)
+    -- Shape dimensions use the original coordinate basis, independently of
+    -- text metrics and later local x/y vector changes.
+    M.current.component_basis = require("luafemm-path").frame("{1}{0}{0}{1}{0pt}{0pt}", basis)
+end
+
+--- Mesh and capture a named moving-band template after all physical paths.
+-- A picture-level capture is bound to its originating model identifier.
+function T.sliding_band(name, model, options)
+    check(type(name) == "string" and name:match("%S"), "sliding band needs a name")
+    T.sliding_bands = T.sliding_bands or {}
+    check(not T.sliding_bands[name], "duplicate sliding band " .. name)
+    local m = model and model ~= "" and T.models and T.models[model] or nil
+    if not model or model == "" then
+        m = M.current
+    end
+    check(m, "unknown model for sliding band")
+    for k, v in pairs(options) do
+        options[k] = T.number(v, k)
+    end
+    T.sliding_bands[name] = require("luafemm-sliding").capture(m, options)
+end
+
+--- Capture a named, owned bias after completing the picture's solve.
+-- The optional model id binds end-picture hooks to their originating picture.
+function T.operating_point(name, model)
+    check(type(name) == "string" and name:match("%S"), "operating point needs a name")
+    T.operating_points = T.operating_points or {}
+    check(not T.operating_points[name], "duplicate operating point " .. name)
+    local m = M.current
+    if model and model ~= "" then
+        m = T.models and T.models[model]
+    end
+    check(m, "unknown model for operating point")
+    M.solve(m)
+    T.operating_points[name] = require("luafemm-operating").capture(m)
+end
+
+--- Print the current cache outcome; this command never starts a calculation.
+function T.cache_status()
+    check(M.current, "no current model")
+    tex.sprint(M.current.cache_info.status)
+end
+
+--- Resolve one PGF material style; omitted overrides inherit library properties.
+function T.material(name, library, mur, bh, remanence, coercivity, extra)
+    local function optional(value, key)
+        if value ~= "" then
+            return T.number(value, key)
+        end
+    end
+    local points = M.parse_pairs(bh)
+    local properties = {
+        library = library ~= "" and library or nil,
+        mur = optional(mur, "mu r"),
+        bh = next(points) and points or nil,
+        remanence = optional(remanence, "remanence"),
+        coercivity = optional(coercivity, "coercivity"),
+    }
+    for key, value in pairs(extra or {}) do
+        if key == "lamination" then
+            properties[key] = value ~= "inherit" and value or nil
+        else
+            properties[key] = optional(value, key)
+        end
+    end
+    M.material(M.current, name, properties)
+end
+
+--- Print a solved-model statistic as plain numeric TeX input.
+function T.statistic(key, mesh)
+    local m = M.current
+    check(m, "no current model")
+    local source
+    if mesh then
+        source = m.mesh_stats
+    else
+        source = m.stats
+    end
+    local value = source and source[key]
+    check(type(value) == "number", "statistic unavailable: " .. key)
+    tex.sprint(string.format(mesh and "%.6g" or "%.8g", value))
+end
+
+--- Print the field magnitude in tesla at a point in model units.
+function T.field_value(x, y)
+    if M.current.options.problem_type == "axial" then
+        local f = require("luafemm-harmonic").sample(M.current, T.number(x, "x"), T.number(y, "y"))
+        tex.sprint(string.format("%.3f", math.abs(f.Bz[1])))
+        return
+    end
+    local bx, by = M.sample(M.current, T.number(x, "x"), T.number(y, "y"))
+    tex.sprint(string.format("%.3f", math.sqrt(bx * bx + by * by)))
+end
+
+--- Capture a closed material path and apply the PGF coordinate-precision convention.
+-- @tparam table m Unmeshed model with a frame.
+-- @tparam string s Evaluated soft-path tokens.
+-- @tparam string material Model material name.
+-- @tparam number current Current density in A/m^2.
+-- @tparam number tolerance Polygonalisation tolerance in model units.
+-- @tparam number angle Magnetisation direction in degrees.
+-- @tparam number mesh_size Local spacing, zero for inheritance.
+-- @tparam[opt] string turns Component winding ampere-turns (single contour only).
+-- @tparam[opt="nonzero"] string fill_rule Evaluated native PGF fill rule.
+function T.capture_path(
+    m,
+    s,
+    material,
+    current,
+    tolerance,
+    angle,
+    mesh_size,
+    turns,
+    fill_rule,
+    ideal_domain,
+    static_options
+)
+    check(m and m.frame, "set femm/problem on the tikzpicture first")
+    local contours = require("luafemm-path").read_contours(s, m.frame, tolerance)
+    -- Round below the useful precision of PGF fixed-point coordinates.
+    -- Snap domain endpoints to suppress TeX dimension-rounding artifacts.
+    for _, points in ipairs(contours) do
+        for _, p in ipairs(points) do
+            for axis = 1, 2 do
+                p[axis] = math.floor(p[axis] * 10000 + 0.5) / 10000
+                local lo = axis == 1 and m.options.xmin or m.options.ymin
+                local hi = axis == 1 and m.options.xmax or m.options.ymax
+                if abs(p[axis] - lo) < 0.001 then
+                    p[axis] = lo
+                end
+                if abs(p[axis] - hi) < 0.001 then
+                    p[axis] = hi
+                end
+            end
+        end
+    end
+    if turns and turns ~= "" then
+        check(#contours == 1, "component winding needs one contour")
+        current = require("luafemm-components").current(
+            contours[1],
+            m.options.unit,
+            T.number(turns, "ampere turns")
+        )
+    end
+    check(
+        ideal_domain == nil or ideal_domain == "true" or ideal_domain == "false",
+        "invalid ideal domain flag"
+    )
+    M.region_contours(m, material, contours, current, angle, mesh_size, fill_rule)
+    require("luafemm-static").region(m.regions[#m.regions], static_options)
+    m.regions[#m.regions].ideal_domain = ideal_domain == "true"
+    -- The evaluated soft path is passive PGF token data, never executed on reload.
+    -- Retain it before flattening so a later geometry compilation can reproduce
+    -- the same primitives independently of the drawn approximation.
+    m.regions[#m.regions].source = {
+        soft_path = s,
+        frame = { table.unpack(m.frame) },
+        tolerance = tolerance,
+        turns = turns,
+    }
+end
+
+-- Saved shape IDs keep anchor geometry independent of the current model.
+-- These records hold no solver/model reference and never enter disk caches.
+local components = {}
+
+--- Create immutable node geometry; PGF stores the returned numeric ID.
+-- @tparam string kind Component type.
+-- @tparam table options Escaped numeric strings from component keys.
+-- @tparam[opt] table machine Structured machine options for rotor/stator nodes.
+function T.component_new(kind, options, machine)
+    check(M.current and M.current.frame, "set femm/problem before declaring components")
+    check(not M.current.nodes, "declare components before meshing")
+    if kind == "rotor" or kind == "stator" then
+        check(M.current.options.field_model == "open", "machine nodes require field model=open")
+        options = machine or options
+    else
+        for key, value in pairs(options) do
+            options[key] = T.number(value, key)
+        end
+    end
+    if kind ~= "rotor" and kind ~= "stator" then
+        options.ideal = M.current.options.field_model == "ideal" and 1 or 0
+    end
+    check(
+        M.current.options.problem_type == "planar",
+        "component nodes are planar; draw meridional regions for axisymmetry"
+    )
+    local c = require("luafemm-components").make(kind, options)
+    c.basis = M.current.component_basis
+    components[#components + 1] = c
+    tex.sprint(tostring(#components))
+end
+
+--- Install indexed shape anchors before PGF uses an anchor for node placement.
+-- Definitions select the saved ID at lookup time; they do not capture a model.
+-- @tparam integer id Saved component geometry ID.
+function T.component_anchors(id)
+    local c = assert(components[id])
+    if c.machine then
+        for anchor in pairs(c.anchors) do
+            if anchor:match("^slot ") or anchor:match("^gap ") then
+                tex.sprint(
+                    "\\expandafter\\gdef\\csname pgf@anchor@femm component@"
+                        .. anchor
+                        .. "\\endcsname{\\csname luafemm@componentanchor\\endcsname{"
+                        .. anchor
+                        .. "}}"
+                )
+            end
+        end
+    end
+end
+
+local function component_point(c, p)
+    local f = c.basis
+    return f[1] * p[1] + f[3] * p[2], f[2] * p[1] + f[4] * p[2]
+end
+
+--- Emit one saved anchor in the shape's local PGF coordinate system.
+function T.component_anchor(id, name)
+    local c = assert(components[id])
+    local p = c.anchors[name]
+    check(p, "anchor '" .. name .. "' is unavailable on " .. c.kind)
+    local x, y = component_point(c, p)
+    tex.sprint(string.format("\\pgfpoint{%.9fpt}{%.9fpt}", x, y))
+end
+
+--- Intersect a connection ray with the component envelope, not its iron.
+function T.component_border(id, x, y)
+    local c = assert(components[id])
+    local f = c.basis
+    local function dimension(s)
+        return assert(tonumber(s:match("([%d%.%+%-eE]+)pt")))
+    end
+    x, y = dimension(x), dimension(y)
+    local det = f[1] * f[4] - f[2] * f[3]
+    local u, v = (f[4] * x - f[3] * y) / det, (-f[2] * x + f[1] * y) / det
+    local scale = max(abs(u) / c.half_width, abs(v) / c.half_height)
+    if scale == 0 then
+        tex.sprint("\\pgfpointorigin")
+    else
+        local px, py = component_point(c, { u / scale, v / scale })
+        tex.sprint(string.format("\\pgfpoint{%.9fpt}{%.9fpt}", px, py))
+    end
+end
+
+--- Draw/capture each part once, at the final node transform, before its text.
+-- A component-local magnetization direction is mapped into the model frame.
+-- Coil ampere-turns are converted after capture, using the rounded polygon.
+function T.component_paths(id, transform, name)
+    local c = assert(components[id])
+    local n = require("luafemm-path").frame(transform, { "1pt", "0pt", "0pt", "1pt" })
+    local f = M.current.frame
+    local det = f[1] * f[4] - f[2] * f[3]
+    local function mapped(p, vector)
+        local x, y = component_point(c, p)
+        x, y = n[1] * x + n[3] * y, n[2] * x + n[4] * y
+        if not vector then
+            x, y = x + n[5] - f[5], y + n[6] - f[6]
+        end
+        return { (f[4] * x - f[3] * y) / det, (-f[2] * x + f[1] * y) / det }
+    end
+    local function angle_value(degrees)
+        local theta = math.rad(degrees)
+        local v = mapped({ math.cos(theta), math.sin(theta) }, true)
+        check(v[1] ^ 2 + v[2] ^ 2 > 0, "singular component transform")
+        return math.deg(math.atan(v[2], v[1]))
+    end
+    if name and name ~= "" then
+        M.current.component_cycles = M.current.component_cycles or {}
+        local cycles = {}
+        for cycle, points in pairs(c.cycles or {}) do
+            cycles[cycle] = {}
+            for _, p in ipairs(points) do
+                cycles[cycle][#cycles[cycle] + 1] = mapped(p)
+            end
+        end
+        M.current.component_cycles[name] = cycles
+    end
+
+    if c.machine then
+        M.current.machine_nodes = M.current.machine_nodes or {}
+        if name and name ~= "" then
+            M.current.machine_nodes[name] = {
+                center = mapped({ 0, 0 }),
+                east = mapped({ c.airgap_radius, 0 }),
+                north = mapped({ 0, c.airgap_radius }),
+                kind = c.kind,
+                tolerance = c.options.curve_tolerance,
+                nominal_radius = c.airgap_radius,
+            }
+        end
+    end
+    for _, r in ipairs(c.regions) do
+        local paths = {}
+        for _, contour in ipairs(r.contours or { r.points }) do
+            local points = {}
+            for i, p in ipairs(contour) do
+                local x, y = component_point(c, p)
+                points[i] = string.format("(%.9fpt,%.9fpt)", x, y)
+            end
+            paths[#paths + 1] = table.concat(points, "--") .. "--cycle"
+        end
+        local path = table.concat(paths, " ")
+        if c.machine then
+            tex.sprint(
+                string.format(
+                    "\\csname luafemm@machinepart\\endcsname{%s}{%s}{%.17g}{%.17g}{%s}{%.17g}{%s}{%s}",
+                    r.role,
+                    r.turns and string.format("%.17g", r.turns) or "",
+                    r.mesh_size,
+                    angle_value(c.options.magnetization_angle),
+                    r.material,
+                    r.current_density or 0,
+                    path,
+                    r.style or ""
+                )
+            )
+        else
+            tex.sprint(
+                string.format(
+                    "\\csname luafemm@componentpart\\endcsname{%s}{%s}{%.17g}{%.17g}{%s}",
+                    r.role,
+                    r.turns and string.format("%.17g", r.turns) or "",
+                    r.mesh_size,
+                    angle_value(r.angle or c.options.magnetization_angle),
+                    path
+                )
+            )
+        end
+    end
+end
+
+local function canvas(m, x, y)
+    local f = m.frame
+    return string.format("(%.7fpt,%.7fpt)", f[1] * x + f[3] * y + f[5], f[2] * x + f[4] * y + f[6])
+end
+
+--- Print an exact section flux for PGF's generic number formatter.
+function T.flux_number(name, snap_tolerance)
+    local p = require("luafemm-profiles").get(name)
+    if snap_tolerance == "auto" then
+        snap_tolerance = p.model.options.problem_type == "axisymmetric" and 0 or 0.003
+    elseif type(snap_tolerance) == "string" then
+        snap_tolerance = T.number(snap_tolerance, "snap tolerance")
+    end
+    check(p.offset == 0, "flux requires offset=0; declare the displaced section explicitly")
+    tex.sprint(string.format("%.12g", M.flux(p.model, p.points, snap_tolerance)))
+end
+
+--- Draw a component mean contour and optionally register its PGFPlots profile.
+function T.mean_picture(m, options)
+    local points = require("luafemm-ideal").mean(m, options.component, options.cycle, options.kind)
+    if options.profile ~= "" then
+        require("luafemm-profiles").register(
+            m,
+            options.profile,
+            points,
+            { samples = options.samples }
+        )
+    end
+    local out = { "\\draw[femm mean path,femm current mean] " }
+    for i, p in ipairs(points) do
+        out[#out + 1] = (i > 1 and "--" or "") .. canvas(m, p[1], p[2])
+    end
+    out[#out + 1] = ";"
+    tex.sprint(table.concat(out))
+end
+
+--- Solve if needed and emit contours in the original picture frame.
+-- @tparam table m Model with frame.
+-- @tparam number count Number of contour levels.
+function T.tikz_field_picture(m, count, phase)
+    if not m.stats then
+        M.solve(m)
+    end
+    for _, path in ipairs(M.contours(m, count, nil, phase)) do
+        local out = { "\\draw[femm field,femm current field] " }
+        for i, p in ipairs(path) do
+            out[#out + 1] = (i > 1 and "--" or "") .. canvas(m, p.x, p.y)
+        end
+        out[#out + 1] = ";"
+        tex.sprint(table.concat(out))
+    end
+end
+
+--- Render phase-specific physical eddy-current paths or normal glyphs.
+-- @tparam table m Model with captured root frame.
+-- @tparam table options Validated current-view keys.
+function T.current_picture(m, options)
+    local view = require("luafemm-currents").geometry(m, options)
+    for _, path in ipairs(view.paths) do
+        local out = {
+            string.format(
+                "\\draw[femm eddy line,femm current eddy,opacity=%.8g] ",
+                path.opacity or 1
+            ),
+        }
+        for i, p in ipairs(path) do
+            out[#out + 1] = (i > 1 and "--" or "") .. canvas(m, p.x, p.y)
+        end
+        out[#out + 1] = ";"
+        tex.sprint(table.concat(out))
+    end
+    for _, p in ipairs(view.symbols) do
+        local centre = canvas(m, p.x, p.y)
+        tex.sprint(
+            string.format(
+                "\\scope[shift={%s},femm eddy symbol,femm current eddy,opacity=%.8g]",
+                centre,
+                p.opacity
+            )
+        )
+        tex.sprint("\\draw (0,0) circle[radius=\\pgfkeysvalueof{/femm/currents/symbol radius}];")
+        if p.dot then
+            tex.sprint(
+                "\\fill[fill=.] (0,0) circle[radius=.28*\\pgfkeysvalueof{/femm/currents/symbol radius}];"
+            )
+        else
+            tex.sprint(
+                "\\draw (-.55*\\pgfkeysvalueof{/femm/currents/symbol radius},-.55*\\pgfkeysvalueof{/femm/currents/symbol radius})--(.55*\\pgfkeysvalueof{/femm/currents/symbol radius},.55*\\pgfkeysvalueof{/femm/currents/symbol radius}) (-.55*\\pgfkeysvalueof{/femm/currents/symbol radius},.55*\\pgfkeysvalueof{/femm/currents/symbol radius})--(.55*\\pgfkeysvalueof{/femm/currents/symbol radius},-.55*\\pgfkeysvalueof{/femm/currents/symbol radius});"
+            )
+        end
+        tex.sprint("\\endscope")
+    end
+end
+
+--- Repeat oriented field contours using a declared periodic rigid transform.
+-- Antiperiodic copies reverse arrows; no material geometry or integral is copied.
+function T.tikz_repeated_field(m, count, copies, pair_index)
+    check(
+        copies >= 1 and copies % 1 == 0 and copies <= 1000,
+        "copies must be an integer in [1,1000]"
+    )
+    check(pair_index >= 1 and pair_index % 1 == 0, "invalid pair index")
+    check(count >= 1 and count % 1 == 0, "line count must be a positive integer")
+    M.solve(m)
+    local pair = m.pairs and m.pairs[pair_index]
+    check(pair, "unknown periodic pair")
+    local levels
+    if pair.sign == -1 then
+        local peak = 0
+        for _, a in ipairs(m.A) do
+            peak = math.max(peak, math.abs(a))
+        end
+        if peak < 1e-20 then
+            return
+        end
+        levels = {}
+        for i = 1, count do
+            levels[i] = -peak + 2 * peak * (i - 0.5) / count
+        end
+    end
+    local paths = M.contours(m, count, levels)
+    local c, s = math.cos(math.rad(pair.angle)), math.sin(math.rad(pair.angle))
+    for k = 0, copies - 1 do
+        for _, path in ipairs(paths) do
+            local out = { "\\draw[femm field,femm current field] " }
+            for j = 1, #path do
+                local p = path[pair.sign == -1 and k % 2 == 1 and #path - j + 1 or j]
+                local x, y = p.x, p.y
+                for step = 1, k do
+                    local a, b = x - pair.cx, y - pair.cy
+                    x, y = pair.cx + c * a - s * b + pair.x, pair.cy + s * a + c * b + pair.y
+                end
+                out[#out + 1] = (j > 1 and "--" or "") .. canvas(m, x, y)
+            end
+            out[#out + 1] = ";"
+            tex.sprint(table.concat(out))
+        end
+    end
+end
+
+--- Mesh if needed and emit each edge exactly once in the picture frame.
+-- @tparam table m Model with frame.
+function T.tikz_mesh_picture(m)
+    if not m.nodes then
+        M.mesh(m)
+    end
+    local seen = {}
+    local out = { "\\draw[femm mesh,femm current mesh] " }
+    for _, e in ipairs(m.triangles) do
+        for i = 1, 3 do
+            local a, b = e.ids[i], e.ids[i % 3 + 1]
+            local k = math.min(a, b) .. ":" .. max(a, b)
+            if not seen[k] then
+                seen[k] = true
+                local p, q = m.nodes[a], m.nodes[b]
+                local u = m.options.unit
+                out[#out + 1] = canvas(m, p[1] / u, p[2] / u)
+                    .. "--"
+                    .. canvas(m, q[1] / u, q[2] / u)
+                    .. " "
+            end
+        end
+    end
+    out[#out + 1] = ";"
+    tex.sprint(table.concat(out))
+end
+
+--- Export a named or current model; relative paths follow TeX's output directory.
+function T.export(format, file, name)
+    local m = name ~= "" and T.models and T.models[name] or M.current
+    check(m and (name == "" or T.models[name]), "unknown model " .. name)
+    if
+        status
+        and status.output_directory
+        and status.output_directory ~= ""
+        and not file:match("^[/\\]")
+        and not file:match("^%a:")
+    then
+        file = status.output_directory .. "/" .. file
+    end
+    if format == "fem" then
+        M.export_fem(m, file)
+    elseif format == "ans" then
+        M.export_ans(m, file)
+    else
+        error("luafemm: unknown export format")
+    end
+end
+
+--- Draw the compiled interfaces without registering physical geometry twice.
+function T.geometry_picture(m)
+    check(m and m.frame, "create a model before drawing its geometry")
+    local t = m.topology or require("luafemm-topology").native(m)
+    for _, s in ipairs(t.segments) do
+        local p, q = t.points[s[1]], t.points[s[2]]
+        tex.sprint(
+            "\\draw[femm geometry,femm current geometry,femm group/"
+                .. tostring(s.group or 0)
+                .. "/.try] "
+                .. canvas(m, p[1], p[2])
+                .. "--"
+                .. canvas(m, q[1], q[2])
+                .. ";"
+        )
+    end
+end
+
+-- Identifiers contain only ASCII letters, digits and hyphens: safe PGF keys.
+--- Install safe ASCII identifiers as PGF choice handlers at library load time.
+-- The generic loader calls this with @ a letter; no document data are emitted.
+function T.register_material_choices()
+    for _, r in ipairs(require("luafemm-materials").list()) do
+        tex.sprint(
+            "\\pgfkeys{/femm/region/material/"
+                .. r.id
+                .. "/.code={\\luafemm@selectlibrary{"
+                .. r.id
+                .. "}}}"
+        )
+        tex.sprint(
+            "\\pgfkeys{/tikz/femm/materials/library/"
+                .. r.id
+                .. "/.code={\\def\\luafemm@library{"
+                .. r.id
+                .. "}}}"
+        )
+    end
+end
+
+--- Register and draw an exact scan between two concentric circular components.
+local function machine_gap(m, o)
+    local machines = m.machine_nodes or {}
+    local r, s = machines[o.rotor], machines[o.stator]
+    check(
+        r and s and r.kind == "rotor" and s.kind == "stator",
+        "gap profile needs named rotor and stator"
+    )
+    local function radius(v)
+        local x, y = v.east[1] - v.center[1], v.east[2] - v.center[2]
+        local u, w = v.north[1] - v.center[1], v.north[2] - v.center[2]
+        local rr = math.sqrt(x * x + y * y)
+        check(
+            math.abs(rr - math.sqrt(u * u + w * w)) < 1e-5 * rr
+                and math.abs(x * u + y * w) < 1e-5 * rr * rr,
+            "gap profile requires circular components (no shear or unequal scaling)"
+        )
+        return rr
+    end
+    local ri, ro = radius(r), radius(s)
+    check(
+        math.abs(r.center[1] - s.center[1]) + math.abs(r.center[2] - s.center[2]) < 0.003,
+        "gap components must be concentric"
+    )
+    check(ri < ro, "rotor must fit strictly inside stator")
+    local tol = math.max(r.tolerance * ri / r.nominal_radius, s.tolerance * ro / s.nominal_radius)
+    check(ro - ri > 4 * tol, "reduce curve tolerance to resolve the air gap")
+    return r.center, ri, ro, tol
+end
+--- Register a gap scan in the current model and emit its model-frame annotation.
+-- @tparam table o Node names, position, profile name and angular sampling options.
+function T.gap_profile(o)
+    local m = M.current
+    local center, ri, ro, tol = machine_gap(m, o)
+    check(o.position > 0 and o.position < 1, "gap profile must lie strictly inside the gap")
+    local rad = ri + (ro - ri) * o.position
+    local P = require("luafemm-profiles")
+    check(rad > ri + tol and rad < ro - tol, "profile too close to polygonal air-gap walls")
+    local p = P.circle(m, o.name, center[1], center[2], rad, o)
+    local points = {}
+    for _, q in ipairs(p.points) do
+        points[#points + 1] = canvas(m, q[1], q[2])
+    end
+    tex.sprint("\\draw[femm gap profile] " .. table.concat(points, "--") .. ";")
+end
+
+--- Add an air-only refinement band with margins from polygonal pole faces.
+-- @tparam table o Rotor/stator names and a positive model-frame mesh_size.
+function T.air_gap(o)
+    local m = M.current
+    check(not m.nodes, "declare air-gap refinement before solving")
+    check(o.mesh_size > 0, "air-gap mesh size must be positive")
+    local center, ri, ro, tol = machine_gap(m, o)
+    local paths = {}
+    for _, r in ipairs({ ri + 2 * tol, ro - 2 * tol }) do
+        local n = math.max(36, math.ceil(math.pi / math.acos(1 - tol / r)))
+        local points = {}
+        for i = 0, n - 1 do
+            local a = 2 * math.pi * i / n
+            points[#points + 1] =
+                canvas(m, center[1] + r * math.cos(a), center[2] + r * math.sin(a))
+        end
+        paths[#paths + 1] = table.concat(points, "--") .. "--cycle"
+    end
+    tex.sprint(
+        string.format(
+            "\\path[femm air gap,even odd rule,femm/region={material=air,current density=0,mesh size=%.17g}] %s;",
+            o.mesh_size,
+            table.concat(paths, " ")
+        )
+    )
+end
+--- Serialize a harmonic spectrum or scalar for generic TeX/PGFPlots.
+-- @tparam table o Profile, component, order, normalization and scalar quantity.
+-- @tparam boolean plot Emit coordinate pairs rather than a scalar.
+function T.harmonic(o, plot)
+    local h = require("luafemm-profiles").harmonics(
+        o.profile,
+        o.component,
+        o.maximum_order,
+        o.fundamental
+    )
+    if plot then
+        local out = {}
+        for i = 1, o.maximum_order do
+            local value = h[i].amplitude
+            if o.normalize == "true" then
+                check(h[o.fundamental].amplitude > 1e-30, "cannot normalize a zero fundamental")
+                value = value / h[o.fundamental].amplitude
+            end
+            out[#out + 1] = string.format("(%d,%.12g)", i, value)
+        end
+        tex.sprint(table.concat(out, " "))
+    else
+        local value
+        if o.quantity == "thd" or o.quantity == "mean" then
+            value = h[o.quantity]
+        else
+            check(h[o.order], "harmonic order exceeds maximum order")
+            value = h[o.order][o.quantity]
+        end
+        check(type(value) == "number" and value == value, "undefined harmonic statistic")
+        tex.sprint(string.format("%.12g", value))
+    end
+end
+--- Capture a computational domain or a tagged path in the physical frame.
+function T.static_path(kind, text, o)
+    local m = M.current
+    check(m and m.frame, "set femm/problem before paths")
+    local path = require("luafemm-path")
+    local F = require("luafemm-frontiers")
+    local function snap(p)
+        for _, v in ipairs(p) do
+            for axis = 1, 2 do
+                v[axis] = math.floor(v[axis] * 10000 + 0.5) / 10000
+                local lo = axis == 1 and m.options.xmin or m.options.ymin
+                local hi = axis == 1 and m.options.xmax or m.options.ymax
+                if math.abs(v[axis] - lo) < 0.001 then
+                    v[axis] = lo
+                end
+                if math.abs(v[axis] - hi) < 0.001 then
+                    v[axis] = hi
+                end
+            end
+        end
+    end
+    if kind == "domain" then
+        local contours = path.read_contours(text, m.frame, o.tolerance)
+        for _, p in ipairs(contours) do
+            snap(p)
+        end
+        F.domain(m, contours, o.fill_rule)
+    else
+        local p, closed = path.read(text, m.frame, o.tolerance, true)
+        if closed then
+            table.remove(p)
+        end
+        snap(p)
+        F.path(m, o.name, p, closed, o)
+    end
+end
+
+--- Dispatch queued declarations after the problem begin hook.
+function T.static_declare(kind, o)
+    check(M.current, "set femm/problem first")
+    if kind == "pair" then
+        o.sign = o.type == "antiperiodic" and -1 or 1
+        require("luafemm-frontiers").pair(M.current, o.first, o.second, o)
+    else
+        require("luafemm-static").circuit(M.current, o.name, o)
+    end
+end
+
+return T

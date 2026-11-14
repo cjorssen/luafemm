@@ -1,0 +1,52 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=145mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{solenoid/.style={femm/problem={type=axisymmetric,
+    xmax=100,ymin=-85,ymax=85,mesh size=4,contour subdivisions=2},
+    femm/circuit={name=coil,current=2}},
+  coil section/.style={draw=orange!70!black,fill=orange!25,
+    femm/region={material=copper,circuit=coil,turns=300,
+      winding fill=.6,mesh size=1}}}
+\begin{tikzpicture}[solenoid,scale=.55,
+    femm/cache={file=\jobname,mode=auto}]
+  \path[femm/region={material=air,mesh size=1}] (0,-65) rectangle (35,65);
+  % This one rectangle represents all 300 circular turns.
+  \filldraw[coil section] (20,-30) rectangle (30,30);
+  \pic[femm/lines=17,femm/arrow spacing=18mm] {femm field};
+  \draw[dashed,gray] (0,-85)--(0,85) node[above] {$z$};
+  \draw[red,dashed,femm/profile={name=solenoid-axis,samples=121}]
+    (0,-60)--(0,60);
+  \draw[-Stealth] (0,-90)--(40,-90) node[right] {$r$};
+  \node[fill=orange!25] at (25,0) {$\odot$};
+  \femmmeasure[name=solenoid-coil,quantity=circuit,circuit=coil]
+\end{tikzpicture}
+\quad
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=6cm,grid=major,no markers,
+    xlabel={$z$ (mm)},ylabel={$B_z$ (T)},legend style={font=\small},
+    legend pos=south east]
+  \femmplot[profile=solenoid-axis,component=Bz,abscissa=z,
+    plot options={blue!65!black,thick}]
+  \addlegendentry{Finite elements}
+  % Biot--Savart integral for the same uniformly filled rectangular coil
+  % in infinite air, with dimensions expressed in mm in this expression.
+  \addplot[red!70!black,dashed,domain=-60:60,samples=121]
+    {0.000628318530718*((30-x)*ln((30+sqrt(900+(30-x)^2))/
+      (20+sqrt(400+(30-x)^2)))+(30+x)*ln((30+sqrt(900+(30+x)^2))/
+      (20+sqrt(400+(30+x)^2))))};
+  \addlegendentry{Infinite-air reference}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+$R=\femmvalue[component=resistance]{solenoid-coil}$,
+$L=\femmvalue[component=inductance,number format={sci,precision=3}]{solenoid-coil}$.
+\end{document}

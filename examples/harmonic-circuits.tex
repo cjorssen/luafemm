@@ -1,0 +1,72 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{
+  ac experiment/.style={femm/problem={frequency=2000,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.45},
+    femm/circuit={name=supply,type=parallel,drive=voltage,voltage=.1,phase=15+15}},
+  coil leg/.style={draw=orange!70!black,fill=orange!25},
+  /femm/region/coil/.style={material=copper,circuit=supply,winding fill=.6,mesh size=.25},
+  isolated bar/.style={draw=teal!70!black,fill=teal!20,
+    femm/region={material=copper,conductor=solid,current constraint=zero,mesh size=.15}}}
+\begin{tikzpicture}[ac experiment,scale=3.5,
+    femm/cache={file=\jobname,mode=auto}]
+  % Refine the profile corridor after choosing the layout on a coarse mesh.
+  \path[femm/region={material=air,mesh size=.15}]
+    (-3.1,-.3) rectangle (3.1,.3);
+  % Each branch includes an outgoing and a returning leg.
+  \filldraw[coil leg,femm/region={coil,winding=lower,turns=-20}]
+    (-4.7,-3) rectangle (-3.3,-.5);
+  \filldraw[coil leg,femm/region={coil,winding=lower,turns=20}]
+    (3.3,-3) rectangle (4.7,-.5);
+  \filldraw[coil leg,femm/region={coil,winding=upper,turns=-40}]
+    (-4.7,.5) rectangle (-3.3,3);
+  \filldraw[coil leg,femm/region={coil,winding=upper,turns=40}]
+    (3.3,.5) rectangle (4.7,3);
+  \filldraw[isolated bar] (-.8,-2) rectangle (.8,2);
+  \draw[dashed,red!70!black,femm/profile={name=gap,samples=101}]
+    (-3,0)--(3,0);
+  \pic[femm/lines=19,femm/phase=0,femm/arrow spacing=12mm] {femm field};
+  \pic[femm/currents={spacing=.45,phase=0}] {femm eddy currents};
+  \femmmeasure[name=terminal,quantity=circuit,circuit=supply]
+  \femmmeasure[name=lower,quantity=circuit,circuit=supply,winding=lower]
+  \femmmeasure[name=upper,quantity=circuit,circuit=supply,winding=upper]
+  \femmmeasure[name=losses]
+  \node[above,text width=6cm,align=center] at (0,6) {Parallel coils and an isolated copper bar};
+  \node[below,font=\small] at (0,-6) {$f=2\,\mathrm{kHz},\quad
+    \widehat V=0.1\,e^{\mathrm i30^\circ}\,\mathrm V$};
+\end{tikzpicture}
+\quad
+\begin{tikzpicture}
+  \begin{axis}[width=8cm,height=6cm,grid=major,no markers,
+    xlabel={$x$ (mm)},ylabel={$B_y$ (T)},
+    legend style={at={(.5,1.03)},anchor=south}]
+    \femmplot[profile=gap,component=By,abscissa=x,representation=real,
+      plot options={blue!70!black,thick}]
+    \addlegendentry{In phase}
+    \femmplot[profile=gap,component=By,abscissa=x,representation=imaginary,
+      plot options={red!70!black,dashed,thick}]
+    \addlegendentry{Quadrature}
+  \end{axis}
+\end{tikzpicture}
+\par\medskip
+\begin{tabular}{lcc}
+  & Peak current & Phase\\
+  Lower branch (20 turns) & \femmvalue[component=current_amplitude]{lower}
+    & \femmvalue[component=current_phase]{lower}\\
+  Upper branch (40 turns) & \femmvalue[component=current_amplitude]{upper}
+    & \femmvalue[component=current_phase]{upper}
+\end{tabular}
+\par\medskip
+Input: $\femmvalue[component=power]{terminal}$;\quad
+integrated Joule loss: $\femmvalue[component=joule_loss]{losses}$.
+\end{document}

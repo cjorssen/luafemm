@@ -1,0 +1,99 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\definecolor{fluxblue}{RGB}{20,85,135}
+\definecolor{torquered}{RGB}{185,65,45}
+\newbox\MachineCalculation
+\def\Mesh{.8}
+% Start with Mesh=1.2, segments=64 and a few angles while arranging the figure.
+\tikzset{
+  femm/materials/core/.style={bh={0/0,.25/25.293,.5/59.375,
+    .75/146.191,1/400,1.25/1040.527,1.5/2428.125,
+    1.75/5098.926,2/9800,2.5/29546.875,3/73200}},
+  winding/.style={femm/region={material=copper,circuit=drive,
+    turns=#1,winding fill=.7,mesh size=.4}},
+  position/.style={femm/problem={sliding band=machine,rotor angle=#1},
+    femm/cache={file=\jobname-angle-#1,mode=auto}},
+  femm/arrow spacing=7mm}
+% These drawing paths add no regions to the inherited physical problem.
+\newcommand\PaintMachine[1]{%
+  \fill[even odd rule,blue!6] (0,0) circle[radius=9] (0,0) circle[radius=6];
+  \fill[blue!14,rotate=#1] (0,0) ellipse[x radius=3.8,y radius=1.8];
+  \fill[orange!30] (-8.3,-1.2) rectangle (-7.2,1.2)
+    (7.2,-1.2) rectangle (8.3,1.2);
+  \draw[fluxblue!70] (0,0) circle[radius=9] (0,0) circle[radius=6];
+  \draw[fluxblue,rotate=#1] (0,0) ellipse[x radius=3.8,y radius=1.8];
+  \node[font=\scriptsize] at (-7.75,0) {$\odot$};
+  \node[font=\scriptsize] at (7.75,0) {$\otimes$};}
+\begin{document}
+\centering
+% Declare, mesh and capture once. No field or measurement precedes capture.
+\setbox\MachineCalculation=\hbox{%
+  \begin{tikzpicture}[femm/problem={xmin=-12,xmax=12,ymin=-12,ymax=12,
+      mesh size=\Mesh,depth=10,interpolation=femm},
+    femm/circuit={name=drive,current=10},
+    femm/cache={file=\jobname-template,mode=auto},
+    femm/sliding band={name=machine,inner radius=4.3,outer radius=5.3,
+      segments=96,layers=3}]
+    \path[femm/region={material=core,mesh size=.4}]
+      (0,0) ellipse[x radius=3.8,y radius=1.8];
+    \path[even odd rule,femm/region={material=core,mesh size=.4}]
+      (0,0) circle[radius=9] (0,0) circle[radius=6];
+    \path[winding=100] (-8.3,-1.2) rectangle (-7.2,1.2);
+    \path[winding=-100] (7.2,-1.2) rectangle (8.3,1.2);
+  \end{tikzpicture}}
+% Each angle receives a fresh nonlinear solve; only the bulk mesh is reused.
+\foreach \Angle in {0,15,...,180}{%
+  \setbox\MachineCalculation=\hbox{%
+    \begin{tikzpicture}[position=\Angle]
+      \femmmeasure[name=torque-\Angle,quantity=force,method=band,parameter=\Angle]
+      \femmmeasure[name=port-\Angle,quantity=circuit,circuit=drive,parameter=\Angle]
+    \end{tikzpicture}}}
+\foreach \Angle in {30,75}{%
+  \begin{tikzpicture}[position=\Angle,scale=2.3]
+    \clip (-11,-10.2) rectangle (11,11.5);
+    \PaintMachine{\Angle}
+    \begin{scope}
+      \clip (-10,-10) rectangle (10,9.5);
+      \pic[femm/lines=23,femm/field style={fluxblue}] {femm field};
+    \end{scope}
+    \draw[teal!65!black,densely dashed,thin]
+      (0,0) circle[radius=4.3] (0,0) circle[radius=5.3];
+    \node[fill=white,font=\small] at (0,10.3) {$\theta=\Angle^\circ$};
+  \end{tikzpicture}\hspace{4mm}}
+\par\smallskip
+\small Dashed circles delimit the moving air band. The stator current stays fixed.
+\par\medskip
+\def\TorqueResults{torque-0,torque-15,torque-30,torque-45,torque-60,torque-75,
+  torque-90,torque-105,torque-120,torque-135,torque-150,torque-165,torque-180}
+\def\PortResults{port-0,port-15,port-30,port-45,port-60,port-75,port-90,
+  port-105,port-120,port-135,port-150,port-165,port-180}
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=5.8cm,grid=major,xmin=0,xmax=180,
+  xtick={0,45,90,135,180},xlabel={Mechanical angle (degrees)},
+  ylabel={Torque (mN\,m)},y filter/.expression={1000*y},scaled y ticks=false,
+  title={Alignment torque}]
+  \femmresultplot[results={\TorqueResults},component=torque,
+    plot options={torquered,thick,mark=*,mark options={fill=torquered}}]
+\end{axis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=5.8cm,grid=major,xmin=0,xmax=180,
+  xtick={0,45,90,135,180},xlabel={Mechanical angle (degrees)},
+  ylabel={Flux linkage (mWb)},y filter/.expression={1000*y},scaled y ticks=false,
+  title={The magnetic path changes}]
+  \femmresultplot[results={\PortResults},component=linkage,
+    plot options={fluxblue,thick,mark=square*}]
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Nonlinear reluctance rotor, $I=10\,\mathrm A$, $N=100$, depth $10\,\mathrm{mm}$.
+The steel law is illustrative; this is a sequence of static positions.
+\end{document}

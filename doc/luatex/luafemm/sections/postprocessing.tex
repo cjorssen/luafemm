@@ -1,0 +1,320 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Regional measurements, forces and torques}
+\label{sec:postprocessing}
+This chapter describes planar measurements. Axisymmetric volume weights,
+component names and force restrictions are specified in Section~\ref{sec:axisymmetric}.
+The planar postprocessor works on the same unsmoothed, piecewise-constant field that
+produces the field lines. A \emph{selection} identifies existing elements;
+a \emph{measurement} solves if necessary and records a named numerical snapshot.
+The snapshot can be printed, plotted or drawn as a force arrow. There is no
+external process, temporary data table or shell escape.
+
+\subsection{From a drawing to a measured attraction}
+Declare all physical regions and set a positive problem |depth| first. Then
+select the moving body, request its force and draw the result. For example,
+after constructing the U electromagnet used below:
+\begin{codeexample}[code only]
+\path[femm/selection={name=armature,material=pure-iron}]
+  (-42,31) rectangle (42,55);
+\path[femm/measure={name=pull,selection=armature,quantity=force}];
+\pic[femm/force={result=pull}] {femm force};
+\end{codeexample}
+The selection rectangle is not another material region. It restricts the
+|pure-iron| filter to the armature, leaving the core out. The default force
+method automatically constructs a weighting field through the surrounding air.
+Its orange arrow starts at the selected area's centroid, has an illustrative
+length of 12 model units and carries a label in newtons.
+
+The complete example varies both gaps together, retains the three results and
+plots the attraction. Start with these draft settings, then reduce mesh size
+and gap spacing targets and compare the \emph{force}, not just the appearance
+of the field lines. Increasing the number of plotted field lines does not
+improve the mechanical result.
+\luafemmexample{forces}
+
+\subsection{Selecting existing elements}
+\begin{key}{/tikz/femm/selection=\marg{options}}
+Capture a closed selection path through a TikZ postaction. Supports curves,
+transformations, compound paths and the current nonzero/even-odd fill rule.
+Do not combine this capture with |femm/region| or |femm/profile| on one path.
+Capture does not mesh or solve. It may occur before or after the physical
+declarations, but those declarations must be complete before measurement.
+\end{key}
+\begin{command}{\femmselect\oarg{options}}
+Register a selection without a geometric mask, normally by material.
+For example, |name=iron| with |material=pure-iron| selects every element assigned
+that material. With an empty material it selects the whole active domain.
+\end{command}
+\begin{key}{/tikz/femm/select=\marg{options}}
+Key form of |\femmselect|, for example |\path[femm/select={name=all}];|.
+Use after the problem has started, not among its pre-start picture options.
+\end{key}
+The selection family is |/femm/selection|:
+\begin{key}{/femm/selection/name=\meta{identifier}}
+Required document-wide name: letters, digits, underscores and hyphens only.
+Reusing a name replaces the selection. Each selection retains its source model;
+using it to measure another model is an error.
+\end{key}
+\begin{key}{/femm/selection/material=\meta{name} (initially empty)}
+Exact model material name, including catalogue identifiers. Empty accepts any
+material. Combined with a path, both tests must pass. This tests final element
+assignments, so later material painting and holes are already accounted for.
+\end{key}
+\begin{key}{/femm/selection/curve tolerance=\meta{number} (initially .03)}
+Positive model-unit tolerance for flattening the selection path. It neither
+refines the physical geometry nor changes the mesh. Command selections ignore it.
+\end{key}
+Elements are selected as a whole by their centroid. A mask cutting through a
+material is therefore a mesh-dependent selection, not an exact clipped integral.
+For a mechanical body, enclose the whole body and filter by material when
+necessary. Empty selections fail explicitly. Existing selection paths cannot
+recover a physical interface absent from the solved mesh.
+
+\subsection{Measuring and naming a result}
+\begin{command}{\femmmeasure\oarg{options}}
+Evaluate on the current model. Requires an explicit positive problem |depth|
+(millimetres in the TikZ frontend), even for a result also containing area
+averages. It must follow all physical declarations. It solves on demand and
+can reuse the physical solution cache. The auxiliary force-weight problem may
+still run on a cache hit. It does not modify the magnetic solution.
+\end{command}
+\begin{key}{/tikz/femm/measure=\marg{options}}
+Equivalent key form, intended for a standalone |\path[femm/measure={...}];|
+after physical declarations. It executes while the key is processed; it is
+not delayed until the end of the picture or until after a region postaction.
+Do not put it on the same path as a physical declaration.
+\end{key}
+Each measurement parses options locally, resetting the following defaults.
+Ordinary PGF styles compose within |/femm/measure|:
+\begin{codeexample}[code only]
+\pgfkeys{/femm/measure/armature pull/.style={
+  selection=armature,quantity=force,method=weighted}}
+\femmmeasure[armature pull,name=pull,parameter=3]
+\end{codeexample}
+\begin{key}{/femm/measure/name=\meta{identifier}}
+Required result name, with the same syntax as selection names. A result stores
+numerical values at measurement time, independently of later pictures or TeX
+groups. Repeating the name replaces the snapshot. Changing a selection does not
+retroactively change an existing result; measure again explicitly.
+\end{key}
+\begin{key}{/femm/measure/selection=\meta{name} (initially empty)}
+Selected existing elements. Empty means the whole active model for integrals.
+Weighted and Lorentz forces require an explicit named selection.
+\end{key}
+\begin{key}{/femm/measure/quantity=\meta{integrals or force} (initially integrals)}
+|integrals| records area, volume, current, field averages, energy and coenergy.
+|force| also records signed |Fx|, |Fy|, out-of-plane |torque| and |force| magnitude.
+All forces require |field model=open|: artificial ideal-flux confinement does
+not define the exterior air stresses needed for physical mechanical forces.
+\end{key}
+\begin{key}{/femm/measure/method=\meta{weighted, maxwell or lorentz} (initially weighted)}
+Only used for |quantity=force|. |weighted| integrates air stress with an
+auxiliary weight; |maxwell| integrates a supplied closed air contour;
+|lorentz| integrates $\mathbf J\times\mathbf B$ over a nonmagnetic conductor.
+Each method returns force and torque together.
+\end{key}
+\begin{key}{/femm/measure/profile=\meta{name} (initially empty)}
+Required by |method=maxwell|. Use a closed, simple TikZ |femm/profile| with
+zero offset. It must belong to this model and stay in source-free air, away
+from material interfaces. Orientation is normalized automatically: reversing
+the path does not reverse the outward force. Integration splits at triangle
+crossings, independently of the profile's |samples| count. Specialized exact
+gap scans are not accepted; capture a normal TikZ circle instead.
+\end{key}
+\begin{key}{/femm/measure/weighting=\meta{midgap, area or harmonic} (initially midgap)}
+Only used by |weighted|. |harmonic| solves the ordinary Laplace weight.
+|area| uses diffusion proportional to the square root of triangle area.
+|midgap| uses that area-weighted solution and rounds nodal weights at one half,
+emphasizing an interior layer of air elements. Compare methods and refine the
+mesh near tight gaps; this choice is not an error estimate.
+\end{key}
+\begin{key}{/femm/measure/tolerance=\meta{number} (initially 1e-10)}
+Relative residual tolerance of the auxiliary SPD weight solve, strictly between
+zero and one. Distinct from the magnetic nonlinear tolerance and mesh accuracy.
+\end{key}
+\begin{key}{/femm/measure/origin x=\meta{number} (initially 0)}
+\end{key}
+\begin{key}{/femm/measure/origin y=\meta{number} (initially 0)}
+Torque origin in model coordinates, not the force arrow's position. Positive
+torque is counterclockwise, about the positive out-of-page axis. Force components
+are in the model frame, even when the whole picture is rotated for presentation.
+\end{key}
+\begin{key}{/femm/measure/parameter=\meta{number} (initially 0)}
+User-supplied abscissa retained with the snapshot, for instance gap in mm,
+excitation in ampere-turns or angle in degrees. It does not change the physical
+model; declare the corresponding model change before measuring.
+\end{key}
+
+\subsection{Numbers, units and PGFPlots}
+\begin{command}{\femmresult\marg{name}\marg{component}}
+Expandable unformatted scalar, suitable for numeric PGF calculations. Components
+and units are listed below. Requesting a force from an integral-only result is
+an error, not a silently returned zero.
+\end{command}
+\begin{center}\begin{tabular}{ll}\toprule
+Component & Meaning and unit\\\midrule
+|area|, |volume| & Selected area (m$^2$), volume (m$^3$)\\
+|current| & Signed $\int J_z\,dS$ (A), without multiplying by depth\\
+|energy|, |coenergy| & Volume integrals (J)\\
+|Bx|, |By|, |B| & Area averages of components and magnitude (T)\\
+|Hx|, |Hy|, |H| & Area averages of components and magnitude (A/m)\\
+|Fx|, |Fy|, |force| & Force components and magnitude (N)\\
+|torque| & Torque about the requested origin (N\,m)\\
+|x|, |y| & Selected area centroid (model units)\\
+|elements|, |parameter| & Element count, user abscissa\\\bottomrule
+\end{tabular}\end{center}
+The average of |B| is not generally the magnitude of the averaged vector.
+Area averages and volume averages coincide because planar depth is constant.
+
+This small affine-field example has an analytical energy reference:
+$W=B^2 Sd/(2\mu_0)$. The boundary's coefficient uses SI coordinates, while
+the picture dimensions and depth use millimetres.
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[femm/problem={
+  xmin=-10,xmax=10,ymin=-5,ymax=5,
+  mesh size=2,depth=5},
+  femm/boundary={side=all,
+    type=dirichlet,y coefficient=.2}]
+  \draw[fill=blue!5]
+    (-10,-5) rectangle (10,5);
+  \pic[femm/lines=7] {femm field};
+  \femmmeasure[name=uniform-measure]
+  \node[align=center] at (0,-13) {
+    $B=$\femmvalue[component=B]
+      {uniform-measure}\\
+    $W=$\femmvalue[
+      number format={sci,precision=3}]
+      {uniform-measure}};
+\end{tikzpicture}
+\end{codeexample}
+
+\begin{command}{\femmvalue\oarg{options}\marg{name}}
+Print a scalar using PGF number formatting and its unit, in text or math mode.
+For example |\femmvalue[component=Fy]{pull}|. Options belong to |/femm/value|.
+\end{command}
+\begin{key}{/femm/value/component=\meta{component} (initially energy)}
+Select any public numeric component in the table.
+\end{key}
+\begin{key}{/femm/value/number format=\marg{PGF number options} (initially precision=3)}
+Pass options to |/pgf/number format|, locally. Use |sci| or |fixed relative|
+when appropriate for the magnitude and desired precision.
+\end{key}
+\begin{key}{/femm/value/unit=\meta{text} (initially auto)}
+|auto| uses the listed SI unit, empty suppresses it, and another value supplies
+upright math unit text. Overriding the label does not convert the number.
+Centroids and user parameters have no automatic unit label.
+\end{key}
+\begin{command}{\femmresultplot\oarg{options}}
+Emit a complete |\addplot+| in a PGFPlots axis. It retains the normal cycle list
+and legend behaviour. No solve occurs: every named snapshot must already exist.
+\end{command}
+\begin{key}{/femm/result plot/results=\marg{comma-separated names}}
+Required list, plotted in the given order. Results can come from different
+pictures. No implicit sorting or interpolation of physical solutions occurs.
+\end{key}
+\begin{key}{/femm/result plot/component=\meta{component} (initially force)}
+Ordinate, from the public component table.
+\end{key}
+\begin{key}{/femm/result plot/abscissa=\meta{component} (initially parameter)}
+Abscissa, usually the parameter saved at measurement time.
+\end{key}
+\begin{key}{/femm/result plot/plot options=\marg{PGFPlots options} (initially empty)}
+Ordinary |\addplot+| options. Axis labels, unit scaling, legends, logarithmic
+axes and grids remain normal PGFPlots settings. All plot options reset per call.
+\end{key}
+
+\subsection{Force glyphs and styles}
+\begin{key}{/tikz/pics/femm force}
+Draw the force snapshot in its original problem picture. It cannot be attached
+to another model. A zero force draws no arrow. The pic uses the saved model frame
+so local scope transformations do not detach it from the physical geometry.
+\end{key}
+\begin{key}{/tikz/femm/force=\marg{options}}
+Set glyph options in |/femm/force|, normally on the pic itself.
+\end{key}
+\begin{key}{/femm/force/result=\meta{name}}
+Required force snapshot.
+\end{key}
+\begin{key}{/femm/force/length=\meta{positive number} (initially 12)}
+Illustrative arrow length in model units; it is not proportional to force.
+\end{key}
+\begin{key}{/femm/force/scale=\meta{nonnegative number} (initially 0)}
+Zero uses |length|. A positive value specifies model units per newton and
+overrides |length|, allowing comparable arrow lengths across several bodies.
+\end{key}
+\begin{key}{/femm/force/x=\meta{number} (initially empty)}
+\end{key}
+\begin{key}{/femm/force/y=\meta{number} (initially empty)}
+Arrow origin, defaulting independently to the selected area's centroid.
+Changing it does not change the torque origin or force computation.
+\end{key}
+\begin{key}{/femm/force/label=\meta{magnitude or none} (initially magnitude)}
+Print the force magnitude in newtons at the arrow tip, or omit the label node.
+\end{key}
+\begin{key}{/femm/force/number format=\marg{PGF number options} (initially precision=3)}
+Number formatting for the magnitude label. For example |{sci,precision=2}|.
+\end{key}
+\begin{stylekey}{/tikz/femm force arrow}
+Orange-dark arrow with a Stealth tip, 1pt line width. Customize with normal
+|.style| or |.append style| handlers.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm force label}
+Small black label at the tip, on a lightly opaque white rounded background.
+Anchor, position, font, opacity and colours are normal TikZ node options.
+\end{stylekey}
+
+\subsection{Numerical conventions and limitations}
+For the isotropic law $\mathbf H=H_0(B)\mathbf B/B-H_c\mathbf m$, we use
+\[
+ w(\mathbf B)=\int_0^B H_0(b)\,db-H_c\mathbf m\cdot\mathbf B,
+ \qquad w'=\mathbf B\cdot\mathbf H-w.
+\]
+The primitive is integrated exactly on each linear or cubic B--H interval,
+including its extrapolation. This is a declared variational convention with
+$w(\mathbf0)=0$; permanent-magnet energy can be negative. It is not an absolute
+chemical/internal energy of the magnet, and is not a claim of FEMM's magnet
+energy reference convention. Nonlinear coenergy is not generally equal to
+energy. Circuit flux linkage and secant inductance are defined in the static
+circuit chapter; differential responses are defined in Section~\ref{sec:operating}.
+Do not infer a general inductance from $2W/I^2$ in a biased nonlinear model.
+
+Maxwell stress uses $\mathbf T=(\mathbf B\mathbf B^{\mathsf T}
+-B^2\mathbf I/2)/\mu_0$. Contour force is $d\oint\mathbf T\mathbf n\,dl$,
+where $d$ is physical depth and $\mathbf n$ is outward. Torque uses the signed
+lever about the requested origin. Integration is exact for the finite-element
+field on each straight contour piece; geometric and field errors remain.
+
+Weighted force is $-d\int\mathbf T\nabla w\,dS$, with weight one on selected
+elements, zero on exposed domain boundaries and other material/source regions.
+The remaining weight is solved in source-free air. A selected body touching an
+unselected material/source or the domain boundary is rejected. Lorentz force
+is restricted to $\mu_r=1$, nonmagnetic, noncoercive selected elements; it does
+not include magnetization forces on iron or permanent magnets.
+
+Validate force by mesh/domain refinement and by comparing independent methods.
+The optional |python3 scripts/post-interop.py| compares nonlinear U-core regional
+energy/coenergy and weighted force/torque with xfemm reading the same ANS mesh.
+Analytical conductor/dipole tests and an independent fixed-current coenergy
+finite difference exercise signs and physical consistency. These checks do not
+provide a universal force error bound.
+
+The Lua module |luafemm-post| exposes these entry points:
+\begin{verbatim}
+select(model, name, options)
+capture(model, name, softpath, options)
+measure(model, options)
+value(name, component)
+coordinates(names, component, abscissa)
+\end{verbatim}
+Lua selection contours and torque origins use model units; output units match
+the table. Result and selection registries persist for the document lifetime.
+
+\subsection{Total rotor stress in a moving air band}
+The additional choice |method=band| integrates a prescribed P1 weight across a
+captured circular air band. It requires |quantity=force| and a sliding-position
+model, and accepts no selection or profile. Torque retains the ordinary origin
+keys. See Section~\ref{sec:sliding} for all defaults, the integral and validation.

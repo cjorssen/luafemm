@@ -1,0 +1,111 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\definecolor{fluxblue}{RGB}{20,85,135}
+\definecolor{response}{RGB}{185,65,45}
+\newbox\BiasCalculation
+\def\Mesh{1.5}
+% Illustrative single-valued steel law, not measured catalogue data.
+\tikzset{
+  femm/materials/core/.style={
+    bh={0/0,.25/25.293,.5/59.375,.75/146.191,1/400,
+      1.25/1040.527,1.5/2428.125,1.75/5098.926,2/9800,
+      2.25/17524.512,2.5/29546.875,3/73200}},
+  bias model/.style={femm/problem={xmin=-30,xmax=30,ymin=-25,ymax=25,
+    mesh size=\Mesh,depth=20,interpolation=femm},
+    femm/circuit={name=drive,current=#1}},
+  coil leg/.style={fill=orange!30,draw=orange!65!black,
+    femm/region={material=copper,current density=0,
+      circuit=drive,turns=#1,winding fill=.65}},
+  response model/.style={femm/problem={operating point=bias-#1,
+    permeability=incremental,circuit currents={drive=1}}},
+  femm/arrow spacing=12mm}
+\newcommand\CoreGeometry{%
+  \filldraw[even odd rule,fill=blue!7,draw=fluxblue,
+    femm/region={material=core}]
+    (-15,-15) rectangle (15,15) (-8,-8) rectangle (8,8);
+  \filldraw[coil leg=100] (-21,-7) rectangle (-17,7);
+  \filldraw[coil leg=-100] (-6,-7) rectangle (-2,7);
+  \node at (-19,0) {$\odot$}; \node at (-4,0) {$\otimes$};}
+% Pure drawing overlay: the physical geometry is inherited from the bias.
+\newcommand\PaintCore{%
+  \fill[even odd rule,blue!7]
+    (-15,-15) rectangle (15,15) (-8,-8) rectangle (8,8);
+  \fill[orange!25] (-21,-7) rectangle (-17,7) (-6,-7) rectangle (-2,7);
+  \node[font=\scriptsize] at (-19,0) {$\odot$};
+  \node[font=\scriptsize] at (-4,0) {$\otimes$};}
+% Each bias has its own immutable snapshot and persistent solve cache.
+\begin{document}
+\centering
+\foreach \Index/\Bias in {a/.25,b/.5,c/1,d/2,e/3,f/5,g/8,h/12}{%
+  \setbox\BiasCalculation=\hbox{%
+    \begin{tikzpicture}[bias model=\Bias,
+      femm/cache={file=\jobname-bias-\Index,mode=auto},
+      femm/operating point={name=bias-\Index}]
+      \CoreGeometry
+      \femmmeasure[name=dc-\Index,quantity=circuit,circuit=drive,parameter=\Bias]
+    \end{tikzpicture}}
+  \setbox\BiasCalculation=\hbox{%
+    \begin{tikzpicture}[response model=\Index,
+      femm/cache={file=\jobname-response-\Index,mode=auto}]
+      \femmmeasure[name=small-\Index,quantity=circuit,circuit=drive,parameter=\Bias]
+    \end{tikzpicture}}}
+% A frozen solve retains the bias sources by default and recovers its field.
+\begin{tikzpicture}[femm/problem={operating point=bias-f,permeability=frozen},
+  femm/cache={file=\jobname-frozen,mode=auto},scale=1.05]
+  \clip (-25,-20) rectangle (22,23);
+  \PaintCore
+  \pic[femm/geometry style={draw=fluxblue!60}] {femm geometry};
+  \pic[femm/lines=19,femm/field style={fluxblue}] {femm field};
+  \node[fill=white,font=\small,align=center] at (0,20)
+    {Bias field\\$I_0=5\,\mathrm A$};
+  \node[font=\scriptsize,fill=white] at (0,-18) {Frozen reconstruction};
+\end{tikzpicture}\hspace{4mm}%
+\begin{tikzpicture}[response model=f,
+  femm/cache={file=\jobname-response-f,mode=auto},scale=1.05]
+  \clip (-25,-20) rectangle (22,23);
+  \PaintCore
+  \pic[femm/geometry style={draw=black!45}] {femm geometry};
+  \pic[femm/lines=19,femm/field style={response}] {femm field};
+  \node[fill=white,font=\small,align=center] at (0,20)
+    {Incremental response\\$\delta I=1\,\mathrm A$};
+  \node[font=\scriptsize,fill=white] at (0,-18) {Tangent field, not total field};
+\end{tikzpicture}
+\par\medskip
+\def\BiasResults{dc-a,dc-b,dc-c,dc-d,dc-e,dc-f,dc-g,dc-h}
+\def\SmallResults{small-a,small-b,small-c,small-d,small-e,small-f,small-g,small-h}
+\begin{tikzpicture}
+\begin{axis}[width=7.5cm,height=5.6cm,grid=major,
+  xlabel={Bias current $I_0$ (A)},ylabel={Flux linkage $\lambda_0$ (mWb)},
+  y filter/.expression={1000*y},scaled y ticks=false,
+  title={The core saturates}]
+  \femmresultplot[results={\BiasResults},component=linkage,
+    plot options={fluxblue,thick,mark=*}]
+\end{axis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{axis}[width=7.5cm,height=5.6cm,grid=major,
+  xlabel={Bias current $I_0$ (A)},ylabel={Inductance (mH)},
+  y filter/.expression={1000*y},scaled y ticks=false,
+  title={Two different inductances},
+  legend style={font=\scriptsize,at={(.98,.98)},anchor=north east}]
+  \femmresultplot[results={\BiasResults},component=inductance,
+    plot options={fluxblue,thick,mark=*}]
+  \addlegendentry{$\lambda_0/I_0$ (secant)}
+  \femmresultplot[results={\SmallResults},component=incremental_inductance,
+    plot options={response,thick,mark=square*}]
+  \addlegendentry{$\mathrm d\lambda/\mathrm dI$ (incremental)}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small The two field panels use independent contour levels.
+The unit perturbation normalises the derivative; it does not assert
+linearity over a finite $1\,\mathrm A$ excursion.
+\end{document}

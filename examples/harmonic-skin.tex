@@ -1,0 +1,46 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=145mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\centering
+\tikzset{conducting slab/.style={femm/problem={frequency=400,
+    xmin=-5,xmax=5,ymin=0,ymax=2,mesh size=.25,depth=10},
+    femm/boundary={side=all,type=neumann},
+    femm/boundary={side=left,type=dirichlet,value=-.0001},
+    femm/boundary={side=right,type=dirichlet,value=.0001}},
+  femm/materials/slab copper/.style={mu r=1,conductivity=58000000}}
+\begin{tikzpicture}[conducting slab,scale=3,
+    femm/cache={file=\jobname,mode=auto}]
+  \filldraw[fill=orange!20,draw=orange!70!black,
+    femm/region={material=slab copper}] (-5,0) rectangle (5,2);
+  \draw[red,dashed,femm/profile={name=skin,samples=101}] (-5,1)--(5,1);
+  \pic[femm/phase=0,femm/lines=13,femm/arrows=false] {femm field};
+  \node[above] at (0,2) {$f=400\,\mathrm{Hz}$};
+  \femmmeasure[name=skin-loss]
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=12cm,height=6cm,grid=major,no markers,
+    xlabel={$x$ (mm)},ylabel={$|\widehat J_{\rm eddy}|$ ($\mathrm{A/m^2}$)},
+    legend pos=north east]
+  \femmplot[profile=skin,component=Jeddy,abscissa=x,
+    representation=amplitude,plot options={blue!65!black,thick}]
+  \addlegendentry{Finite elements}
+  % delta = 3.304275 mm at 400 Hz for sigma = 58 MS/m, mu_r = 1.
+  \addplot[red!70!black,dashed,domain=-5:5,samples=101]
+    {14576989.91*sqrt((sinh(x/3.304275)^2+sin(deg(x/3.304275))^2)/
+      (sinh(5/3.304275)^2+sin(deg(5/3.304275))^2))};
+  \addlegendentry{Analytic diffusion solution}
+\end{axis}
+\end{tikzpicture}
+\par
+Cycle-average Joule loss:
+$P=\femmvalue[component=joule_loss,number format={fixed,precision=3}]{skin-loss}$.
+\end{document}

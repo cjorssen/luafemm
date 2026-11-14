@@ -1,0 +1,38 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic eddy-current views. Pic options remain local and normal PGF styles.
+\pgfkeys{/femm/currents/.is family,/femm/currents,
+  view/.initial=auto,view/.is choice,
+  phase/.initial=90,material/.initial=,lines/.initial=7,spacing/.initial=2,
+  section/.initial=0,center x/.initial=0,center y/.initial=0,
+  reference current/.initial=0,minimum fraction/.initial=.02,
+  symbol radius/.initial=1.3pt}
+\def\luafemm@currentview#1{\pgfkeys{/femm/currents/view/#1/.code={\pgfkeyssetvalue{/femm/currents/view}{#1}}}}
+\luafemm@currentview{auto}\luafemm@currentview{lines}
+\luafemm@currentview{symbols}\luafemm@currentview{loops}
+\def\luafemm@currentsvalue#1{\pgfkeysvalueof{/femm/currents/#1}}
+\tikzset{
+  femm/currents/.code={\pgfqkeys{/femm/currents}{#1}},femm/currents/.default={},
+  femm eddy line/.style={red!70!black,line width=.35pt,femm oriented field},
+  femm eddy symbol/.style={color=red!70!black,draw=.,text=.,line width=.35pt},
+  femm/eddy style/.code={\tikzset{femm current eddy/.style={#1}}},
+  femm current eddy/.style={},
+  pics/femm eddy currents/.style={code={%
+    \begingroup\pgftransformreset
+    \directlua{luafemm.tex.current_picture(luafemm.current,{
+      view='\luaescapestring{\luafemm@currentsvalue{view}}',
+      material='\luaescapestring{\luafemm@currentsvalue{material}}',
+      phase=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{phase}}','phase'),
+      lines=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{lines}}','lines'),
+      spacing=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{spacing}}','spacing'),
+      section=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{section}}','section'),
+      center_x=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{center x}}','center x'),
+      center_y=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{center y}}','center y'),
+      reference=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{reference current}}','reference current'),
+      minimum_fraction=luafemm.tex.number('\luaescapestring{\luafemm@currentsvalue{minimum fraction}}','minimum fraction')})}%
+    \endgroup}}
+}
+\endinput

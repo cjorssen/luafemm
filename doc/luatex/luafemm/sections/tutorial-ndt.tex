@@ -1,0 +1,307 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Original task-led tutorial; every complete source is compiled with the manual.
+\clearpage
+\section{Tutorial: Kamil looks for a defect without cutting the tube}
+\label{sec:tutorial-ndt}
+
+Kamil has a copper tube, a small coil and a new question for his students.
+Can the coil tell him that some metal is missing from the tube wall? He would
+like to show the experiment in three stages: a drawing of the apparatus,
+a field picture explaining the interaction, and the signal that an instrument
+could actually measure. A coloured defect in a drawing is easy to find.
+The more interesting part is finding it in the coil's electrical response.
+
+We shall build an encircling-coil inspection of a tube with a circumferential
+groove. We then move the probe, compare each position with a sound reference,
+and plot the two components of the impedance change. The three complete
+examples below contain their own preambles and styles. They use ordinary
+TikZ paths, the existing |femm| keys and PGFPlots; no document-side Lua,
+native solver or external data file is required.
+
+\subsection{First decide what the defect means}
+A meridional $(r,z)$ section of a circular tube is a rectangle. Revolving a
+small rectangular recess in its outer edge makes an \emph{annular groove}.
+This is a useful model of circumferential material loss. It is also compatible
+with the axisymmetric harmonic solver: the coil, specimen and defect all
+retain rotational symmetry throughout the scan.
+
+A notch on just one side of the tube, an off-centre probe or a longitudinal
+slit would break that symmetry. Drawing one of those in this meridional
+picture would still revolve it into a ring. Kamil therefore labels his defect
+as a groove and keeps the coil coaxial. The remaining azimuthal currents still
+form closed circles; the groove changes the available conducting volume and
+its coupling to the coil. It does not force these circles to detour around a
+local three-dimensional crack.
+
+The apparatus uses the following dimensions. Coordinates and local mesh
+spacings are in millimetres, while conductivity is in SI units.
+\begin{center}
+\begin{tabular}{ll}
+\toprule Setting & Value\\
+\midrule
+Tube inner / outer radius & $5/8\,\mathrm{mm}$\\
+Tube axial extent & $-25\leq z\leq25\,\mathrm{mm}$\\
+Groove width / centre & $3\,\mathrm{mm}$ / $z=0$\\
+Groove depths to compare & $0.5$ and $1.5\,\mathrm{mm}$\\
+Coil radial extent & $9\leq r\leq11\,\mathrm{mm}$\\
+Coil axial extent & $s-1.5\leq z\leq s+1.5\,\mathrm{mm}$\\
+Coil turns / copper fill & $60$ / $0.6$\\
+Excitation & $f=2\,\mathrm{kHz}$, $\widehat I=1\,\mathrm A$ peak\\
+Copper & $\mu_r=1$, $\sigma=58\,\mathrm{MS/m}$\\
+Air-domain truncation & $0\leq r\leq45$, $-45\leq z\leq45\,\mathrm{mm}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+In the apparatus drawing, two orange rectangles are opposite sections of the
+\emph{same} encircling winding. The solver's meridional drawing needs only the
+positive-radius rectangle. The transverse view shows that the missing metal
+extends around the whole circumference. This first drawing is purely
+geometrical; the following two examples calculate the fields and signals.
+\luafemmexample{tutorial-ndt-setup}
+
+\subsection{Prepare a model that is inexpensive to edit}
+Kamil starts with a coarse field mesh while placing labels and deciding how
+much of the apparatus to show. The far air needs fewer triangles than the
+conducting wall or the narrow groove. At $2\,\mathrm{kHz}$, copper's standard
+skin depth is approximately
+\[
+ \delta=\sqrt{\frac{2}{\omega\mu_0\sigma}}\simeq1.48\,\mathrm{mm}.
+\]
+He can try |\Mesh=.6| while composing the example, then use |.4| for the
+published pictures and compare with |.25| before interpreting small signal
+changes. The groove receives half this spacing. These are resolution choices,
+not a built-in adaptive skin-depth estimator.
+
+He puts the common physical settings in a TikZ style:
+\begin{codeexample}[code only]
+\def\Mesh{.4}\def\Frequency{2000}
+\pgfmathsetmacro{\NearMesh}{1.5*\Mesh}
+\pgfmathsetmacro{\GrooveMesh}{\Mesh/2}
+\tikzset{ndt/model/.style={
+  femm/problem={type=axisymmetric,frequency=\Frequency,
+    xmax=45,ymin=-45,ymax=45,mesh size=2},
+  femm/circuit={name=probe,current=1},
+  femm/materials/specimen/.style={mu r=1,conductivity=58000000}}}
+\end{codeexample}
+The two |\pgfmathsetmacro| calls evaluate expressions before passing their
+numeric values to the mesh keys. The |ndt/| styles are local example styles,
+not another installed package interface. They can be edited and composed with
+normal PGF |.style| and |.append style| handlers.
+
+|type=axisymmetric| is essential here. It solves the finite probe and its
+surrounding air. The |type=axial| long-solenoid reduction of
+Section~\ref{sec:currents} prescribes an axial field and has no probe terminal
+impedance to measure. The outer boundary in this tutorial is the usual zero
+vector-potential truncation. Enlarging the air domain and refining the wall
+mesh are separate checks.
+
+\subsection{Paint copper, remove metal with air, add the winding}
+Kamil first paints a locally refined air band, then the complete copper wall.
+The order matters: painting the air band last would erase the specimen in
+that band. The groove is a later \emph{air region}, replacing part of the wall.
+It is not an excluded mesh hole. Magnetic field must still be solved in the
+space left by the removed metal.
+\begin{codeexample}[code only]
+\path[femm/region={material=air,mesh size=\NearMesh}]
+  (0,-15) rectangle (12,15);
+\filldraw[fill=blue!10,
+  femm/region={material=specimen,mesh size=\Mesh}]
+  (5,-25) rectangle (8,25);
+% Omit this path for the sound reference:
+\filldraw[fill=white,draw=red,
+  femm/region={material=air,mesh size=\GrooveMesh}]
+  (6.5,-1.5) rectangle (8,1.5);
+\filldraw[fill=orange!25,
+  femm/region={material=copper,circuit=probe,turns=60,
+    winding fill=.6,mesh size=\Mesh}]
+  (9,-1.5) rectangle (11,1.5);
+\end{codeexample}
+The specimen is a solid conductor and develops resolved eddy currents.
+The named winding is stranded: it represents insulated fine wires carrying
+the prescribed current, with homogenised copper resistance. It does not become
+a massive copper ring just because its region uses |material=copper|.
+The specified 1 A is a peak phasor, so the terminal power uses the factor $1/2$.
+All sources follow $e^{+\mathrm i\omega t}$.
+
+\subsection{Look at the field, then at the current}
+The example draws magnetic flux lines in blue and normal-current symbols in
+red. Both pictures use $\omega t=0$, so their arrows and symbols describe the
+same instant. In the meridional section, positive $J_\varphi$ points into the
+page and is drawn as a cross; a dot points out of the page. Its actual path is
+a circle about the axis, not a loop lying in the $(r,z)$ picture.
+\begin{codeexample}[code only]
+\pic[femm/phase=0,femm/lines=17,
+  femm/field style={blue!65!black},femm/arrow spacing=11mm]
+  {femm field};
+\pic[femm/currents={material=specimen,phase=0,spacing=.9,
+  reference current=2000000,symbol radius=.9pt},
+  femm/eddy style={red!70!black}] {femm eddy currents};
+\end{codeexample}
+The fixed current reference is in $\mathrm{A/m^2}$; it gives both panels the
+same opacity scale. Magnetic contour levels are chosen separately in each
+picture, so line counts are not a quantitative measure of the difference.
+The view is clipped to a close-up while the complete tube and air domain
+remain in the calculation. A TikZ |\clip| changes the visible drawing; region capture still passes
+the complete, unclipped physical path to the solver.
+
+A second comparison follows the current along a line inside the remaining
+wall. The line lies at $r=6.25\,\mathrm{mm}$, below the floor of even the
+$1.5\,\mathrm{mm}$ groove. Thus it never jumps into air at the defect:
+\begin{codeexample}[code only]
+\path[femm/profile={name=ndt-groove,samples=161}]
+  (6.25,-10)--(6.25,10);
+% Later, inside a PGFPlots axis:
+\femmplot[profile=ndt-groove,component=Jeddy,abscissa=z,
+  representation=amplitude,plot options={red!70!black,thick}]
+\end{codeexample}
+The pic is instantaneous, whereas the curve is a phasor amplitude. In the
+complete example the axis converts $\mathrm{A/m^2}$ to $\mathrm{MA/m^2}$
+with a normal PGFPlots |y filter|. The deeper groove concentrates current in
+part of the remaining wall: the local curve may rise even while the integrated
+specimen loss falls. There is no rule that every local current must decrease
+when metal is removed. The plotted differences come from the solved fields.
+\luafemmexample{tutorial-ndt-fields}
+
+\subsection{What does the instrument measure?}
+Kamil cannot put a current-density probe inside every triangle of the tube.
+He can, however, measure the voltage needed to drive the coil. Its complex
+impedance is
+\[
+ \widehat V=R_{\rm coil}\widehat I+\mathrm i\omega\widehat\lambda,
+ \qquad Z=\frac{\widehat V}{\widehat I}=R+\mathrm iX.
+\]
+The flux linkage includes the reaction of the induced specimen currents.
+The existing circuit measurement supplies both components:
+\begin{codeexample}[code only]
+\femmmeasure[name=probe-reading,quantity=circuit,circuit=probe]
+% Expandable SI numbers, suitable for subsequent PGF calculations:
+\femmresult{probe-reading}{impedance_real}
+\femmresult{probe-reading}{impedance_imaginary}
+\end{codeexample}
+|impedance_real| is the total AC resistance seen at the terminals;
+|resistance| alone is the winding's DC copper resistance. Kamil must retain
+|impedance_real| to see specimen losses. For this one-coil, passive-conductor
+model,
+\[
+ \tfrac12|\widehat I|^2\bigl(\mathop{\rm Re}Z-R_{\rm coil}\bigr)
+ =P_{\rm specimen}.
+\]
+The automated tutorial test checks this identity independently of the drawing.
+The coil itself is unchanged between the sound and grooved specimens, so
+its copper resistance cancels in the difference.
+
+This use of the coil's impedance is the usual eddy-current inspection
+principle: a change in the specimen changes induced currents and their
+magnetic reaction on the probe. The
+\href{https://infotechnology.fhwa.dot.gov/eddy-current-testing/}{FHWA introduction
+to eddy-current testing} describes both impedance-plane and distance-based
+signal displays, as well as the influence of probe spacing and material
+properties. Our example calculates a particular idealised groove response;
+it does not import an instrument trace or impose a chosen signal shape.
+
+\subsection{Move the probe and subtract a matched reference}
+Let $s$ be the axial coordinate of the coil centre. Only the winding rectangle
+moves:
+\begin{codeexample}[code only]
+\path[femm/region={material=copper,circuit=probe,turns=60,
+  winding fill=.6,mesh size=\Mesh}]
+  (9,{\Position-1.5}) rectangle (11,{\Position+1.5});
+\femmmeasure[name=\Case-\Index,quantity=circuit,circuit=probe,
+  parameter=\Position]
+\end{codeexample}
+Every position starts a new |tikzpicture| and declares its complete model.
+Do not shift the winding after solving or add a groove after a field pic has
+already triggered meshing. The scan is a sequence of steady harmonic states;
+no velocity or motion-induced current term is used. Physically this describes
+measurements after the electromagnetic transient has settled at each position.
+
+For every $s$, solve the sound tube and both groove depths, then form
+\[
+ \Delta Z(s)=Z_{\rm groove}(s)-Z_{\rm sound}(s),\qquad
+ \Delta R=\mathop{\rm Re}\Delta Z,\quad
+ \Delta X=\mathop{\rm Im}\Delta Z.
+\]
+The sound reference is evaluated at the \emph{same position}. A finite tube
+can change its coupling as the coil approaches an end; subtracting a single
+reference value for the whole scan would mix that change into the defect
+signal. This is a numerical reference subtraction, not a model of a physical
+two-coil differential probe or a bridge circuit.
+
+The full source uses a named TeX box to execute each model without printing
+57 intermediate pictures. Named measurements remain available after the box
+is discarded. Each case/position has its own native cache. On a later
+compilation, changing graph styles or labels restores the solved phasors.
+Changing physical geometry, frequency or mesh settings invalidates the
+appropriate caches automatically.
+
+The difference is small compared with the total impedance. Use PGF's
+floating-point unit when calculating it, and convert to milliohms afterward:
+\begin{codeexample}[code only]
+\begingroup
+  \pgfkeys{/pgf/fpu=true,/pgf/fpu/output format=fixed}
+  \pgfmathparse{1000*(\femmresult{deep-10}{impedance_real}
+    -\femmresult{sound-10}{impedance_real})}
+  \xdef\CentreDeltaR{\pgfmathresult}
+\endgroup
+\end{codeexample}
+In the distributed position list, index 10 is $s=0$. The floating-point keys
+are deliberately grouped: they must not change the arithmetic used by later
+TikZ geometry. The complete example collects coordinate lists with ordinary
+TeX macros and draws them with |\addplot|. No hand-written Lua is necessary.
+\luafemmexample{tutorial-ndt-scan}
+
+\subsection{Read the three graphs together}
+The left graph is the resistive channel. For these parameters it has a
+negative central response and smaller positive shoulders. The middle of the
+groove gives lower total specimen loss, while the off-centre response also
+contains redistribution and changed coupling. A generic ``defect signal''
+should not be substituted for this computed shape.
+
+The reactive channel has a positive central response. The deeper groove has
+a larger complex signal, although doubling groove depth would not in general
+double either component. The impedance-plane graph uses the same computed
+points, with $\Delta R$ horizontally and $\Delta X$ vertically. It does not
+plot the temporal sine wave. The geometry is symmetric under $s\mapsto-s$,
+so the two halves of the scan nearly retrace the same trajectory. Small
+separations between them reflect the discretisation, not hysteresis.
+
+The markers identify actual solves. Lines join adjacent samples without
+claiming an interpolated extremum or adding a fitted defect model. Use more
+positions near a narrow response to improve spatial sampling; use more
+triangles to improve field accuracy. These are different operations.
+
+\subsection{Before interpreting a small difference}
+Kamil has three independent resolution controls:
+\begin{enumerate}
+\item Reduce local |mesh size| in the metal, groove and nearby air. Compare
+$\Delta Z$ itself: a small change in the much larger total $Z$ does not by
+itself establish convergence of the difference.
+\item Enlarge the outer air domain while retaining the same local mesh
+settings. The zero-potential boundary is a truncation, not a real shield.
+For this example, the initially tried $25\,\mathrm{mm}$ radial extent changed
+the central differential signal by about $2.7\%$ when enlarged to $45$ mm,
+which is why the complete sources use the larger domain.
+\item Refine the list of probe positions independently of the field mesh.
+The source places extra points near the groove, where the signal changes most.
+\end{enumerate}
+The regression |tests/test_ndt.lua| checks the two depth responses, the power
+identity, mesh refinement, outer-domain enlargement, scan symmetry and the
+small far-from-groove signal. Its recorded results and tolerances are in
+\nolinkurl{docs/validation.md}. They establish numerical sensitivity for this
+teaching geometry, not an experimental detection threshold.
+
+Finally, a change in impedance is not uniquely a change in groove depth.
+Conductivity, frequency and coil clearance also change the coupling. In a
+real inspection these require calibration; the present calculation includes
+no instrument noise or uncertainty distribution. In an encircling-coil model,
+increasing the coil radius changes its circumference and therefore its copper
+resistance as well as its clearance. Keep that distinction when extending the
+exercise. Lateral wobble and isolated cracks require a three-dimensional model.
+The useful result here is a reproducible chain from a declared material defect
+to fields, currents and a measurable complex coil response.
+
+\clearpage

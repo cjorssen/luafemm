@@ -1,0 +1,478 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Static models and tagged frontiers}
+\label{sec:static}
+This chapter extends the planar, direct-current model: the computational domain
+can follow a TikZ path; named boundaries can be paired; materials can have a
+linear permeability tensor; permanent magnets can have a spatially varying
+direction; and named windings can supply their current and report flux linkage.
+All features use the same pure-Lua solver and generic TeX interface.
+They do not introduce an axisymmetric or alternating-current formulation.
+
+\subsection{Decide what each path means}
+A magnetic drawing can contain four different kinds of path. A |femm/region|
+path assigns material. A |femm/domain| path determines where the equation is
+solved. A |femm/frontier| path assigns a physical boundary condition. A
+|femm/profile| or |femm/selection| path measures an existing solution. Ordinary
+TikZ paths only draw. Keeping these roles explicit makes the diagram easier to
+edit: moving a profile cannot accidentally move a physical boundary.
+
+Start with a coarse |mesh size| and modest |curve tolerance|. Finish the geometry,
+sources and styles, then reduce both tolerances where the final result requires
+it. Decreasing the curve tolerance improves the polygonal representation;
+decreasing the mesh size improves the finite-element solution on that
+representation. They are separate convergence checks.
+
+The order of operations is:
+\begin{enumerate}
+\item Define material styles and reusable boundary/circuit styles.
+\item Start |tikzpicture| with |femm/problem|. Circuit and pairing declarations in
+  picture options are queued until the model exists, just like |femm/boundary|.
+\item Capture the computational domain, material regions and tagged paths.
+  Their declaration order is free, except that material paint order still matters.
+  Declare each circuit before the mesh is generated; its paths may come first.
+\item Mesh or solve. A field pic, profile sample or measurement may trigger this
+  step automatically. Finish \emph{all} physical declarations first.
+\item Draw the field, take measurements and plot their named snapshots.
+\end{enumerate}
+Physical declarations persist beyond the graphical scope that captured them.
+They cannot be added after meshing. Reusable |.style|, |.append style| and
+parameterised PGF styles work throughout this chapter. Numerical keys accept
+PGF expressions; values passed to Lua are validated finite numbers.
+
+\subsection{A computational domain drawn with TikZ}
+\begin{codeexample}[width=6cm]
+\begin{tikzpicture}[femm/problem={
+  xmin=-22,xmax=22,ymin=-17,ymax=17,
+  mesh size=4}]
+  \path[femm/domain]
+    (-18,-12)--(18,-8)--(14,13)--(-14,10)--cycle;
+  \draw[thick,femm/frontier={name=outer,
+    y coefficient=.2}]
+    (-18,-12)--(18,-8)--(14,13)--(-14,10)--cycle;
+  \pic[femm/lines=7] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+\begin{key}{/tikz/femm/domain=\marg{options} (default \normalfont empty)}
+Capture one closed, possibly compound path as the computational domain. At most
+one domain declaration is allowed per problem. The TikZ fill rule applies:
+|even odd rule| conveniently describes holes. Holes in this domain exclude
+triangles; holes in a material region merely expose the previous material.
+The problem rectangle is still required as a bounding/staging box, and must
+contain every physical path. Its sides cease to be physical boundaries when a
+custom domain is present. Unlabelled custom-domain boundaries default to
+$A_z=0$, independently of rectangle-side declarations.
+
+With no |femm/domain|, the original rectangular domain and its side conditions
+remain in effect. Path frontiers, custom domains and circuits require
+|mesher=delaunay| and |field model=open|. They do not modify an imported FEM
+model or an ideal-circuit model.
+\end{key}
+\begin{key}{/femm/domain/curve tolerance=\meta{distance} (initially .03)}
+Positive flattening tolerance in model units. One closed domain can contain
+several disjoint components. Ordinary TikZ curves, arcs and rounded corners are
+flattened after their transformations have been evaluated.
+\end{key}
+
+\subsection{Tagging a physical boundary}
+\begin{key}{/tikz/femm/frontier=\marg{options} (default \normalfont empty)}
+Attach a named condition to the captured path. The path may be open or closed,
+but must belong to the graph of physical boundaries/interfaces. An internal
+Dirichlet contour or an internal path joining existing boundaries is supported
+when it bounds valid faces. An isolated open internal constraint is rejected.
+Neumann, Robin and periodic conditions require exterior edges.
+
+The condition follows every split segment during arrangement construction and
+meshing. It overrides the default condition on the same exterior edge.
+Conflicting explicit tags on coincident edges are rejected. The existing key
+|femm/boundary| retains its original meaning: it selects rectangle sides and
+\emph{does not} tag the path on which it occurs.
+\end{key}
+\begin{key}{/femm/frontier/name=\meta{name} (initially empty)}
+Required problem-local name. Names are unique within a problem; repeated names
+are errors. Names need not be TeX control sequences.
+\end{key}
+\begin{key}{/femm/frontier/type=\meta{choice} (initially dirichlet)}
+An |.is choice| key accepting |dirichlet|, |neumann|, |robin|, |periodic| and
+|open|. With outward normal $\mathbf n$, define the positive tangent
+$\mathbf t=(-n_y,n_x)$. Dirichlet prescribes $A_z=g$; Neumann prescribes
+$\mathbf H\cdot\mathbf t=g$; Robin prescribes
+$\mathbf H\cdot\mathbf t=cA_z+g$, with $c\geq0$.
+|periodic| marks a path for a separate pairing declaration, whose sign can be
+periodic or antiperiodic. |open| is the circular multipole approximation below.
+\end{key}
+\begin{key}{/femm/frontier/value=\meta{number} (initially 0)}
+Constant term of $g=\texttt{value}+\texttt{x coefficient}\,x+
+\texttt{y coefficient}\,y$, where $x,y$ are in metres. Potential data use T\,m;
+Neumann/Robin data use A/m. Geometry remains in model units.
+\end{key}
+\begin{key}{/femm/frontier/x coefficient=\meta{number} (initially 0)}
+Coefficient of the SI abscissa in $g$.
+\end{key}
+\begin{key}{/femm/frontier/y coefficient=\meta{number} (initially 0)}
+Coefficient of the SI ordinate in $g$.
+\end{key}
+\begin{key}{/femm/frontier/coefficient=\meta{number} (initially 0)}
+Nonnegative Robin coefficient $c$, in A/(T\,m$^2$); other types require zero.
+\end{key}
+\begin{key}{/femm/frontier/curve tolerance=\meta{distance} (initially .03)}
+Positive path-flattening tolerance in model units. Use the same tolerance when
+separate paths describe the same curved interface.
+\end{key}
+\begin{stylekey}{/femm/frontier/field tangent}
+Homogeneous Dirichlet symmetry: $A_z=0$ and $B_n=0$.
+\end{stylekey}
+\begin{stylekey}{/femm/frontier/field normal}
+Homogeneous natural symmetry: $H_t=0$. In isotropic, source-free air this means
+$B_t=0$. In an anisotropic medium, $\mathbf H$ and $\mathbf B$ need not be parallel;
+use the defining condition rather than inferring a direction for $\mathbf B$.
+\end{stylekey}
+
+\subsection{Working on a periodic sector}
+An associated pair identifies the nodal potentials on two exterior traces.
+Both traces are first synchronised by inserting the union of their transformed
+vertices into their boundary triangles. The solver eliminates the constrained
+unknowns exactly; it does not add a penalty parameter. A reversed sign is carried
+through the residual, tangent, nodal updates and cache restoration.
+
+The following sector contains an angularly magnetised permanent magnet. Its
+$60^\circ$ pairing is antiperiodic. The angle law is chosen consistently with
+that symmetry: the magnetisation rotates by $240^\circ$, namely the spatial
+rotation plus a $180^\circ$ reversal.
+\luafemmexample{static-frontiers}
+
+\begin{key}{/tikz/femm/pair=\marg{options}}
+Declare a pair through ordinary picture, scope or body keys. Picture declarations
+are queued; body declarations apply immediately. The referenced paths must exist
+by the time meshing starts, and each path belongs to exactly one pair.
+\end{key}
+\begin{command}{\femmpair\oarg{options}}
+Equivalent immediate declaration in a started magnetic picture. Subkeys belong
+to |/femm/pair|. Each declaration resets its options before applying the supplied
+keys/styles. Multiple pairs may share corner vertices; contradictory nonzero
+Dirichlet values at an antiperiodic corner are rejected.
+\end{command}
+\begin{key}{/femm/pair/first=\meta{name} (initially empty)}
+Name of the source trace, declared with |type=periodic|.
+\end{key}
+\begin{key}{/femm/pair/second=\meta{name} (initially empty)}
+Name of the target trace. It must be a rigid image of the first trace.
+\end{key}
+\begin{key}{/femm/pair/type=\meta{choice} (initially periodic)}
+|periodic| imposes $A_2=A_1$; |antiperiodic| imposes $A_2=-A_1$.
+The transform maps the first trace onto the second.
+\end{key}
+\begin{key}{/femm/pair/rotation=\meta{angle} (initially 0)}
+Counterclockwise rotation in degrees about the specified centre, followed by
+translation. Reflections, scaling and sliding interfaces are not included.
+\end{key}
+\begin{key}{/femm/pair/center x=\meta{coordinate} (initially 0)}
+Abscissa of the rotation centre, in model units.
+\end{key}
+\begin{key}{/femm/pair/center y=\meta{coordinate} (initially 0)}
+Ordinate of the rotation centre, in model units.
+\end{key}
+\begin{key}{/femm/pair/shift x=\meta{distance} (initially 0)}
+Translation along the model $x$ axis after rotation, in model units.
+\end{key}
+\begin{key}{/femm/pair/shift y=\meta{distance} (initially 0)}
+Translation along the model $y$ axis after rotation, in model units.
+\end{key}
+\begin{key}{/femm/pair/tolerance=\meta{distance} (initially .001)}
+Positive matching tolerance in model units. It accommodates PGF coordinate
+rounding. Transformed points within this tolerance are projected onto the actual
+target trace. Choose a tolerance much smaller than the smallest relevant feature;
+it is not a licence to pair physically different boundaries.
+\end{key}
+
+Symmetry of the material distribution and sources remains a modelling
+responsibility. Synchronisation may reduce the minimum angle near a paired
+boundary; inspect the final mesh statistics. No automatic multiplication of
+energy, linkage or force measurements is performed. A sector energy can be
+summed over identical sectors; force vectors must also be rotated before summing.
+
+\begin{key}{/tikz/femm/repeat=\marg{options}}
+Drawing options for the pic |femm repeated field|. The pic reuses solved contours
+and the transform of a declared pair. Antiperiodic copies reverse their arrows.
+It neither duplicates material regions nor creates new profiles or measurements.
+\end{key}
+\begin{key}{/femm/repeat/copies=\meta{integer} (initially 2)}
+Number of copies including the solved sector, between 1 and 1000.
+\end{key}
+\begin{key}{/femm/repeat/pair=\meta{integer} (initially 1)}
+One-based index of the pairing declaration whose transform is repeated.
+\end{key}
+For a $60^\circ$ sector, set |femm/repeat={copies=6}| on a
+|femm repeated field| pic, as in the complete example above. Draw repeated
+outlines with ordinary TikZ paths, without registering additional physical regions.
+
+\subsection{Approximating an open exterior}
+On a circle of radius $R$, the decaying exterior angular mode of order $n$ obeys
+\[
+ A_z\propto r^{-n},\qquad
+ \mathbf H\cdot\mathbf t=\frac{n}{\mu_0 R}A_z.
+\]
+The |open| type installs this nonnegative Robin coefficient. It is exact for
+that mode on a true circle in source-free air; on a flattened circle with
+several angular modes it is an approximation. Enlarge the circle, refine its
+polygonalisation and compare the observables of interest. The native model
+checks that the adjacent elements are source-free air and that net longitudinal
+current vanishes. Include the return conductor of a winding.
+
+\begin{key}{/femm/frontier/radius=\meta{distance} (initially 1)}
+Positive circular radius in model units for |type=open|. The path must be a
+complete closed circle about the specified centre; its flattened vertices are
+checked allowing curve/coordinate approximation. This key does not draw or
+create the domain: declare the circular |femm/domain| separately.
+\end{key}
+\begin{key}{/femm/frontier/order=\meta{number} (initially 1)}
+Positive exterior decay exponent $n$. The default is the first multipole.
+Use another value only when the corresponding exterior angular symmetry is
+known; this local boundary does not implement a full spectral exterior operator.
+\end{key}
+\begin{key}{/femm/frontier/center x=\meta{coordinate} (initially 0)}
+Circular centre abscissa for |type=open|, in model units.
+\end{key}
+\begin{key}{/femm/frontier/center y=\meta{coordinate} (initially 0)}
+Circular centre ordinate for |type=open|, in model units.
+\end{key}
+
+\subsection{Material directions and sheet mixtures}
+For a linear material, the solver uses
+\[
+ \mathbf H=\frac{1}{\mu_0}\mathbf R(\alpha)
+ \begin{pmatrix}1/\mu_x&0\\0&1/\mu_y\end{pmatrix}
+ \mathbf R(\alpha)^T\mathbf B-H_c\mathbf m.
+\]
+The full symmetric tensor is used in assembly, field sampling and energy.
+Its principal axes and the coercive direction are independent.
+
+\begin{key}{/tikz/femm/materials/mu x=\meta{number} (initially empty)}
+Positive relative permeability along the first material principal axis.
+An omitted value inherits |mu r| or the selected library material.
+\end{key}
+\begin{key}{/tikz/femm/materials/mu y=\meta{number} (initially empty)}
+Positive relative permeability along the second principal axis. These keys are
+for linear media. Unequal principal permeabilities combined with a B--H curve
+are rejected; nonlinear anisotropy needs a separate constitutive model.
+\end{key}
+\begin{key}{/tikz/femm/materials/material angle=\meta{angle} (initially 0)}
+Counterclockwise orientation of the first principal axis in the physical model
+frame, in degrees. A TikZ transformation of a region changes its geometry; it
+does not silently rotate this numerical material direction. Set the angle
+explicitly when a component's physical orientation changes. Rotating the entire
+picture for presentation preserves the model-relative direction.
+\end{key}
+\begin{key}{/tikz/femm/materials/lamination=\meta{choice} (initially inherit)}
+|inherit| uses a supported catalogue choice or defaults to |none|. The
+|parallel x| and |parallel y| choices homogenise linear iron/air
+sheets parallel to the selected principal axis, before applying |material angle|.
+For fill $f$, permeability parallel to the sheets is $f\mu_r+1-f$; across them
+it is $(f/\mu_r+1-f)^{-1}$. Nonlinear sheet mixtures and laminated permanent
+magnets are rejected. The |stacked| choice mixes along both field-plane directions; its complex
+harmonic extension and thickness parameter are detailed in Section~\ref{sec:losses}.
+Catalogue nonlinear curves retain their existing static mixture interpretation.
+\end{key}
+\begin{key}{/tikz/femm/materials/lamination fill=\meta{fraction} (initially empty)}
+Iron fraction $0<f\leq1$. Empty inherits the catalogue value, otherwise defaults
+to one. A fraction below one requires a lamination choice.
+\end{key}
+\begin{key}{/tikz/femm/materials/conductivity=\meta{number} (initially empty)}
+Nonnegative conductivity in S/m. An omitted value inherits the catalogue value,
+converted from MS/m, or defaults to zero for a custom material. Conductivity
+enters the DC winding resistance. It does not introduce eddy currents.
+\end{key}
+
+\subsection{Spatial magnetisation without executable expressions}
+The region keys below describe the direction of $H_c\mathbf m$. Magnitude and
+recoil/B--H law still come from the material. The existing
+|magnetization angle| supplies the offset $\alpha_0$ in degrees. Centres and
+angles are defined in the physical model frame, independently of drawing styles.
+
+\begin{key}{/femm/region/magnetization=\meta{choice} (initially uniform)}
+|uniform| uses the constant offset. |radial| uses
+$\alpha=\alpha_0+\theta$; |tangential| uses
+$\alpha=\alpha_0+90^\circ+\theta$; |angular| uses
+$\alpha=\alpha_0+k\theta$, where
+$\theta=\operatorname{atan2}(y-y_c,x-x_c)$ expressed in degrees.
+For example |angular,magnetization order=2| describes a cylindrical Halbach
+angle law. The family is passive data: arbitrary Lua expressions are not run.
+\end{key}
+\begin{key}{/femm/region/magnetization center x=\meta{coordinate} (initially 0)}
+Abscissa $x_c$, in model units.
+\end{key}
+\begin{key}{/femm/region/magnetization center y=\meta{coordinate} (initially 0)}
+Ordinate $y_c$, in model units.
+\end{key}
+\begin{key}{/femm/region/magnetization order=\meta{number} (initially 1)}
+Multiplier $k$ for |angular|; ignored by the other presets. Positive, zero and
+negative finite values are accepted. Noninteger orders introduce an angular
+branch discontinuity; use them only on a domain where that is intentional.
+\end{key}
+
+Three symmetric quadrature points average the coercive direction in each
+triangle. The weak source, reported element $\mathbf H$ and energy use the same
+average. Its magnitude can be below one on coarse elements. Refine the magnet
+until the angular variation is resolved. A polar law is undefined at its centre;
+annular or sector-shaped magnets naturally avoid that point.
+
+The following complete example combines an angularly magnetised annulus, a
+circular open boundary and an ordinary field profile through its bore.
+\luafemmexample{static-open}
+
+\subsection{Named circuits and signed-turn windings}
+A circuit supplies a terminal current or voltage. It contains one or more named
+windings, each made from region legs. A leg's signed turn count determines the
+sign of its longitudinal current density. Group outgoing and returning legs
+under the same winding name. The default winding name is |main|.
+
+\begin{key}{/tikz/femm/circuit=\marg{options}}
+Declare a named circuit in picture options, scope options or the picture body.
+Picture options are queued until the problem is created. Duplicate circuit
+names are errors; every declared circuit must have at least one active leg.
+\end{key}
+\begin{command}{\femmcircuit\oarg{options}}
+Equivalent immediate command in a magnetic picture. Subkeys are in
+|/femm/circuit|, and defaults reset for each declaration.
+\end{command}
+\begin{key}{/femm/circuit/name=\meta{name} (initially empty)}
+Required problem-local circuit identifier.
+\end{key}
+\begin{key}{/femm/circuit/type=\meta{choice} (initially series)}
+|series| passes the terminal current through every winding. |parallel| splits
+it among named windings according to their DC conductances. Legs of one winding
+are always in series. Distinct parallel branches therefore need distinct
+|winding| names, even if each branch contains two return-path legs.
+\end{key}
+\begin{key}{/femm/circuit/drive=\meta{choice} (initially current)}
+|current| or |voltage|. This is a static resistive circuit model. There is no
+induced voltage, skin effect or time-dependent circuit equation.
+\end{key}
+\begin{key}{/femm/circuit/current=\meta{number} (initially 0)}
+Signed terminal current in amperes for current drive. Leave voltage at zero.
+\end{key}
+\begin{key}{/femm/circuit/voltage=\meta{number} (initially 0)}
+Signed terminal voltage in volts for voltage drive. Leave current at zero.
+\end{key}
+\begin{key}{/femm/region/circuit=\meta{name} (initially empty)}
+Associate a material region with a circuit. Its prescribed |current density|
+must be zero; the circuit supplies its excitation. This also applies to
+catalogue materials that carry a nonzero default source: explicitly set
+|current density=0| for those materials.
+\end{key}
+\begin{key}{/femm/region/winding=\meta{name} (initially main)}
+Group related outgoing/returning legs within the circuit.
+\end{key}
+\begin{key}{/femm/region/turns=\meta{number} (initially 1)}
+Finite, nonzero signed turn count $N$. Negative turns reverse $J_z$.
+A fractional effective count is allowed for homogenised winding models.
+\end{key}
+\begin{key}{/femm/region/winding fill=\meta{fraction} (initially 1)}
+Conductor area fraction $0<f\leq1$. It changes resistance, not the total
+ampere-turns or the material permeability.
+\end{key}
+\begin{key}{/femm/region/conductor length=\meta{distance} (initially 0)}
+Electrical length per turn of this leg, in model units. Zero inherits problem
+|depth|. An explicit larger value can account for allocated end-connection
+resistance; those extra lengths do not create an out-of-plane magnetic model.
+\end{key}
+
+Let $S$ be a leg's \emph{active} area after all material paint operations, $\ell$
+its electrical length, $\sigma$ its conductivity, and $I_w$ its winding current.
+The implementation uses
+\[
+ J_z=\frac{NI_w}{S},\qquad
+ R_{\rm leg}=\frac{N^2\ell}{\sigma fS}.
+\]
+Every active piece of the same leg shares this $J_z$. A completely overwritten
+leg is an error. Resistances add within each winding. Winding resistances add
+for a series circuit; conductances add for a parallel circuit. Positive
+conductivity and length are required for every parallel or voltage-driven
+winding. A current-driven series circuit can be solved without them, but its
+resistance, voltage and power are then unavailable.
+
+The complete example below sweeps current in a closed winding on an anisotropic
+core and plots flux linkage using the existing PGFPlots snapshot interface.
+\luafemmexample{static-circuits}
+
+\subsection{Measuring a circuit and interpreting inductance}
+\begin{key}{/femm/measure/quantity=circuit}
+Resolve a named circuit after solving and store an independent result snapshot.
+Use |\femmmeasure[name=coil-result,quantity=circuit,circuit=excitation]|.
+The ordinary |parameter| key supplies a PGFPlots sweep abscissa.
+\end{key}
+\begin{key}{/femm/measure/circuit=\meta{name} (initially empty)}
+Circuit identifier required by |quantity=circuit|. Region selections and profiles
+do not select circuit legs: their circuit/winding associations do.
+\end{key}
+
+The scalar result components are |current| (A), |voltage| (V), |resistance|
+($\Omega$), |power| (W), |linkage| (Wb) and |inductance| (H), subject to the
+availability conditions below. Use |\femmresult|, |\femmvalue| and
+|\femmresultplot| exactly as for other measurements. For magnetic depth $d$,
+\[
+ \lambda_w=d\sum_{\rm legs}\frac{N}{S}\int_S A_z\,dS.
+\]
+The triangle integral is exact for the P1 potential. Linkage is reported only
+when the signed turns sum to zero in \emph{each} winding, so adding a constant
+to $A_z$ cannot change it. An isolated conductor leg has no defined return path
+and is not reported as a gauge-independent coil inductance.
+
+For series windings the linkages add. For parallel windings the terminal linkage
+uses the fixed DC conductance weights $R_{\rm eq}/R_w$, consistently with the
+current split and magnetic energy. Problem depth is required for these measures.
+At nonzero current, |inductance| is the secant ratio $\lambda/I$, and is omitted
+when the model contains a permanent magnet. With multiple excited circuits it
+includes their contribution to linkage; it is not an independently identified
+self-inductance. Section~\ref{sec:operating} adds differential responses about a
+saved bias and explains how to obtain self and mutual inductances by exciting
+one port at a time. There is no automatic matrix-valued result. The resistance model includes only the declared conductor
+lengths and conductivities; temperature dependence and AC losses remain separate.
+
+\subsection{Interchange, caching and Lua entry points}
+The FEM exporter writes diagonal permeability in file axes, the resolved DC
+windings, and angular magnetisation laws. A rotated tensor with a nonzero cross
+term cannot be represented by FEMM's two permeability entries and is rejected.
+Linear sheet mixtures export their effective tensor. Parallel/voltage circuits
+export series winding records at their resolved operating currents; they do not
+retain a terminal voltage controller. Fill and electrical length are represented
+by an effective DC conductivity. See Section~\ref{sec:interchange} for the full
+contract and the distinction between source geometry and answer snapshots.
+
+Periodic chains are split into pairs of straight primitives, each with one FEMM
+periodic property. The importer accepts such straight pairs, diagonal linear
+anisotropy, linear directional laminations and the restricted passive angular
+expression grammar. Periodic circular-arc import, arbitrary executable angle
+expressions and FEMM parallel-circuit import remain explicitly unsupported.
+
+For spatial magnetisation, ANS output preserves the solved quadrature-averaged
+source with an elementwise block representation. It is a field snapshot: use
+the separate FEM export to edit the original angle law. ANS files also include
+periodic nodal records. The native cache retains the original model semantics;
+its revision is advanced so an older numerical cache cannot masquerade as a
+solution of the extended model.
+
+The main Lua entry points, independent of TeX, are:
+\begin{itemize}
+\item |luafemm-frontiers.domain(m, contours, fill_rule)|;
+\item |luafemm-frontiers.path(m, name, points, closed, options)|, with
+  |type|, |value|, |dx|, |dy|, |coefficient| and open-boundary parameters;
+\item |luafemm-frontiers.pair(m, first, second, options)|, with
+  |angle|, |x|, |y|, |cx|, |cy|, |sign| and |tolerance|;
+\item |luafemm.material(m, name, properties)| additionally accepts
+  |mur_x|, |mur_y|, |material_angle|, |lamination|, |lamination_fill| and
+  |conductivity|;
+\item |luafemm-static.region(region, options)| configures the returned region
+  with |magnetization|, |center_x|, |center_y|, |order|, |circuit|, |winding|,
+  |turns|, |fill| and |length|;
+\item |luafemm-static.circuit(m, name, options)| and
+  |luafemm-static.result(m, name)| declare and read a circuit.
+\end{itemize}
+Lua numerical arguments are numbers, not PGF expressions. Constructors copy
+geometry and validate physical inputs. These modules are original Lua
+implementations; neither a native mesher nor a native FEMM solver is needed
+when compiling a document.

@@ -1,0 +1,85 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\newbox\Calculation
+\tikzset{
+  femm/materials/core/.style={mu r=300,conductivity=2000000,loss angle=10,
+    lamination=stacked,lamination fill=.95,lamination thickness=\Thickness},
+  experiment/.style={femm/problem={frequency=\Frequency,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.45},
+    femm/circuit={name=drive,current=2}},
+  /femm/region/coil/.style={material=copper,circuit=drive,winding fill=.6,mesh size=.25}}
+\newcommand\Geometry{%
+  \path[femm/region={material=core,mesh size=.2}]
+    (-1,-3) rectangle (1,3);
+  \path[femm/region={coil,turns=-20}] (-4.7,-2) rectangle (-3.3,2);
+  \path[femm/region={coil,turns=20}] (3.3,-2) rectangle (4.7,2);}
+\newcommand\Paint{%
+  \filldraw[fill=blue!10,draw=blue!45!black] (-1,-3) rectangle (1,3);
+  \filldraw[fill=orange!25,draw=orange!60!black] (-4.7,-2) rectangle (-3.3,2);
+  \filldraw[fill=orange!25,draw=orange!60!black] (3.3,-2) rectangle (4.7,2);}
+\begin{document}
+\centering
+% Start with a coarser core mesh while choosing geometry and materials.
+% The sheet thickness is a constitutive parameter, not a mesh spacing.
+\foreach \Case/\Thickness in {thin/0.2,thick/0.5}{%
+  \foreach \Frequency in {50,100,200,500,1000,2000}{%
+    \setbox\Calculation=\hbox{%
+      \begin{tikzpicture}[experiment,
+        femm/cache={file=\jobname-\Case-\Frequency,mode=auto}]
+        \Geometry
+        \femmselect[name=core,material=core]
+        \femmmeasure[name=core-\Case-\Frequency,selection=core,parameter=\Frequency]
+        \femmmeasure[name=port-\Case-\Frequency,quantity=circuit,circuit=drive]
+      \end{tikzpicture}}}}
+\def\Frequency{2000}
+\foreach \Case/\Thickness in {thin/0.2,thick/0.5}{%
+  \begin{tikzpicture}[experiment,scale=3.3,
+    femm/cache={file=\jobname-\Case-\Frequency,mode=auto}]
+    \Geometry\Paint
+    \pic[femm/lines=16,femm/phase=0,femm/arrow spacing=14mm] {femm field};
+    \node[above] at (0,6) {$d=\Thickness\,\mathrm{mm}$, $f=2\,\mathrm{kHz}$};
+    \node[below,font=\small] at (0,-6)
+      {$P_{\rm core}=\femmvalue[component=magnetic_loss]{core-\Case-2000}$};
+  \end{tikzpicture}\hspace{5mm}}
+\par\medskip
+\def\Thin{core-thin-50,core-thin-100,core-thin-200,core-thin-500,core-thin-1000,core-thin-2000}
+\def\Thick{core-thick-50,core-thick-100,core-thick-200,core-thick-500,core-thick-1000,core-thick-2000}
+\begin{tikzpicture}
+\begin{loglogaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Core loss (W)},
+  legend style={font=\scriptsize,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\Thin},component=magnetic_loss,
+    plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{$d=0.2\,\mathrm{mm}$}
+  \femmresultplot[results={\Thick},component=magnetic_loss,
+    plot options={red!70!black,thick,mark=square*}]
+  \addlegendentry{$d=0.5\,\mathrm{mm}$}
+\end{loglogaxis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{loglogaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Loss components (W)},
+  legend style={font=\scriptsize,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\Thick},component=hysteresis_loss,
+    plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Intrinsic magnetic loss}
+  \femmresultplot[results={\Thick},component=lamination_loss,
+    plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Microscopic sheet Joule loss}
+\end{loglogaxis}
+\end{tikzpicture}
+\par\smallskip
+\small Illustrative linear material: $|\mu_r|=300$, loss angle $10^\circ$,
+$\sigma=2\,\mathrm{MS/m}$, stacking factor $0.95$. Sheets are parallel to the
+field plane; microscopic currents are represented by the effective material
+law. The magnetic contours have independent levels. Core losses exclude coil
+copper loss; excitation is 2 A peak at every frequency.
+\end{document}

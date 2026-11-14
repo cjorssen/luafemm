@@ -1,0 +1,202 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Getting started}
+\label{sec:start}
+\begin{tikzlibrary}{femm}
+  This library gives evaluated TikZ paths a physical meaning. It supplies
+  planar and axisymmetric magnetostatic models, a constrained triangular mesh, material
+  choices, oriented field lines and measurement paths. Computation runs
+  inside LuaTeX; no native solver or shell escape is required.
+\end{tikzlibrary}
+
+\subsection{Requirements and installation}
+Use a LuaTeX engine with Lua 5.3 or later, PGF/TikZ, and optionally PGFPlots
+for axes. The release was tested with LuaTeX/LuaHBTeX 1.24.0, PGF 3.1.12,
+PGFPlots 1.18.3 and ConTeXt MkIV 2026.09.10. It does not support pdfTeX,
+XeTeX, or ConTeXt MkII. ConTeXt LMTX is not part of the release test matrix.
+
+Copy the distribution's |tex| tree into a TEXMF tree; keep all Lua and
+generic TeX files together under |tex/luatex/luafemm|. The LaTeX wrapper
+belongs in |tex/luatex/luafemm| and the ConTeXt wrapper in
+|tex/luatex/luafemm|. Refresh the filename database if your TeX
+distribution requires it. Keep the supplied licence and provenance files
+with redistributed copies. From a source checkout, |make test|,
+|make examples| and |make manual| set up the search paths for you.
+
+\subsection{LaTeX}
+Either load the convenience package |luafemm| or load the libraries directly:
+\begin{codeexample}[code only]
+\documentclass{article}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+% Place a tikzpicture here.
+\end{document}
+\end{codeexample}
+Compile with |lualatex --no-shell-escape document.tex|.
+The package wrapper only loads TikZ and the generic library; PGFPlots
+remains optional.
+
+\subsection{Plain LuaTeX}
+\begin{codeexample}[code only]
+\input tikz.tex
+\input pgfplots.tex
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzpicture[femm/problem]
+  % Physical paths and field pictures.
+\endtikzpicture
+\bye
+\end{codeexample}
+Use |luatex --no-shell-escape document.tex|. The macros are identical to
+the LaTeX ones; |\tikzpicture|/|\endtikzpicture| and |\axis|/|\endaxis|
+replace the environment syntax.
+
+\subsection{ConTeXt MkIV}
+\begin{codeexample}[code only]
+\usemodule[luafemm]
+\usemodule[pgfplots]
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\starttext
+\starttikzpicture[femm/problem]
+  % Physical paths and field pictures.
+\stoptikzpicture
+\stoptext
+\end{codeexample}
+Compile with |context --luatex document.tex|, explicitly selecting MkIV.
+Use |\startaxis|/|\stopaxis| inside a |\starttikzpicture| for a graph.
+Loading |\usemodule[tikz]| followed by |\usetikzlibrary[femm]| is an
+alternative to the wrapper. Repeated loads are harmless.
+
+Appendix~\ref{sec:format-examples} provides the full source and rendered result
+for each format, including the shared scene. Throughout this manual, short
+self-contained examples show their result beside the code. Longer examples
+show the complete source followed by its compiled output; the listings are
+read directly from the distributed files. Empty paper margins are cropped
+when including a result, and large figures are scaled to fit the manual.
+Intermediate tutorial steps and
+configuration fragments are identified by their surrounding explanation.
+
+\subsection{A complete small model}
+The following example is executed while this manual is built. Its red
+rectangle is a permanent magnet pointing up. Every path declared as a
+region is also used by the mesher.
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[
+  femm/problem={xmin=-15,xmax=15,
+    ymin=-15,ymax=15,mesh size=2}]
+  \filldraw[femm/region={
+    material=cast-alnico-5-lng37,
+    magnetization angle=90},
+    fill=red!20]
+    (-3,-5) rectangle (3,5);
+  \pic[femm/lines=13] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{The order of operations}
+\label{sec:workflow}
+The document declares a model progressively. The following order is
+essential, including when the calculation comes from a cache:
+\begin{enumerate}
+\item Define reusable TikZ and material styles. A style definition alone
+  neither creates a model nor registers a physical region.
+\item Put |femm/problem| and any |femm/cache| options on the magnetic
+  |tikzpicture|. TikZ first reads its options and styles. luafemm then
+  creates one model in its begin-picture hook, using the final problem
+  options, and applies queued |femm/excitation| and |femm/boundary| declarations.
+  Boundary keys may occur before or after |femm/problem| in the option list.
+\item In the picture body, declare \emph{all} physical paths and component
+  nodes, and any additional boundary conditions or ideal-window excitations. A physical path is
+  registered when its capture postaction runs, after TikZ has resolved
+  its geometry. Later regions take precedence wherever their filled
+  portions overlap (Section~\ref{sec:domains}).
+\item Request a mesh, a solution or a computed field. The first such
+  request fixes the physical model: materials, regions and boundary
+  declarations must not follow it. A mesh picture alone already reaches
+  this point, even though it does not solve the field equations.
+\item Draw more field views, inspect numeric results and plot registered
+  measurement profiles. These reuse the prepared model. A profile may be
+  registered before or after meshing; its registration alone does not
+  compute anything. Its first sampling or plotting request solves its
+  source model if needed.
+\end{enumerate}
+
+\begin{center}\small
+\begin{tabular}{p{.49\linewidth}p{.42\linewidth}}
+\toprule Operation & Numerical effect \\
+\midrule
+|femm/region| or a component node & Register physical geometry \\
+|femm/profile| & Register a measurement curve only \\
+|\pic {femm mesh};| & Mesh if needed; freeze physical declarations \\
+|\femmsolve| or |\path[femm/solve];| & Mesh if needed, then solve \\
+|\pic {femm field};| & Solve if needed, then draw contours \\
+|\pic {femm mean path};| & Solve if needed, draw and optionally register a profile \\
+|\femmflux[profile=...]| & Solve the profile's model if needed, integrate section flux \\
+|\femmplot| inside an axis & Solve the profile's model if needed, then sample \\
+|\femmB|, |\femmstat| & Read an already solved model \\
+\bottomrule
+\end{tabular}
+\end{center}
+For example, the safe placement of an optional diagnostic mesh is
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[
+  femm/boundary={side=left,type=neumann},
+  femm/problem={xmin=-20,xmax=20,ymin=-20,ymax=20,mesh size=3}]
+  \path[femm/region={material=pure-iron}]
+    (-10,-10) rectangle (10,10);
+  \path[femm/profile={name=scan}] (-15,12)--(15,12);
+  % All physical declarations are now complete.
+  \pic {femm mesh};
+  \pic {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+Placing that mesh picture before a later material path is an error.
+Moving a boundary declaration into a graphical |scope| does not make it
+temporary: once registered, it belongs to the model. Ordinary drawing
+options remain governed by TeX grouping. Registering another profile or
+drawing labels after solving is allowed; adding physical keys to those
+labels or to |every path| can inadvertently attempt a late declaration.
+
+For custom |execute at begin picture| code that needs the model, put the
+hook after |femm/problem|. The order independence described above applies
+to the declarative boundary keys, not to arbitrary executable hooks.
+Cache hits obey the same lifecycle. Complete the declarations before any
+cache lookup triggered by a mesh, solve or sampling request; the cache
+cannot predict regions that will appear later in the document.
+
+\subsection{Notation, scope and stability}
+Options have the usual PGF |key=value| syntax. Most public keys start with
+|/tikz/femm|; lists introduced by |femm/problem|, |femm/region| and
+|femm/profile| have their own documented subkeys. Option values follow TeX
+grouping and may be inherited from styles or scopes; registered physical
+declarations persist in their model. A new named profile
+is a Lua object with document-wide lifetime; this is deliberately different
+from a local TeX option.
+
+The defaults in this manual are initial values unless described as a reset
+performed by a command. A ``number'' means a finite decimal or scientific
+literal without a TeX unit. Only keys explicitly documented as accepting
+PGF expressions evaluate such expressions. Graphic dimensions such as
+|arrow length| follow ordinary TikZ dimension syntax.
+
+The public interface comprises the keys and commands
+documented here. Macros containing |\luafemm@|, capture postactions, and
+the internal mesh layout are not extension interfaces. The Lua API is
+documented separately in Section~\ref{sec:development}; its internal
+tables should not be edited after meshing.
+
+\subsection{Order for a moving machine}
+A sliding-band declaration picture is mesh-only: declare all media and sources,
+then capture with |femm/sliding band| at its end. Request fields and measurements
+in subsequent pictures selecting that template and a |rotor angle|. A field or
+measurement before capture meshes too early and is rejected. See
+Section~\ref{sec:sliding} for the complete source/output example.

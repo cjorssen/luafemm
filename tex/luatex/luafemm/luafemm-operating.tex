@@ -1,0 +1,66 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic operating-point declarations and inherited-problem selectors.
+% Captures are bound to their picture. Circuit overrides use PGF's list parser;
+% no user key or numerical expression is evaluated as Lua source text.
+% Track the remaining physical choices as well as the interchange keys.
+\luafemm@trackproblem{mesher}{mesher}
+\pgfkeys{/femm/problem/field model/open/.append code={%
+  \edef\luafemm@explicitproblem{\luafemm@explicitproblem,field_model}},
+  /femm/problem/field model/ideal/.append code={%
+  \edef\luafemm@explicitproblem{\luafemm@explicitproblem,field_model}}}
+\pgfkeys{/femm/problem/operating point/.initial=,
+  /femm/problem/circuit currents/.initial=,
+  /femm/problem/circuit phases/.initial=,
+  /femm/problem/permeability/.initial=incremental,
+  /femm/problem/permeability/.is choice,
+  /femm/problem/permeability/incremental/.code={%
+    \pgfkeyssetvalue{/femm/problem/permeability}{incremental}},
+  /femm/problem/permeability/frozen/.code={%
+    \pgfkeyssetvalue{/femm/problem/permeability}{frozen}},
+  /femm/operating point/.is family,/femm/operating point,
+  name/.initial=,model/.initial=}
+\pgfkeys{/femm/response currents/.is family,
+  /femm/response currents/.unknown/.code={%
+    \edef\luafemm@responsecircuit{\pgfkeyscurrentname}%
+    \begingroup
+      \pgfkeys{/pgf/fpu=true}\pgfmathparse{#1}%
+      \pgfmathfloattofixed{\pgfmathresult}%
+      \directlua{luafemm.tex.operating_currents['\luaescapestring{\luafemm@responsecircuit}'] =
+        luafemm.tex.number('\luaescapestring{\pgfmathresult}','circuit current')}%
+    \endgroup}}
+\pgfkeys{/femm/response phases/.is family,
+  /femm/response phases/.unknown/.code={%
+    \edef\luafemm@responsecircuit{\pgfkeyscurrentname}%
+    \begingroup
+      \pgfkeys{/pgf/fpu=true}\pgfmathparse{#1}%
+      \pgfmathfloattofixed{\pgfmathresult}%
+      \directlua{luafemm.tex.operating_phases['\luaescapestring{\luafemm@responsecircuit}'] =
+        luafemm.tex.number('\luaescapestring{\pgfmathresult}','circuit phase')}%
+    \endgroup}}
+\def\luafemm@responsecurrents{%
+  \directlua{luafemm.tex.operating_currents = {}; luafemm.tex.operating_phases = {}}%
+  \edef\luafemm@responsevalues{\luafemm@problemvalue{circuit currents}}%
+  \ifx\luafemm@responsevalues\pgfutil@empty\else
+    \expandafter\luafemm@parseresponsecurrents\expandafter{\luafemm@responsevalues}\fi
+  \edef\luafemm@responsevalues{\luafemm@problemvalue{circuit phases}}%
+  \ifx\luafemm@responsevalues\pgfutil@empty\else
+    \expandafter\luafemm@parseresponsephases\expandafter{\luafemm@responsevalues}\fi}
+\def\luafemm@parseresponsecurrents#1{\pgfqkeys{/femm/response currents}{#1}}
+\def\luafemm@parseresponsephases#1{\pgfqkeys{/femm/response phases}{#1}}
+\tikzset{femm/operating point/.code={%
+  \tikzset{execute at end picture={%
+    \femmoperatingpoint[#1,model=\luafemm@picturemodel]}}}}
+\protected\def\femmoperatingpoint{%
+  \pgfutil@ifnextchar[{\luafemm@operatingpoint}{\luafemm@operatingpoint[]}}
+\def\luafemm@operatingpoint[#1]{%
+  \begingroup
+    \pgfqkeys{/femm/operating point}{name=,model=,#1}%
+    \directlua{luafemm.tex.operating_point(
+      '\luaescapestring{\pgfkeysvalueof{/femm/operating point/name}}',
+      '\luaescapestring{\pgfkeysvalueof{/femm/operating point/model}}')}%
+  \endgroup}
+\endinput
