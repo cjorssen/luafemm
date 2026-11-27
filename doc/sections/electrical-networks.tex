@@ -1,0 +1,344 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Electrical networks and IEC schematics}
+\label{sec:electrical-networks}
+
+A winding is both a magnetic source and an electrical port. Connecting a resistor
+in series with it changes its current; placing a second winding nearby changes
+its harmonic terminal voltage even without an electrical connection. A network
+therefore shares its winding ports with the field calculation. Its wires describe
+logical connections, independently of the coordinates used to draw them.
+
+The electrical model is available through the main |femm| library. Load the
+optional |femm.circuits.ee.IEC| library to declare data on IEC symbols or display
+those data in an electrical schematic. The interface uses native TikZ |node|,
+|to|, |info| and symbol styles. An ordinary unannotated symbol has no physical
+effect. The following loading instruction is also executed for this chapter.
+\begin{codeexample}[setup code]
+\usetikzlibrary{femm.circuits.ee.IEC}
+\end{codeexample}
+
+\subsection{Connect a source, a resistance and a winding}
+Declare the circuit, then the network, then its elements. The terminals |p| and
+|n| are electrical identifiers: the voltage is $U=V(p)-V(n)$ and positive current
+flows from |p| to |n|. Repeating an identifier makes a connection; crossing two
+lines in a drawing does not. Node |0| is the default voltage reference.
+
+\luafemmexamplebegin{electrical-network}
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[
+  femm/problem={name=network-demo,frequency=200,
+    xmin=-10,xmax=10,ymin=-8,ymax=8,mesh size=1,depth=20},
+  femm/circuit={name=coil,drive=network},
+  femm/network={name=supply},
+  femm/element={name=source,kind=voltage source,p=a,n=0,value=1},
+  femm/element={name=load,kind=resistor,p=a,n=b,value=2},
+  femm/element={name=winding,kind=winding,p=b,n=0,circuit=coil},
+  scale=2]
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=coil,turns=20}]
+    (-6,-4) rectangle (-4,4);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=coil,turns=-20}]
+    (4,-4) rectangle (6,4);
+  \femmmeasure[name=coil-terminal,quantity=circuit,circuit=coil]
+  \femmmeasure[name=coil-element,quantity=network,element=winding]
+  \pic[femm/lines=10] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+The winding symbol below refers to the already computed field port. It does not
+add a lumped inductance or count copper resistance a second time. The external
+$2\,\Omega$ resistor is a distinct component. The source's prescribed voltage
+is a peak amplitude; its phase defaults to zero.
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[circuit ee IEC]
+  \draw (0,0) to[voltage source={info={$1\,\mathrm V$}}] (0,2)
+    to[resistor={info={$2\,\Omega$}}] (4,2)
+    to[inductor={femm/ee={model=network-demo,
+      element=winding,result=coil-element,values=solution,
+      show=current,representation=rms}}] (4,0) -- (0,0);
+\end{tikzpicture}
+\end{codeexample}
+
+A canonical branch view is useful when the topology was declared without a
+schematic. Repeated terminal labels denote the same electrical node. The branch
+view keeps each connection explicit without an automatic wire-routing heuristic.
+Use ordinary TikZ placement when a conventional loop or bridge drawing is wanted.
+\begin{codeexample}[]
+\begin{tikzpicture}
+  \pic[femm/ee view={model=network-demo}] {femm ee circuit};
+\end{tikzpicture}
+\end{codeexample}
+\luafemmexampleend{electrical-network}
+
+\subsection{Let a symbol declare the excitation}
+Declarations are optional. Set |mode=declare| on a symbol to forward its physical
+options to the same circuit or element interface used above. Only the symbol
+that owns the declaration uses this mode; other views use |mode=view|. Repeating
+a declaration is an error, rather than an implicit change of the source.
+
+Finish all physical declarations before a field picture, measurement or solve.
+Afterwards, results may be displayed in several pictures. Rendering a view does
+not start a calculation. This separation avoids solving a half-declared network
+when TikZ typesets an early label.
+\luafemmexamplebegin{iec-declaration}
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[circuit ee IEC,
+  femm/problem={name=iec-coil,xmin=-10,xmax=10,
+    ymin=-8,ymax=8,mesh size=1,depth=20}]
+  \draw (35,-8) to[current source={femm/ee={mode=declare,
+    circuit=drive,circuit options={current=2},show=current}}] (35,8);
+  \path[femm/region={material=copper,circuit=drive,turns=20}]
+    (-6,-4) rectangle (-4,4);
+  \path[femm/region={material=copper,circuit=drive,turns=-20}]
+    (4,-4) rectangle (6,4);
+  \femmmeasure[name=iec-result,quantity=circuit,circuit=drive]
+  \pic[femm/lines=8] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+The reverse direction uses the same circuit declaration and a saved measurement.
+Its source and winding are generated as a simple loop. All distances here are
+schematic distances; they do not change the winding geometry.
+\begin{codeexample}[]
+\begin{tikzpicture}
+  \pic[femm/ee view={model=iec-coil,circuit=drive,
+    result=iec-result,values=solution,show=voltage}] {femm ee circuit};
+\end{tikzpicture}
+\end{codeexample}
+\luafemmexampleend{iec-declaration}
+
+\subsection{Prescribe flux linkage and determine current}
+A current drive specifies $I$ and computes $\lambda$. A linkage drive specifies
+$\lambda$ and solves for $I$ together with the field. This inverse problem retains
+nonlinear magnetic materials and permanent-magnet offsets. It does not divide
+the target by a constant inductance. The displayed current below is computed.
+\luafemmexamplebegin{prescribed-linkage}
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[
+  femm/problem={xmin=-10,xmax=10,ymin=-8,ymax=8,
+    mesh size=1,depth=20},
+  femm/circuit={name=controlled,drive=linkage,linkage=2e-5},scale=2]
+  \filldraw[fill=gray!25,femm/region={material=armco-pure-iron}]
+    (-2,-5) rectangle (2,5);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=controlled,turns=20}]
+    (-6,-4) rectangle (-4,4);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=controlled,turns=-20}]
+    (4,-4) rectangle (6,4);
+  \femmmeasure[name=controlled-terminal,quantity=circuit,circuit=controlled]
+  \pic[femm/lines=10] {femm field};
+  \node[above] at (0,9) {$I=\femmvalue[component=current]{controlled-terminal}$};
+\end{tikzpicture}
+\end{codeexample}
+\luafemmexampleend{prescribed-linkage}
+
+\subsection{Electrical declaration reference}
+\label{sec:network-keys}
+All declarations belong to the current magnetic model and precede meshing.
+Identifiers contain letters, digits, underscores or hyphens. One network per
+model is supported; every node must be connected topologically to its reference.
+Floating electrical systems, contradictory ideal sources and singular constraint
+systems produce errors. A circuit port may appear in only one winding element.
+
+\begin{command}{\femmnetwork\oarg{options}}
+Declare a named network with the keys below. The equivalent picture/path key is
+|/tikz/femm/network={options}|; picture-level declarations execute in their
+written order when the model starts.
+\end{command}
+\begin{key}{/tikz/femm/network=\marg{options}}
+Equivalent to |\femmnetwork|. The key has no physical effect until applied.
+\end{key}
+\begin{key}{/femm/network/name=\meta{identifier} (initially empty)}
+Required network name, local to the magnetic model.
+\end{key}
+\begin{key}{/femm/network/ground=\meta{node} (initially 0)}
+Electrical reference node with zero scalar voltage. This is separate from the
+magnetic potential gauge and does not impose $A_z=0$ at a geometric point.
+\end{key}
+\begin{command}{\femmelement\oarg{options}}
+Declare one oriented electrical branch. The same options can be supplied to
+|/tikz/femm/element|. Command defaults are reset on each invocation;
+PGF styles may supply shared parameters.
+\end{command}
+\begin{key}{/tikz/femm/element=\marg{options}}
+Forward an element declaration. It may be placed on an IEC symbol even without
+the optional adapter; native graphical labels remain independently customisable.
+\end{key}
+\begin{key}{/femm/element/name=\meta{identifier} (initially empty)}
+Required unique branch name within the network.
+\end{key}
+\begin{key}{/femm/element/kind=\meta{choice} (initially resistor)}
+One of |resistor|, |inductor|, |capacitor|, |current source|, |voltage source|,
+or |winding|. A winding binds a complete named FE circuit, including its supported
+series/parallel internal branches. Other kinds are ideal lumped components.
+\end{key}
+\begin{key}{/femm/element/p=\meta{node} (initially empty)}
+Required positive voltage terminal and positive-current entry terminal.
+\end{key}
+\begin{key}{/femm/element/n=\meta{node} (initially empty)}
+Required negative voltage terminal, distinct from |p|.
+\end{key}
+\begin{key}{/femm/element/value=\meta{number} (initially 0)}
+Resistance in ohms, inductance in henries, capacitance in farads, source current
+in amperes or source voltage in volts. Passive values must be positive; source
+values may be signed. At nonzero frequency, source values are peak amplitudes.
+A winding requires zero: its impedance is calculated from the FE model.
+\end{key}
+\begin{key}{/femm/element/phase=\meta{degrees} (initially 0)}
+Temporal phase of an independent harmonic source. Passive components and winding
+bindings require zero. A DC problem also requires zero.
+\end{key}
+\begin{key}{/femm/element/circuit=\meta{identifier} (initially empty)}
+Required for |kind=winding| and forbidden for other kinds. The named circuit
+must use |drive=network|. Its material conductivity and conductor length must
+permit a finite positive winding resistance.
+\end{key}
+
+\begin{key}{/femm/circuit/drive=\meta{choice} (initially current)}
+In addition to |current| and |voltage|, use |network|, |linkage| or |flux|.
+A network drive gets its current and voltage from its electrical connection.
+Linkage and flux drives require a series circuit; planar windings must close
+their signed turns. Prescribe only the selected excitation quantity; unused
+|current|, |voltage|, |linkage| and |flux| values must be zero.
+\end{key}
+\begin{key}{/femm/circuit/linkage=\meta{weber} (initially 0)}
+Target flux linkage $\lambda=\sum N_k\Phi_k$ for |drive=linkage|. The static value
+is signed; the harmonic value uses the circuit's peak amplitude and |phase|.
+\end{key}
+\begin{key}{/femm/circuit/flux=\meta{weber} (initially 0)}
+Target mean linked flux per reference turn for |drive=flux|. The imposed
+constraint is $\lambda=N_{\rm ref}\Phi$. This is a winding observable, not a
+claim that leakage vanishes or that every geometric cross section carries the
+same flux. Use |flux turns| to define $N_{\rm ref}$ explicitly.
+\end{key}
+\begin{key}{/femm/circuit/flux turns=\meta{positive number} (initially 1)}
+Reference turn count for the preceding conversion. It does not replace the
+signed region |turns| used to excite the field or compute winding resistance.
+\end{key}
+
+\subsection{Measurements and plotting}
+\begin{key}{/femm/measure/quantity=network}
+Measure the electrical network after solving. With neither |element| nor |node|,
+the result includes the signed sum of absorbed powers and absolute residuals
+|kcl_residual| (A) and |branch_residual| (mixed branch-law units, reported as a
+maximum diagnostic rather than a physical scalar). Field convergence is checked
+separately. Use named results with |\femmvalue|, |\femmresult| and
+|\femmresultplot| exactly as for circuit measurements.
+\end{key}
+\begin{key}{/femm/measure/element=\meta{identifier} (initially empty)}
+For |quantity=network|, select branch current, voltage, absorbed |power| and
+|reactive_power|. Harmonic components use the suffixes |_real|, |_imaginary|,
+|_amplitude|, |_rms| and |_phase|. A zero phasor has no phase. A source supplying
+energy has negative absorbed power under the passive reference convention.
+\end{key}
+\begin{key}{/femm/measure/node=\meta{identifier} (initially empty)}
+For |quantity=network|, select node voltage relative to |ground|. Mutually
+exclusive with |element|. DC branch results also provide |current| and |voltage|.
+\end{key}
+
+\subsection{IEC view reference}
+\label{sec:ee-keys}
+\begin{key}{/tikz/femm/ee=\marg{options} (default empty)}
+Bind or declare a physical item on a native IEC symbol. The options below inherit
+in the current TikZ scope. The generated label uses native |info|; a later |info|
+option can replace or reposition it. Reusable |every inductor| or custom TikZ
+styles may bind views, but a declaration must occur exactly once.
+\end{key}
+\begin{key}{/tikz/femm/ee view=\marg{options}}
+Configure a passive generated pic without declaring a physical object or placing
+an |info| label on the surrounding scope.
+\end{key}
+\begin{key}{/femm/ee/mode=\meta{choice} (initially view)}
+|view| reads existing data. |declare| forwards |circuit options| or |element options| before displaying the item. An ordinary IEC symbol without |femm/ee|
+never registers an electrical object.
+\end{key}
+\begin{key}{/femm/ee/model=\meta{name} (initially empty)}
+Select a named model. If empty, the named result supplies its model; otherwise
+the current model is used. An explicit model and result must agree.
+\end{key}
+\begin{key}{/femm/ee/circuit=\meta{name} (initially empty)}
+Bind an existing winding circuit, or name a circuit to declare. Mutually exclusive
+with |element|. Names in automatically generated labels are safely typeset.
+\end{key}
+\begin{key}{/femm/ee/element=\meta{name} (initially empty)}
+Bind or declare a network element. It must belong to the selected model.
+\end{key}
+\begin{key}{/femm/ee/circuit options=\marg{keys} (initially empty)}
+Options forwarded to |\femmcircuit| in declaration mode. The view's |circuit|
+provides the name. Use the ordinary circuit key family and its styles.
+\end{key}
+\begin{key}{/femm/ee/element options=\marg{keys} (initially empty)}
+Options forwarded to |\femmelement| in declaration mode. The view's |element|
+provides the name. The network must already exist.
+\end{key}
+\begin{key}{/femm/ee/result=\meta{name} (initially empty)}
+Saved result used for solution values. A circuit view requires a measurement of
+that circuit; an element view requires a measurement of that element.
+\end{key}
+\begin{key}{/femm/ee/values=\meta{choice} (initially input)}
+|input| displays explicitly prescribed quantities. |solution| displays a completed
+named measurement. An unavailable quantity is an error; labels never guess a
+voltage, a current or a phase and never implicitly solve the model.
+\end{key}
+\begin{key}{/femm/ee/show=\marg{list} (initially name)}
+Comma-separated |name|, |current|, |voltage|, |power| or |linkage|; |none| suppresses
+the generated content. Several quantities share one label. Native |info| and
+|info'| can provide an alternative layout using |\femmvalue|.
+\end{key}
+\begin{key}{/femm/ee/representation=\meta{choice} (initially amplitude)}
+Harmonic display: |amplitude|, |rms|, |real|, |imaginary| or |phase|. Powers are
+already cycle averages. DC quantities remain signed real values. This choice
+changes only the displayed solution, never the prescribed physical source.
+\end{key}
+\begin{key}{/femm/ee/reference=\meta{choice} (initially forward)}
+|forward| uses the physical port reference. |reverse| reverses both displayed
+current and voltage references (and linkage); signed components change sign,
+phase changes by $180^\circ$, magnitudes and absorbed power remain unchanged.
+The drawing's own arrow orientation is controlled by native TikZ options.
+\end{key}
+\begin{stylekey}{/tikz/femm ee wire}
+Generated wires default to |semithick|. Append colour, line width or other ordinary
+TikZ drawing options without changing the calculation.
+\end{stylekey}
+\begin{key}{/tikz/pics/femm ee circuit}
+With |circuit|, draw a current/voltage source and winding loop. With neither
+|circuit| nor |element|, draw the selected model's network as a labelled branch
+list. Repeated node names mean electrical connection. The latter view displays
+input names; measured branch annotations can be added on hand-placed symbols.
+The internal layout uses centimetre basis vectors; surrounding transformations
+and ordinary TikZ styling remain available.
+\end{key}
+
+\subsection{Equations and limits}
+At angular frequency $\omega$, a resistor obeys $U=RI$, an ideal inductor
+$U=\mathrm i\omega LI$ and a capacitor $I=\mathrm i\omega CU$. At zero frequency,
+these become an exact short circuit and open circuit respectively. No artificial
+leak resistance is inserted. The graph uses explicit branch currents and nodal
+voltages, while FE winding currents and induced voltages are solved with the
+magnetic response. Mutual coupling, supported solid-conductor redistribution and
+wire losses are retained. Peak phasors give
+$\langle P\rangle=\tfrac12\Re(U\overline I)$.
+
+Static linkage constraints use a damped Newton solve and an explicitly eliminated
+constraint system. The magnetic tangent is solved with the selected field solver;
+the small circuit system uses scaled pivoting. Harmonic linkage constraints use
+the complex coupled response. Static magnetic nonlinearity remains supported;
+nonlinear switching devices, time-domain RLC state and general nonlinear harmonic
+networks are outside this model. Electrical voltages are lumped terminal quantities,
+not differences of the magnetic vector potential.
+
+Declare networks on native magnetic problems. Network-bearing models cannot be
+captured as operating points or moving templates. Those captures retain their
+existing prescribed-current contract.
+
+Network topology and excitation data enter the solution cache; diagram layout and
+labels do not. Prescribed-linkage currents are saved with the field. The general
+network and linkage constraints have no exact representation as FEMM's ordinary
+circuit properties. Export therefore rejects them; construct a separate terminal-
+equivalent problem when exchanging a particular solved operating condition.

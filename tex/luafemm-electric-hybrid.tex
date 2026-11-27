@@ -1,0 +1,75 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Typed singular-source nodes. Their circle anchors are purely visual; the
+% draw hook records the final transformed centre once, like point-charge nodes.
+\pgfkeys{/femm/electrostatic/model/source correction/.code={%
+  \pgfkeyssetvalue{/femm/electrostatic/model}{source correction}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electric source/.is family,/femm/electric source,
+  kind/.initial={line charge},kind/.is choice,
+  kind/line charge/.code={\pgfkeyssetvalue{/femm/electric source/kind}{line charge}},
+  kind/axis point charge/.code={\pgfkeyssetvalue{/femm/electric source/kind}{axis point charge}},
+  charge/.initial={},charge per length/.initial={},
+  source guard radius/.initial=.1,exclusion radius/.initial=.22}
+\tikzset{femm/electric source/.code={%
+    \pgfqkeys{/femm/electric source}{#1}%
+    \tikzset{femm charge,shape=femm electric source}},
+  femm/electric source/.default={}}
+% An absent strength must cross the adapter as empty, not as numerical zero.
+\def\luafemm@sourceoptional#1#2{%
+  \edef#2{\pgfkeysvalueof{/femm/electric source/#1}}%
+  \ifx#2\pgfutil@empty\else\luafemm@staticnumber{/femm/electric source/#1}#2\fi}
+\pgfdeclareshape{femm electric source}{%
+  \inheritsavedanchors[from=circle]
+  \inheritanchorborder[from=circle]
+  \inheritbackgroundpath[from=circle]
+  \inheritanchor[from=circle]{center}
+  \inheritanchor[from=circle]{text}
+  \inheritanchor[from=circle]{base}
+  \inheritanchor[from=circle]{mid}
+  \inheritanchor[from=circle]{north}
+  \inheritanchor[from=circle]{south}
+  \inheritanchor[from=circle]{east}
+  \inheritanchor[from=circle]{west}
+  \inheritanchor[from=circle]{north east}
+  \inheritanchor[from=circle]{north west}
+  \inheritanchor[from=circle]{south east}
+  \inheritanchor[from=circle]{south west}
+  \behindbackgroundpath{%
+    \ifpgfmatrix\pgferror{luafemm: electric sources require immediate node placement}\else
+    \ifpgflatenodepositioning\pgferror{luafemm: electric sources require immediate node placement}\else
+      \begingroup
+      \luafemm@sourceoptional{charge}\luafemm@q
+      \luafemm@sourceoptional{charge per length}\luafemm@lambda
+      \luafemm@staticnumber{/femm/electric source/source guard radius}\luafemm@guard
+      \luafemm@staticnumber{/femm/electric source/exclusion radius}\luafemm@radius
+      \pgfgettransform\luafemm@electrictransform
+      \centerpoint
+      \directlua{require('luafemm-electric-tex').source('\luafemm@electricid',
+        '\luaescapestring{\luafemm@electrictransform}','\the\pgf@x','\the\pgf@y',{
+        kind='\luaescapestring{\pgfkeysvalueof{/femm/electric source/kind}}',
+        charge='\luaescapestring{\luafemm@q}',charge_per_length='\luaescapestring{\luafemm@lambda}',
+        guard_radius='\luaescapestring{\luafemm@guard}',radius='\luaescapestring{\luafemm@radius}'})}%
+      \endgroup
+    \fi\fi}}
+% Adaptive contour controls supplement the common grid-resolution control.
+\pgfkeys{/femm/electric/contour tolerance/.initial=.002,
+  /femm/electric/maximum contour depth/.initial=8,
+  /femm/electric/maximum contour cells/.initial=250000}
+\pgfkeys{/femm/electrostatic/source quadrature tolerance/.initial=.000001,
+  /femm/electrostatic/source quadrature tolerance/.code={%
+    \pgfkeyssetvalue{/femm/electrostatic/source quadrature tolerance}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/maximum source quadrature depth/.initial=8,
+  /femm/electrostatic/maximum source quadrature depth/.code={%
+    \pgfkeyssetvalue{/femm/electrostatic/maximum source quadrature depth}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/maximum source quadrature cells/.initial=250000,
+  /femm/electrostatic/maximum source quadrature cells/.code={%
+    \pgfkeyssetvalue{/femm/electrostatic/maximum source quadrature cells}{#1}\def\luafemm@classicexplicit{1}}}
+
+% Finite charging work is explicitly distinct from total self-energy.
+\pgfkeys{/femm/electric value/quantity/source interaction energy/.code={%
+ \pgfkeyssetvalue{/femm/electric value/quantity}{source interaction energy}},
+ /femm/electric value/quantity/source interaction energy per length/.code={%
+ \pgfkeyssetvalue{/femm/electric value/quantity}{source interaction energy per length}}}

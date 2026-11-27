@@ -1,0 +1,42 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\begin{tikzpicture}[femm/electrostatic={model=source correction,
+    problem type=axisymmetric,xmin=0,xmax=1.6,ymin=-1.6,ymax=1.6,
+    mesh size=.15,name=spherical source},scale=1.4]
+  \draw[gray!40] (0,-1.6) rectangle (1.6,1.6);
+  \draw[dash dot,gray] (0,-1.6)--(0,1.6) node[above] {$z$};
+  \draw[very thick,blue!60!black,
+    femm/electric electrode={potential=0,interior=dielectric}]
+    (0,-1.2) arc[start angle=-90,end angle=90,radius=1.2];
+  \node[femm/electric source={kind=axis point charge,charge=1e-12,
+    source guard radius=.1,exclusion radius=.22},fill=red!15]
+    at (0,.3) {$+$};
+  \pic[femm/electric={lines per charge=12,step=.04}]
+    {femm electric field};
+  \pic[femm/electric={levels={.1,.3,.6,1,2},contour resolution=40}]
+    {femm equipotentials};
+  \draw[densely dotted,femm/electric profile={name=sphere trace,samples=101}]
+    (.15,0)--(1.1,0) node[above left] {$\Gamma$};
+  \node[above right] at (.85,.85) {$V=0$};
+\end{tikzpicture}
+
+\begin{tikzpicture}
+  \begin{axis}[width=9cm,height=5cm,xmin=.15,xmax=1.1,
+    xlabel={$r$ (cm)},ylabel={$V$ (V)},grid=major,
+    legend style={at={(.5,1.03)},anchor=south}]
+    \femmelectricplot[profile=sphere trace,component=V,abscissa=r,
+      plot options={blue,thick,mark=none}]
+    \addlegendentry{Source correction}
+    \addplot[orange!80!black,dashed,thick,domain=.15:1.1,samples=81]
+      {.898755179226*(1/sqrt(x*x+.09)-4/sqrt(x*x+23.04))};
+    \addlegendentry{Spherical image formula}
+  \end{axis}
+\end{tikzpicture}
+\end{document}

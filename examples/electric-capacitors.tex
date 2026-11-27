@@ -1,0 +1,111 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\begin{tikzpicture}[femm/electrostatic={model=parallel plate capacitor,
+    separation=1,normal angle=90,voltage=100,name=lesson plates,
+    xmin=-2,xmax=2,ymin=-1,ymax=1}]
+  \pic[femm/electric={plate span=4.4}] {femm electric geometry};
+  \pic[femm/electric={lines per charge=9}] {femm electric field};
+  \pic[femm/electric={levels={20,40,60,80}}] {femm equipotentials};
+  \node[below] at (0,-.5) {$100\,\mathrm V$};
+  \node[above] at (0,.5) {$0\,\mathrm V$};
+  \path[femm/electric profile={name=plate normal,samples=121}]
+    (0,-1)--(0,1);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm,no markers,grid=major,
+  xlabel={$y$ (cm)},ylabel={$V$ (V)}]
+  \femmelectricplot[profile=plate normal,component=V,abscissa=y,
+    plot options={blue!70!black,thick}]
+\end{axis}
+\end{tikzpicture}
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm,no markers,grid=major,
+  xlabel={$y$ (cm)},ylabel={$E_y$ (V/m)}]
+  \femmelectricplot[profile=plate normal,component=Ey,abscissa=y,
+    plot options={red!70!black,thick}]
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\tikzset{lesson capacitor/.style={femm/electrostatic={
+  inner radius=.7,outer radius=1.4,voltage=100,
+  xmin=-1.6,xmax=1.6,ymin=-1.6,ymax=1.6}}}
+
+\par\medskip
+\begin{tikzpicture}[lesson capacitor,
+    femm/electrostatic={model=cylindrical capacitor,name=lesson coax}]
+  \pic {femm electric geometry};
+  \pic {femm electric field};
+  \pic[femm/electric={levels={20,40,60,80}}] {femm equipotentials};
+  \node at (0,0) {$100\,\mathrm V$};
+  \path[femm/electric profile={name=coax radius,samples=161}] (0,0)--(1.6,0);
+\end{tikzpicture}
+\begin{tikzpicture}[lesson capacitor,
+    femm/electrostatic={model=spherical capacitor,name=lesson spherical}]
+  \pic {femm electric geometry};
+  \pic {femm electric field};
+  \pic[femm/electric={levels={20,40,60,80}}] {femm equipotentials};
+  \node at (0,0) {$100\,\mathrm V$};
+  \path[femm/electric profile={name=spherical radius,samples=161}]
+    (0,0)--(1.6,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$r$ (cm)},ylabel={$V$ (V)},legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmelectricplot[profile=coax radius,component=V,abscissa=x,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Cylindrical}
+  \femmelectricplot[profile=spherical radius,component=V,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Spherical}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$r$ (cm)},ylabel={$E_r$ (V/m)},legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmelectricplot[profile=coax radius,component=Ex,abscissa=x,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Cylindrical}
+  \femmelectricplot[profile=spherical radius,component=Ex,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Spherical}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+$C/A=\femmelectricvalue[model=lesson plates,
+  quantity=capacitance per area]\,\mathrm{F/m^2}$,\quad
+$C/L=\femmelectricvalue[model=lesson coax,
+  quantity=capacitance per length]\,\mathrm{F/m}$.
+\par
+$C=\femmelectricvalue[model=lesson spherical,
+  quantity=capacitance]\,\mathrm F$,\quad
+$W=\femmelectricvalue[model=lesson spherical,quantity=energy]\,\mathrm J$.
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={snapshot=lesson spherical},rotate=15,
+  femm electric conductor/.append style={fill=gray!20},
+  femm electric field/.append style={draw=green!45!blue}]
+  \pic {femm electric geometry};
+  \draw[gray,densely dotted,femm/electric seeds={samples=5}]
+    (.9,-.35)--(.9,.35);
+  \pic {femm electric field};
+\end{tikzpicture}
+
+\end{document}

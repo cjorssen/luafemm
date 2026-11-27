@@ -1,0 +1,260 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Physical source declarations are separate from the camera and view styles.
+\def\luafemm@biotid{}
+\def\luafemm@biotexplicit{}
+\pgfkeys{/femm/biot/.is family,/femm/biot,
+ length unit/.initial={cm},
+ length unit/.is choice,
+ length unit/m/.code={\pgfkeyssetvalue{/femm/biot/length unit}{m}\def\luafemm@biotexplicit{1}},
+ length unit/cm/.code={\pgfkeyssetvalue{/femm/biot/length unit}{cm}\def\luafemm@biotexplicit{1}},
+ length unit/mm/.code={\pgfkeyssetvalue{/femm/biot/length unit}{mm}\def\luafemm@biotexplicit{1}},
+ length unit/um/.code={\pgfkeyssetvalue{/femm/biot/length unit}{um}\def\luafemm@biotexplicit{1}},
+ relative permeability/.initial={1},
+ relative permeability/.code={\pgfkeyssetvalue{/femm/biot/relative permeability}{#1}\def\luafemm@biotexplicit{1}},
+ quadrature tolerance/.initial={1e-5},
+ quadrature tolerance/.code={\pgfkeyssetvalue{/femm/biot/quadrature tolerance}{#1}\def\luafemm@biotexplicit{1}},
+ absolute tolerance/.initial={1e-12},
+ absolute tolerance/.code={\pgfkeyssetvalue{/femm/biot/absolute tolerance}{#1}\def\luafemm@biotexplicit{1}},
+ maximum quadrature depth/.initial={20},
+ maximum quadrature depth/.code={\pgfkeyssetvalue{/femm/biot/maximum quadrature depth}{#1}\def\luafemm@biotexplicit{1}},
+ maximum evaluations/.initial={200000},
+ maximum evaluations/.code={\pgfkeyssetvalue{/femm/biot/maximum evaluations}{#1}\def\luafemm@biotexplicit{1}},
+ exclusion radius/.initial={.001},
+ exclusion radius/.code={\pgfkeyssetvalue{/femm/biot/exclusion radius}{#1}\def\luafemm@biotexplicit{1}},
+ native file/.initial={},
+ name/.initial={}}
+\pgfkeys{/femm/biot source/.is family,/femm/biot source,
+ kind/.initial={loop},
+ kind/.is choice,
+ kind/wire/.code={\pgfkeyssetvalue{/femm/biot source/kind}{wire}},
+ kind/loop/.code={\pgfkeyssetvalue{/femm/biot source/kind}{loop}},
+ kind/solenoid/.code={\pgfkeyssetvalue{/femm/biot source/kind}{solenoid}},
+ kind/toroid/.code={\pgfkeyssetvalue{/femm/biot source/kind}{toroid}},
+ current/.initial={},
+ wire radius/.initial={0},
+ center/.initial={0/0/0},
+ rotate x/.initial={0},
+ rotate y/.initial={0},
+ rotate z/.initial={0},
+ closure/.initial={closed},
+ closure/.is choice,
+ closure/closed/.code={\pgfkeyssetvalue{/femm/biot source/closure}{closed}},
+ closure/contribution/.code={\pgfkeyssetvalue{/femm/biot source/closure}{contribution}},
+ closure/axis/.code={\pgfkeyssetvalue{/femm/biot source/closure}{axis}},
+ winding/.initial={turns},
+ winding/.is choice,
+ winding/turns/.code={\pgfkeyssetvalue{/femm/biot source/winding}{turns}},
+ winding/helix/.code={\pgfkeyssetvalue{/femm/biot source/winding}{helix}},
+ handedness/.initial={right},
+ handedness/.is choice,
+ handedness/right/.code={\pgfkeyssetvalue{/femm/biot source/handedness}{right}},
+ handedness/left/.code={\pgfkeyssetvalue{/femm/biot source/handedness}{left}},
+ extent/.initial={finite},
+ extent/.is choice,
+ extent/finite/.code={\pgfkeyssetvalue{/femm/biot source/extent}{finite}},
+ extent/infinite/.code={\pgfkeyssetvalue{/femm/biot source/extent}{infinite}},
+ from/.initial={0/0/-1},
+ to/.initial={0/0/1},
+ radius/.initial={1},
+ major radius/.initial={2},
+ length/.initial={3},
+ turns/.initial={10},
+ phase/.initial={0},
+ plane/.initial={xy},
+ plane/.is choice,
+ plane/xy/.code={\pgfkeyssetvalue{/femm/biot source/plane}{xy}},
+ plane/xz/.code={\pgfkeyssetvalue{/femm/biot source/plane}{xz}},
+ plane/yz/.code={\pgfkeyssetvalue{/femm/biot source/plane}{yz}},
+ offset/.initial={0},
+ curve tolerance/.initial={.002}}
+\pgfkeys{/femm/biot view/.is family,/femm/biot view,
+ azimuth/.initial={-45},
+ elevation/.initial={25},
+ step/.initial={.08},
+ tolerance/.initial={.0002},
+ maximum length/.initial={30},
+ maximum steps/.initial={3000},
+ null field/.initial={1e-14},
+ geometry samples/.initial={64},
+ xmin/.initial={-3},
+ xmax/.initial={3},
+ ymin/.initial={-3},
+ ymax/.initial={3},
+ zmin/.initial={-3},
+ zmax/.initial={3},
+ seeds/.initial={auto},
+ direction/.initial={both},
+ direction/.is choice,
+ direction/both/.code={\pgfkeyssetvalue{/femm/biot view/direction}{both}},
+ direction/forward/.code={\pgfkeyssetvalue{/femm/biot view/direction}{forward}},
+ direction/backward/.code={\pgfkeyssetvalue{/femm/biot view/direction}{backward}},
+ plane/.initial={xz},
+ plane/.is choice,
+ plane/xy/.code={\pgfkeyssetvalue{/femm/biot view/plane}{xy}},
+ plane/xz/.code={\pgfkeyssetvalue{/femm/biot view/plane}{xz}},
+ plane/yz/.code={\pgfkeyssetvalue{/femm/biot view/plane}{yz}},
+ offset/.initial={0},
+ spacing/.initial={.5},
+ vector length/.initial={.25}}
+\pgfkeys{/femm/biot profile/.is family,/femm/biot profile,
+ name/.initial={},
+ model/.initial={},
+ from/.initial={0/0/-3},
+ to/.initial={0/0/3},
+ points/.initial={},
+ samples/.initial={101}}
+\pgfkeys{/femm/biot plot/.is family,/femm/biot plot,
+ profile/.initial={},
+ component/.initial={B},
+ component/.is choice,
+ component/B/.code={\pgfkeyssetvalue{/femm/biot plot/component}{B}},
+ component/Bx/.code={\pgfkeyssetvalue{/femm/biot plot/component}{Bx}},
+ component/By/.code={\pgfkeyssetvalue{/femm/biot plot/component}{By}},
+ component/Bz/.code={\pgfkeyssetvalue{/femm/biot plot/component}{Bz}},
+ component/H/.code={\pgfkeyssetvalue{/femm/biot plot/component}{H}},
+ component/Hx/.code={\pgfkeyssetvalue{/femm/biot plot/component}{Hx}},
+ component/Hy/.code={\pgfkeyssetvalue{/femm/biot plot/component}{Hy}},
+ component/Hz/.code={\pgfkeyssetvalue{/femm/biot plot/component}{Hz}},
+ abscissa/.initial={s},
+ abscissa/.is choice,
+ abscissa/s/.code={\pgfkeyssetvalue{/femm/biot plot/abscissa}{s}},
+ abscissa/x/.code={\pgfkeyssetvalue{/femm/biot plot/abscissa}{x}},
+ abscissa/y/.code={\pgfkeyssetvalue{/femm/biot plot/abscissa}{y}},
+ abscissa/z/.code={\pgfkeyssetvalue{/femm/biot plot/abscissa}{z}},
+ abscissa scale/.initial={1}}
+\pgfkeys{/femm/biot value/.is family,/femm/biot value,
+ model/.initial={},
+ at/.initial={0/0/0},
+ component/.initial={B},
+ component/.is choice,
+ component/B/.code={\pgfkeyssetvalue{/femm/biot value/component}{B}},
+ component/Bx/.code={\pgfkeyssetvalue{/femm/biot value/component}{Bx}},
+ component/By/.code={\pgfkeyssetvalue{/femm/biot value/component}{By}},
+ component/Bz/.code={\pgfkeyssetvalue{/femm/biot value/component}{Bz}},
+ component/H/.code={\pgfkeyssetvalue{/femm/biot value/component}{H}},
+ component/Hx/.code={\pgfkeyssetvalue{/femm/biot value/component}{Hx}},
+ component/Hy/.code={\pgfkeyssetvalue{/femm/biot value/component}{Hy}},
+ component/Hz/.code={\pgfkeyssetvalue{/femm/biot value/component}{Hz}}}
+\tikzset{femm/biot/.code={%
+ \pgfqkeys{/femm/biot}{#1}%
+ \tikzset{x=1cm,y=1cm,execute at begin picture={\luafemm@biotstart},
+ execute at end picture={\luafemm@biotfinish}}},femm/biot/.default={}}
+\def\luafemm@biotstart{%
+ \ifx\luafemm@biotid\pgfutil@empty
+  \ifluafemm@modelstarted\pgferror{luafemm: use a separate Biot-Savart picture}\fi
+  \ifx\luafemm@electricid\pgfutil@empty\else\pgferror{luafemm: use a separate Biot-Savart picture}\fi
+  \pgfgettransform\luafemm@biottransform
+  \directlua{require('luafemm-biot-tex').new({
+  length_unit='\luaescapestring{\pgfkeysvalueof{/femm/biot/length unit}}',
+  mu_r='\luaescapestring{\pgfkeysvalueof{/femm/biot/relative permeability}}',
+  tolerance='\luaescapestring{\pgfkeysvalueof{/femm/biot/quadrature tolerance}}',
+  absolute_tolerance='\luaescapestring{\pgfkeysvalueof{/femm/biot/absolute tolerance}}',
+  max_depth='\luaescapestring{\pgfkeysvalueof{/femm/biot/maximum quadrature depth}}',
+  max_evaluations='\luaescapestring{\pgfkeysvalueof{/femm/biot/maximum evaluations}}',
+  exclusion='\luaescapestring{\pgfkeysvalueof{/femm/biot/exclusion radius}}',
+  native_file='\luaescapestring{\pgfkeysvalueof{/femm/biot/native file}}',
+  name='\luaescapestring{\pgfkeysvalueof{/femm/biot/name}}',explicit='\luafemm@biotexplicit'},
+ '\luaescapestring{\luafemm@biottransform}',
+ {'\the\pgf@xx','\the\pgf@xy','\the\pgf@yx','\the\pgf@yy'})}%
+ \else\pgferror{luafemm: nested Biot-Savart pictures are unsupported}\fi}
+\def\luafemm@biotfinish{\directlua{require('luafemm-biot-tex').finish(
+ '\luafemm@biotid','\luaescapestring{\pgfkeysvalueof{/femm/biot/name}}')}}
+\def\luafemm@biotsourceoptions{  kind='\luaescapestring{\pgfkeysvalueof{/femm/biot source/kind}}',
+  current='\luaescapestring{\pgfkeysvalueof{/femm/biot source/current}}',
+  wire_radius='\luaescapestring{\pgfkeysvalueof{/femm/biot source/wire radius}}',
+  center='\luaescapestring{\pgfkeysvalueof{/femm/biot source/center}}',
+  rotate_x='\luaescapestring{\pgfkeysvalueof{/femm/biot source/rotate x}}',
+  rotate_y='\luaescapestring{\pgfkeysvalueof{/femm/biot source/rotate y}}',
+  rotate_z='\luaescapestring{\pgfkeysvalueof{/femm/biot source/rotate z}}',
+  closure='\luaescapestring{\pgfkeysvalueof{/femm/biot source/closure}}',
+  winding='\luaescapestring{\pgfkeysvalueof{/femm/biot source/winding}}',
+  handedness='\luaescapestring{\pgfkeysvalueof{/femm/biot source/handedness}}',
+  extent='\luaescapestring{\pgfkeysvalueof{/femm/biot source/extent}}',
+  from='\luaescapestring{\pgfkeysvalueof{/femm/biot source/from}}',
+  to='\luaescapestring{\pgfkeysvalueof{/femm/biot source/to}}',
+  radius='\luaescapestring{\pgfkeysvalueof{/femm/biot source/radius}}',
+  major_radius='\luaescapestring{\pgfkeysvalueof{/femm/biot source/major radius}}',
+  length='\luaescapestring{\pgfkeysvalueof{/femm/biot source/length}}',
+  turns='\luaescapestring{\pgfkeysvalueof{/femm/biot source/turns}}',
+  phase='\luaescapestring{\pgfkeysvalueof{/femm/biot source/phase}}',
+  plane='\luaescapestring{\pgfkeysvalueof{/femm/biot source/plane}}',
+  offset='\luaescapestring{\pgfkeysvalueof{/femm/biot source/offset}}',
+  curve_tolerance='\luaescapestring{\pgfkeysvalueof{/femm/biot source/curve tolerance}}'}
+\protected\def\femmbiotsource{\pgfutil@ifnextchar[{\luafemm@biotsource}{\luafemm@biotsource[]}}
+\def\luafemm@biotsource[#1]{\begingroup\pgfqkeys{/femm/biot source}{#1}%
+ \directlua{require('luafemm-biot-tex').source('\luafemm@biotid',{\luafemm@biotsourceoptions})}%
+ \endgroup}
+\tikzset{femm/biot source/.code={\femmbiotsource[#1]},
+ femm/current path/.code={\pgfqkeys{/femm/biot source}{#1}%
+   \tikzset{postaction={femm/biot capture}}},
+ femm/biot capture/.code={\tikz@addmode{\luafemm@biotcapture}},
+ femm/biot view/.code={\pgfqkeys{/femm/biot view}{#1}}}
+\def\luafemm@biotcapture{\begingroup
+ \pgfsyssoftpath@getcurrentpath\luafemm@capturedpath
+ \pgfprocessround{\luafemm@capturedpath}{\luafemm@capturedpath}%
+ \directlua{require('luafemm-biot-tex').path('\luafemm@biotid',
+  '\luaescapestring{\meaning\luafemm@capturedpath}',{\luafemm@biotsourceoptions})}%
+ \endgroup}
+\tikzset{femm biot conductor/.style={orange!75!black,line width=.9pt},
+ femm biot field/.style={blue!70!black,line width=.4pt,
+ /utils/exec={\luafemm@fieldmarks{.55}{0pt}}},
+ femm biot vector/.style={green!45!blue,line width=.4pt,-{Stealth[length=1.4mm]}},
+ pics/femm biot geometry/.style={code={\luafemm@biotdraw{geometry}}},
+ pics/femm biot field/.style={code={\luafemm@biotdraw{lines}}},
+ pics/femm biot vectors/.style={code={\luafemm@biotdraw{vectors}}}}
+\def\luafemm@biotviewoptions{
+  azimuth='\luaescapestring{\pgfkeysvalueof{/femm/biot view/azimuth}}',
+  elevation='\luaescapestring{\pgfkeysvalueof{/femm/biot view/elevation}}',
+  step='\luaescapestring{\pgfkeysvalueof{/femm/biot view/step}}',
+  tolerance='\luaescapestring{\pgfkeysvalueof{/femm/biot view/tolerance}}',
+  max_length='\luaescapestring{\pgfkeysvalueof{/femm/biot view/maximum length}}',
+  max_steps='\luaescapestring{\pgfkeysvalueof{/femm/biot view/maximum steps}}',
+  null_field='\luaescapestring{\pgfkeysvalueof{/femm/biot view/null field}}',
+  geometry_samples='\luaescapestring{\pgfkeysvalueof{/femm/biot view/geometry samples}}',
+  xmin='\luaescapestring{\pgfkeysvalueof{/femm/biot view/xmin}}',
+  xmax='\luaescapestring{\pgfkeysvalueof{/femm/biot view/xmax}}',
+  ymin='\luaescapestring{\pgfkeysvalueof{/femm/biot view/ymin}}',
+  ymax='\luaescapestring{\pgfkeysvalueof{/femm/biot view/ymax}}',
+  zmin='\luaescapestring{\pgfkeysvalueof{/femm/biot view/zmin}}',
+  zmax='\luaescapestring{\pgfkeysvalueof{/femm/biot view/zmax}}',
+  seeds='\luaescapestring{\pgfkeysvalueof{/femm/biot view/seeds}}',
+  direction='\luaescapestring{\pgfkeysvalueof{/femm/biot view/direction}}',
+  plane='\luaescapestring{\pgfkeysvalueof{/femm/biot view/plane}}',
+  offset='\luaescapestring{\pgfkeysvalueof{/femm/biot view/offset}}',
+  spacing='\luaescapestring{\pgfkeysvalueof{/femm/biot view/spacing}}',
+  vector_length='\luaescapestring{\pgfkeysvalueof{/femm/biot view/vector length}}'}%
+\def\luafemm@biotdraw#1{\begingroup\pgftransformreset
+ \directlua{require('luafemm-biot-tex').draw('\luafemm@biotid','#1',{\luafemm@biotviewoptions})}\endgroup}
+\protected\def\femmbiotprofile{\pgfutil@ifnextchar[{\luafemm@biotprofile}{\luafemm@biotprofile[]}}
+\def\luafemm@biotprofile[#1]{\begingroup\pgfqkeys{/femm/biot profile}{#1}%
+ \directlua{require('luafemm-biot-tex').profile('\luafemm@biotid',{
+  name='\luaescapestring{\pgfkeysvalueof{/femm/biot profile/name}}',
+  model='\luaescapestring{\pgfkeysvalueof{/femm/biot profile/model}}',
+  from='\luaescapestring{\pgfkeysvalueof{/femm/biot profile/from}}',
+  to='\luaescapestring{\pgfkeysvalueof{/femm/biot profile/to}}',
+  points='\luaescapestring{\pgfkeysvalueof{/femm/biot profile/points}}',
+  samples='\luaescapestring{\pgfkeysvalueof{/femm/biot profile/samples}}'})}\endgroup}
+\protected\def\femmbiotvalue{\pgfutil@ifnextchar[{\luafemm@biotvalue}{\luafemm@biotvalue[]}}
+\def\luafemm@biotvalue[#1]{\begingroup\pgfqkeys{/femm/biot value}{#1}%
+ \edef\luafemm@biotresult{ \directlua{require('luafemm-biot-tex').value('\luafemm@biotid',{
+  model='\luaescapestring{\pgfkeysvalueof{/femm/biot value/model}}',
+  at='\luaescapestring{\pgfkeysvalueof{/femm/biot value/at}}',
+  component='\luaescapestring{\pgfkeysvalueof{/femm/biot value/component}}'})}}\expandafter\pgfmathprintnumber\expandafter{\luafemm@biotresult}\endgroup}
+\pgfkeys{/femm/biot plot/plot options/.initial={}}
+\protected\def\femmbiotplot{\pgfutil@ifnextchar[{\luafemm@biotplot}{\luafemm@biotplot[]}}
+\def\luafemm@biotplot[#1]{\begingroup\pgfqkeys{/femm/biot plot}{#1}%
+ \pgfkeysgetvalue{/femm/biot plot/plot options}\luafemm@plotoptions
+ \luafemm@plottoks=\expandafter{\luafemm@plotoptions}%
+ % Execute the actual plot outside the option group, preserving axis state.
+ \edef\luafemm@biotcommand{\endgroup
+  \noexpand\addplot+[unbounded coords=jump,\the\luafemm@plottoks] coordinates {\directlua{require('luafemm-biot-tex').plot({
+  profile='\luaescapestring{\pgfkeysvalueof{/femm/biot plot/profile}}',
+  component='\luaescapestring{\pgfkeysvalueof{/femm/biot plot/component}}',
+  abscissa='\luaescapestring{\pgfkeysvalueof{/femm/biot plot/abscissa}}',
+  scale='\luaescapestring{\pgfkeysvalueof{/femm/biot plot/abscissa scale}}'})}};}%
+ \luafemm@biotcommand}
+\endinput

@@ -1,0 +1,170 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Analytical gaps on reduced sectors}
+\label{sec:sector-gaps}
+
+A rotationally repeating machine can be represented by one sector. Pair its
+radial boundaries, then connect its rotor and stator through an analytical air
+gap. The two bulk meshes remain in their own reference frames for calculation.
+For display, the rotor is rotated, continued periodically and clipped against
+the stator sector. Both geometry and field pictures therefore use the physical
+stator frame, including when a rotor feature crosses a radial seam. Scalar
+potential changes sign on an antiperiodic copy; the magnetic vectors also rotate.
+Profiles sample the same physical field. A drawing transformation still only
+changes presentation, not the mechanical angle.
+
+The sector must fit the declared domain and its rigid periodic pairing. All
+physical regions stay clear of both gap traces. The gap contains source-free
+vacuum air. Start with a coarse mesh and a modest segment count, then refine the
+bulk mesh and both traces to check convergence of linkage and torque.
+
+\luafemmexamplebegin{sector-gap}
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[
+  femm/problem={xmin=0,xmax=10,ymin=0,ymax=10,mesh size=.8,depth=10},
+  femm/pair={first=radial-a,second=radial-b,sectors=4,type=antiperiodic},
+  femm/sliding band={name=quarter-gap,method=analytical,
+    inner radius=4,outer radius=5,segments=12,sectors=4,
+    periodicity=antiperiodic},scale=2]
+  \draw[femm/domain] (0,0)--(10,0) arc[start angle=0,end angle=90,radius=10]--cycle;
+  \path[femm/frontier={name=radial-a,type=periodic}] (0,0)--(10,0);
+  \path[femm/frontier={name=radial-b,type=periodic}] (0,0)--(0,10);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,current density=1e8}]
+    (1,1) rectangle (2,2);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,current density=-1e8}]
+    (7,1) rectangle (8,2);
+  \draw[blue!50!green,dashed] (4,0) arc[start angle=0,end angle=90,radius=4];
+  \draw[blue!50!green,dashed] (5,0) arc[start angle=0,end angle=90,radius=5];
+\end{tikzpicture}
+\end{codeexample}
+
+The domain and the template are now complete. Choose a position whose inner
+winding crosses a radial seam. The neighbouring antiperiodic copy enters the
+visible sector with the opposite source sign. The field and the torque below
+come from that same position.
+\begin{codeexample}[]
+\begin{tikzpicture}[
+  femm/problem={sliding band=quarter-gap,rotor angle=53},scale=3]
+  \pic {femm geometry};
+  \pic[femm/lines=13] {femm field};
+  \node[above] at (5,10) {$\theta=53^\circ$};
+\end{tikzpicture}
+
+\begin{tikzpicture}[
+  femm/problem={sliding band=quarter-gap,rotor angle=53}]
+  \femmmeasure[name=quarter-torque,quantity=force,method=band]
+  \node {$T_{\rm sector}(53^\circ)=
+    \femmvalue[component=torque]{quarter-torque}$};
+\end{tikzpicture}
+\end{codeexample}
+\luafemmexampleend{sector-gap}
+
+\subsection{Sector controls}
+\begin{key}{/femm/sliding band/sectors=\meta{integer} (initially 1)}
+One retains the full-circle interface. Values from 2 to 32 select a reduced
+sector of angle $360^\circ/N$ and require |method=analytical|, an explicit
+|femm/domain| and matching paired radial frontiers. |segments| then counts
+segments per sector, from 4 to 128. Fourier mode resolution is still checked
+against the equivalent full-circle traces; the retained maximum order is 256.
+\end{key}
+\begin{key}{/femm/sliding band/periodicity=\meta{choice} (initially periodic)}
+|periodic| identifies the two sector traces with the same potential.
+|antiperiodic| reverses its sign and requires an even sector count.
+This choice must agree with the radial frontier pair. For $N$ sectors, periodic
+traces contain harmonics $kN$; antiperiodic traces contain $(k+\tfrac12)N$.
+Temporal source phase remains independent of this spatial sign convention.
+\end{key}
+\begin{key}{/femm/sliding band/start angle=\meta{degrees} (initially 0)}
+Start direction of the sector in the reference coordinates, measured
+counterclockwise about |center x|, |center y|. The domain and frontier pairing
+must use the same centre and angular extent. Full-circle templates require zero.
+\end{key}
+
+Energy and transmitted torque are reported for the modelled sector. For torque
+about the rotation axis, set the measurement keys |origin x| and |origin y| to
+the gap centre; their default is the coordinate origin. Multiply
+scalar energy and torque by |sectors| for a full machine with the specified
+symmetry. Cartesian force components require rotating and summing each sector's
+contribution; simply multiplying one sector's force vector is generally wrong.
+The gap traction integral is not a closed contour around an isolated sector body.
+Its torque is the torque transmitted across the circular interface.
+
+The radial Laplace problem is solved per retained Fourier mode. Angular P1 trace
+functions are integrated analytically, with signed periodic continuation and a
+rotation of the inner trace. The weak operator is scaled by the sector fraction.
+The same analytic curl is used for gap sampling and traction. Virtual work and
+modal annular solutions provide independent checks of torque and normalisation.
+Bulk meshes and signed pair constraints are reused at each angle and validated
+on restoration. Eccentric motion is available through full-circle P1 templates, not through
+this concentric operator. Network-driven moving templates remain unsupported.
+Native AGE interpolation is a separate choice (Section~\ref{sec:native-gaps}).
+
+Bulk contour pieces are transformed exactly and clipped to the displayed wedge.
+Inside the gap, the analytic potential is sampled on a polar rendering grid;
+|contour subdivisions| refines that grid without changing the solve.
+The bulk P1 traces and the truncated Fourier reconstruction are different
+interpolants. Their contour pieces retain separate endpoints, so the renderer
+does not invent connections between unequal values. Refine the mesh and retained
+modes to assess trace mismatch. Energy and torque always use the calculation
+operator, never this rendering grid.
+
+\subsection{Preserving native AGE answer files}
+FEMM's AGE quad-point records and the Fourier interface above describe different
+interpolations. Relabelling one as the other would silently change the numerical
+model. Native answer records can instead be parsed and preserved without
+recalculation, including FEMM 5's optional raw ring lists. For field import, explicitly select the generating solver's interpolation
+with |age interpolation=femm4| or |femm5|; see Section~\ref{sec:native-gaps}.
+Passive copying itself needs no such choice and performs no basis conversion.
+
+\begin{command}{\femmcopyanswer\oarg{options}}
+Read, validate and write a passive magnetic answer. It preserves its embedded
+problem, nodal potentials, element records, circuit states, periodic pairs and
+AGE quad records. No magnetic picture is required and no solve occurs. Input
+and output filenames must differ. Relative outputs follow the engine output
+directory; input lookup also searches that directory after the format resolver.
+External previous-solution companions are not copied or rebased. Keep their
+relative paths valid when copying an answer. The same operation is available through
+|/tikz/femm/copy answer={options}|.
+\end{command}
+\begin{key}{/tikz/femm/copy answer=\marg{options}}
+Equivalent to |\femmcopyanswer|; this is an explicit file-writing operation.
+\end{key}
+\begin{key}{/femm/copy answer/input=\meta{filename} (initially empty)}
+Required source |.ans| filename. Supported fixed planar time records are
+preserved without assigning an absolute clock or performing a solve. Unknown
+trailing records, malformed counts, indices and nonfinite numbers are rejected.
+Copying retains the companion-file guard at both paths.
+\end{key}
+\begin{key}{/femm/copy answer/output=\meta{filename} (initially empty)}
+Required destination filename. Numeric data are written with 17 significant
+digits and checked by the same bounded parser before writing.
+\end{key}
+\begin{key}{/femm/copy answer/rings=\meta{choice} (initially preserve)}
+|preserve| retains FEMM 5's |[AgeRings]| lists when present. |omit| writes only the
+common AGE records read by FEMM 4 and FEMM 5. Omitting raw rings loses the data
+needed for FEMM 5 to re-pair that saved mesh at another angle. This option does
+not translate material laws or certify that every other feature of a FEMM 5
+problem is supported by FEMM 4.
+\end{key}
+
+The following executed example first saves an ordinary answer, then exercises
+the same preservation command. For a native AGE file, use its filename as
+|input|; no conversion of the AGE operator is performed.
+\luafemmexamplebegin{answer-preservation}
+\begin{codeexample}[]
+\begin{tikzpicture}[
+  femm/problem={xmin=-5,xmax=5,ymin=-5,ymax=5,
+    mesh size=2,depth=10,interpolation=femm}]
+  \filldraw[fill=red!20,femm/region={material=cast-alnico-5-lng37}]
+    (-2,-1) rectangle (2,1);
+  \pic[femm/lines=7] {femm field};
+  \femmexport[file=\jobname-source.ans,format=ans]
+\end{tikzpicture}
+\femmcopyanswer[input=\jobname-source.ans,output=\jobname-copy.ans]
+\end{codeexample}
+\luafemmexampleend{answer-preservation}

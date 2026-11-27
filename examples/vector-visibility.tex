@@ -1,0 +1,72 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={seeds={.3/0/0;-.3/0/0},
+ step=.15,maximum length=8}]
+ \femmbiotsource[kind=solenoid,winding=helix,
+  closure=contribution,current=2,radius=.8,length=2,turns=4]
+ \femmbiotscene[name=cutaway-coil]
+\endtikzpicture
+\femmviewplane[scene=cutaway-coil,plane=xz,
+ umin=-1.3,umax=1.3,vmin=-1.3,vmax=1.3,
+ grid=major,step=.5,style={fill=blue!10}]
+\tikzpicture[femm/view 3d={scene=cutaway-coil,
+ visibility=vector,hidden=dashed,mark spacing=1,
+ coordinate scale=.8,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-1.5,zmax=1.5}]
+ \pic {femm view 3d};
+ \pic at (5,0) [femm/view 3d={azimuth=135,hidden=omit}]
+  {femm view 3d};
+\endtikzpicture
+\femmviewclear{cutaway-coil}
+\endgroup
+\clearpage
+\begingroup
+\tikzpicture[femm/biot]
+ \femmbiotsource[current=1,radius=1.2]
+ \femmbiotscene[name=intersecting-planes,field=false]
+\endtikzpicture
+\femmviewplane[scene=intersecting-planes,plane=custom,
+ u=1/0/.7,v=0/1/0,umin=-1,umax=1,vmin=-1,vmax=1,
+ grid=major,step=.5,style={fill=blue!15},label={$P$}]
+\femmviewplane[scene=intersecting-planes,plane=custom,
+ u=1/0/-.7,v=0/1/0,umin=-1,umax=1,vmin=-1,vmax=1,
+ grid=major,step=.5,style={fill=green!15},label={$Q$}]
+\tikzpicture[femm/view 3d={scene=intersecting-planes,
+ visibility=vector,hidden=dashed,axes=none,
+ azimuth=-25,elevation=40,coordinate scale=1.2,
+ xmin=-1.5,xmax=1.5,ymin=-1.5,ymax=1.5,zmin=-1,zmax=1},
+ femm 3d hidden/.append style={draw opacity=.45}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{intersecting-planes}
+\endgroup
+\clearpage
+\begingroup
+\tikzpicture[femm/biot]
+ \femmbiotsource[kind=wire,closure=contribution,current=1,
+  from=-1/0/-1,to=1/0/-1]
+ \femmbiotsource[kind=wire,closure=contribution,current=1,
+  from=0/-1/1,to=0/1/1]
+ \femmbiotscene[name=crossing-wires,field=false]
+\endtikzpicture
+\tikzpicture[femm/view 3d={scene=crossing-wires,
+ visibility=vector,axes=triad,azimuth=0,elevation=90,
+ crossing gap=.1,xmin=-1.2,xmax=1.2,ymin=-1.2,ymax=1.2,
+ zmin=-1.2,zmax=1.2}]
+ \pic {femm view 3d};
+ \pic at (4,0) [femm/view 3d={elevation=-90}]
+  {femm view 3d};
+\endtikzpicture
+\femmviewclear{crossing-wires}
+\endgroup
+\end{document}

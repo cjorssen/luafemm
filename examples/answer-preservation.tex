@@ -1,0 +1,21 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\begin{document}
+
+\begin{tikzpicture}[
+  femm/problem={xmin=-5,xmax=5,ymin=-5,ymax=5,
+    mesh size=2,depth=10,interpolation=femm}]
+  \filldraw[fill=red!20,femm/region={material=cast-alnico-5-lng37}]
+    (-2,-1) rectangle (2,1);
+  \pic[femm/lines=7] {femm field};
+  \femmexport[file=\jobname-source.ans,format=ans]
+\end{tikzpicture}
+\femmcopyanswer[input=\jobname-source.ans,output=\jobname-copy.ans]
+
+\end{document}

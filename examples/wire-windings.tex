@@ -1,0 +1,80 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\newbox\Calculation
+\tikzset{
+  femm/materials/wire/.style={mu r=1,conductivity=58000000,
+    wire model=\WireModel,wire diameter=\Diameter,strands=\Strands},
+  experiment/.style={femm/problem={frequency=\Frequency,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.5},
+    femm/circuit={name=drive,current=2}},
+  /femm/region/coil/.style={material=wire,circuit=drive,mesh size=.25}}
+\newcommand\Geometry{%
+  \path[femm/region={coil,turns=-20}] (-4.7,-2) rectangle (-3.3,2);
+  \path[femm/region={coil,turns=20}] (3.3,-2) rectangle (4.7,2);}
+\begin{document}
+\centering
+% Equal copper area: one 0.4 mm wire or sixteen 0.1 mm strands per turn.
+% Winding fill is derived from area, turns, diameter and strand count.
+\foreach \WireModel/\Diameter/\Strands in {round/.4/1,litz/.1/16}{%
+  \foreach \Frequency in {100,1000,5000,10000,50000,100000}{%
+    \setbox\Calculation=\hbox{%
+      \begin{tikzpicture}[experiment,
+        femm/cache={file=\jobname-\WireModel-\Frequency,mode=auto}]
+        \Geometry
+        \femmmeasure[name=\WireModel-\Frequency,parameter=\Frequency]
+      \end{tikzpicture}}}}
+\def\Frequency{100000}
+\foreach \WireModel/\Diameter/\Strands/\Title in
+  {round/.4/1/{Round wire},litz/.1/16/{Litz wire}}{%
+  \begin{tikzpicture}[experiment,scale=3.2,
+    femm/cache={file=\jobname-\WireModel-\Frequency,mode=auto}]
+    \Geometry
+    \filldraw[fill=orange!20,draw=orange!65!black] (-4.7,-2) rectangle (-3.3,2);
+    \filldraw[fill=orange!20,draw=orange!65!black] (3.3,-2) rectangle (4.7,2);
+    \pic[femm/lines=15,femm/phase=0,femm/arrow spacing=12mm] {femm field};
+    \node[above] at (0,6) {\Title, $100\,\mathrm{kHz}$};
+    \node at (-4,0) {$\otimes$}; \node at (4,0) {$\odot$};
+    \node[below,font=\small] at (0,-6)
+      {$P=\femmvalue[component=total_loss]{\WireModel-100000}$};
+  \end{tikzpicture}\hspace{5mm}}
+\par\medskip
+\def\Round{round-100,round-1000,round-5000,round-10000,round-50000,round-100000}
+\def\Litz{litz-100,litz-1000,litz-5000,litz-10000,litz-50000,litz-100000}
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Total winding loss (W)},
+  legend style={font=\small,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\Round},component=total_loss,
+    plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Round, $d=0.4$ mm}
+  \femmresultplot[results={\Litz},component=total_loss,
+    plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Litz, $16\times0.1$ mm}
+\end{semilogxaxis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{loglogaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Round-wire loss terms (W)},
+  legend style={font=\small,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\Round},component=wire_transport_loss,
+    plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Transport term}
+  \femmresultplot[results={\Round},component=proximity_loss,
+    plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Proximity term}
+\end{loglogaxis}
+\end{tikzpicture}
+\par\smallskip
+\small Two 20-turn winding sections, 20 mm depth, 2 A peak. Both models have
+copper fill $0.449$. Litz assumes ideal transposition. The contours show the
+macroscopic magnetic field; individual wires and their eddy currents are not
+resolved. End turns and capacitive effects are excluded.
+\end{document}

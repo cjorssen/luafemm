@@ -1,0 +1,78 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=150mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\newbox\ResponseCalculation
+\tikzset{femm/materials/machine iron/.style={mu r=300},
+  machine winding/.style={femm/region={material=copper,circuit=drive,turns=#1}},
+  response field/.style={femm/lines=19,femm/arrows=false,
+    femm/field style={blue!65!black}}}
+\pgfkeys{/femm/measure/rotor load/.style={quantity=force,method=band}}
+\begin{document}
+\centering
+% Frequency belongs to the template. Start coarse while arranging the figure.
+\foreach \Frequency in {0,50}{%
+  \setbox\ResponseCalculation=\hbox{%
+    \begin{tikzpicture}[femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,
+        mesh size=1,depth=10,frequency=\Frequency},
+      femm/circuit={name=drive,current=10},
+      femm/cache={file=\jobname-template-\Frequency,mode=auto},
+      femm/sliding band={name=machine-\Frequency,
+        inner radius=3.5,outer radius=4.5,segments=64,layers=2}]
+      \path[femm/region={material=machine iron,mesh size=.5}]
+        (0,0) ellipse[x radius=3,y radius=1.5];
+      \path[machine winding=100] (-7,-2) rectangle (-6,2);
+      \path[machine winding=-100] (6,-2) rectangle (7,2);
+    \end{tikzpicture}}}
+% Capture the converged DC state at this mechanical angle.
+\begin{tikzpicture}[femm/problem={sliding band=machine-0,rotor angle=30},
+    femm/cache={file=\jobname-bias,mode=auto},
+    femm/operating point={name=machine-bias},scale=2.5]
+  \pic {femm geometry};
+  \pic[response field] {femm field};
+  \femmmeasure[rotor load,name=dc-load]
+  \draw[teal,densely dashed] (0,0) circle[radius=4];
+  \node[font=\small,fill=white] at (0,9) {DC bias: $I_0=10\,\mathrm A$};
+\end{tikzpicture}\hspace{5mm}%
+% The response inherits this exact mesh and angle; it changes only excitation.
+\begin{tikzpicture}[femm/problem={operating point=machine-bias,frequency=50,
+    circuit currents={drive=1},circuit phases={drive=30}},
+    femm/cache={file=\jobname-response,mode=auto},scale=2.5]
+  \pic {femm geometry};
+  \pic[response field,femm/phase=0] {femm field};
+  \femmmeasure[rotor load,name=small-load]
+  \node[font=\small,fill=white] at (0,9) {$\widehat{\delta I}=1e^{i30^\circ}\,\mathrm A$};
+\end{tikzpicture}
+% An independent AC calculation has no DC bias and gives mean + 2f torque.
+\setbox\ResponseCalculation=\hbox{%
+  \begin{tikzpicture}[femm/problem={sliding band=machine-50,rotor angle=30,
+      circuit phases={drive=30}},femm/cache={file=\jobname-ac,mode=auto}]
+    \femmmeasure[rotor load,name=ac-load]
+  \end{tikzpicture}}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=6.3cm,height=4.8cm,font=\small,xmin=0,xmax=360,xtick={0,90,180,270,360},
+    grid=major,xlabel={Excitation phase (degrees)},ylabel={$T$ (mN\,m)},
+    y filter/.expression={1000*y},scaled y ticks=false,title={AC without bias}]
+  \femmforceplot[result=ac-load,component=torque,
+    plot options={blue!65!black,thick,mark=none}]
+\end{axis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{axis}[width=6.3cm,height=4.8cm,font=\small,xmin=0,xmax=360,xtick={0,90,180,270,360},
+    grid=major,xlabel={Excitation phase (degrees)},ylabel={$\delta T$ (mN\,m)},
+    y filter/.expression={1000*y},scaled y ticks=false,title={Response around DC bias}]
+  \femmforceplot[result=small-load,component=torque,
+    plot options={orange!80!black,thick,mark=none}]
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Fixed rotor angle $30^\circ$, linear illustrative iron, depth $10\,\mathrm{mm}$.
+The right-hand waveform is the first-order change, excluding the DC torque.
+\end{document}

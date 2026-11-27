@@ -1,0 +1,111 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Saving physical problems and answers}
+\label{sec:native-storage}
+
+Keep the original TikZ source for editing the drawing. A |.femx| document stores
+the evaluated physical problem; an |.ansx| document additionally owns the answer.
+These are \textsf{luafemm} formats. FEMM does not read them: use the separate
+|.fem|/|.ans| or |.fee|/|.res| conversion interfaces when exchanging with FEMM.
+Unlike a cache, an answer is selected explicitly and owns its physical data.
+It does not inherit the current material catalogue or silently recompute a field.
+
+\begin{command}{\femmsave\oarg{options}}
+Save the current model at the point of invocation. Declare all physical paths
+and sources first. The command groups its |/femm/save| options. An answer save
+solves an unsolved builder; a problem save never solves. Validation precedes
+atomic replacement, so an unsupported model leaves an existing target intact.
+\end{command}
+\begin{key}{/femm/save/file=\meta{filename} (initially empty)}
+Required output filename. Use |.femx| for a problem, |.ansx| for an answer.
+Relative outputs follow the engine's output directory. Parent directories must
+already exist. File contents are passive data, not executable Lua or TeX.
+\end{key}
+\begin{key}{/femm/save/kind=problem\textbar answer (initially problem)}
+Select physical declarations alone or a physical problem with its solution.
+\end{key}
+\begin{key}{/femm/save/physics=magnetism\textbar electrostatics (initially magnetism)}
+Select the model registry explicitly; an electric picture does not change this
+default. This makes mixed-physics documents independent of drawing order.
+\end{key}
+\begin{key}{/femm/save/model=\meta{name} (initially empty)}
+An empty value uses the current picture. Otherwise select a named magnetic
+model or electric snapshot. Electric snapshots have already been frozen.
+\end{key}
+\begin{key}{/tikz/femm/save=\meta{options}}
+Invoke the same operation as |\femmsave| through a TikZ key. On a path, put it
+after all physical declarations have been captured; a region's postaction has
+not yet run while its own options are being parsed. Prefer a separate
+|\tikzset{femm/save={...}}| at the end of the physical declarations.
+\end{key}
+\begin{key}{/femm/problem/native file=\meta{filename} (initially empty)}
+Read a magnetic |.femx| or |.ansx| at picture initialization. The file owns the
+physical and numerical settings. Do not combine this selector with FEMM import,
+an operating point, a sliding template, a time state or explicit problem settings.
+Ordinary TikZ transforms and field styles remain available.
+\end{key}
+\begin{key}{/femm/electrostatic/native file=\meta{filename} (initially empty)}
+The electric counterpart. Do not combine it with |file|, |snapshot| or explicit
+physical geometry/medium selectors. Stored model units govern all subsequent
+coordinates. Restoring an answer reconstructs element gradients and reactions
+from its exact ordered mesh and coefficients; it performs no linear or nonlinear
+solve. Changing drawing styles never modifies the stored physical problem.
+\end{key}
+
+\subsection{One answer, two presentations}
+The first picture declares and saves a dipole. The second reads the same answer
+and displays potential contours. No material or charge declaration is repeated.
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[scale=.7,femm/electrostatic]
+ \node[femm/point charge={charge=1e-9}] at (-1,0) {$+$};
+ \node[femm/point charge={charge=-1e-9}] at (1,0) {$-$};
+ \femmsave[physics=electrostatics,kind=answer,
+   file=manual-dipole.ansx]
+ \pic[femm/electric={lines per charge=8}]
+   {femm electric field};
+\end{tikzpicture}
+\end{codeexample}
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[scale=.7,
+ femm/electrostatic={native file=manual-dipole.ansx}]
+ \pic[femm/electric={levels={-900,-450,0,450,900}}]
+   {femm equipotentials};
+ \node at (-1,0) {$+$}; \node at (1,0) {$-$};
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{Representations and limits}
+Analytical charge and symmetry providers store registered law parameters;
+they do not invent a mesh. Electric planar and axisymmetric P1 answers retain
+the scalar nodal potential. Source-correction answers retain their singular
+kernel parameters and the regular correction coefficients separately. Thus
+their finite interaction energy and total-field contours remain available.
+Ordinary static and harmonic magnetic planar/axisymmetric answers retain
+the ordered P1 vector-potential coefficients, with separate real and imaginary
+arrays for peak |exp(+i omega t)| phasors. Embedded material values are authoritative.
+The prescribed-current 3D adapter stores its registered source laws and quadrature
+settings without a fabricated mesh; see Section~\ref{sec:biot}.
+
+The adapters exclude imported electric native topology, ideal magnetic circuits,
+axial diffusion, operating responses, sliding bands, time states, network and
+flux-controlled magnetic models, and Lua callbacks. Unsupported adapters fail;
+they are never converted to a simpler physical model. An answer is not a
+transient restart: use the separately supported |.lft| state interface.
+The |.lfc| cache contract also remains independent.
+
+\subsection{Versioned passive records}
+The text header is |LUAFEMM-FEMX| or |LUAFEMM-ANSX|, followed by payload byte count
+and an Adler-32 checksum. The bounded codec stores finite numbers, booleans,
+length-prefixed strings and sorted maps. It never calls |load| on input.
+Schema version 1 declares physics, physical dimension, evaluation dimension (two for section providers, three for prescribed currents),
+coordinate scale, SI field units, potential reference, required adapter and
+solution basis. The physical dimension is three even for a planar section;
+planar invariance and axisymmetry remain distinct geometry tags.
+Package provenance is descriptive; schema and adapter revisions decide
+compatibility. Unknown required capabilities and future schema versions fail
+before reconstruction. No implicit migration, external dependency loading or
+original TikZ macro reconstruction is performed. The checksum detects accidental
+damage, not malicious modification or scientific invalidity.

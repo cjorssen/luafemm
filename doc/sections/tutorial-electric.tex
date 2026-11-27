@@ -1,0 +1,212 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{A tutorial: drawing electric fields from charges}
+\label{sec:tutorial-electric}
+
+Kamil would like to compare the electric field of one charge with that of a
+dipole. He needs both a diagram and a graph, and he wants the numbers in the
+graph to come from the sources in his diagram. He starts with a model whose
+solution is known: prescribed point charges in vacuum.
+
+Here the word ``point'' has its three-dimensional meaning. A charge is measured
+in coulombs, and its field decreases as the inverse square of distance.
+The drawing is a section through the plane containing all the charges.
+It is not a two-dimensional finite-element calculation, and the charges are
+neither infinite charged wires nor rings.
+
+\luafemmexamplebegin{electric-charges}
+\subsection{One node, one physical charge}
+The usual |\usetikzlibrary{femm}| loads the electric interface as well as the
+magnetic one. Kamil also loads |backgrounds| so that he can draw the field behind
+symbols that have already declared their physical sources.
+He puts |femm/electrostatic| on the picture and a |femm/point charge| on a node.
+The source is at the node's \emph{centre}, regardless of its label.
+
+\begin{codeexample}[setup code]
+\usetikzlibrary{backgrounds}
+\end{codeexample}
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={xmin=-2,xmax=2,ymin=-2,ymax=2}]
+  \node[femm/point charge={charge=1e-9},fill=red!15] at (0,0) {$+$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={600,900,1800}}] {femm equipotentials};
+    \pic {femm electric field};
+  \end{scope}
+\end{tikzpicture}
+\end{codeexample}
+
+The charge is $1\,\mathrm{nC}$. By default a coordinate unit represents one
+centimetre physically, and TikZ displays it as one centimetre on the page.
+The blue curves follow $\mathbf E$; the dashed curves have constant electric
+potential. Their specified levels are in volts. In vacuum this charge has
+$V\simeq899\,\mathrm V$ at a distance of one centimetre.
+
+The small circle is a \emph{symbol}, not the surface of a charged sphere.
+|minimum size| changes the symbol; |exclusion radius| changes the disk omitted
+from plots near the singular source. Neither changes Coulomb's law. Its default
+radius is $0.22$ coordinate units, convenient for a four-millimetre symbol at the
+default scale. At a different drawing scale Kamil can adjust these two controls
+independently.
+
+There is no physical mesh to refine in this example. Kamil first checks his
+charges and units. He can use |contour resolution=30| while arranging the figure,
+then increase it to 80 or 160 for the final equipotentials. This refines the
+\emph{drawing}, not the exact analytical values used by the graphs.
+
+\subsection{Two charges and a contour to measure along}
+Kamil now makes a dipole. Reusable TikZ styles keep the charge definitions and
+symbol colours together. He draws the measurement contour one centimetre above
+the charges, where the field is regular.
+
+\begin{codeexample}[setup code]
+\tikzset{
+  positive charge/.style={femm/point charge={charge=1e-9},fill=red!15},
+  negative charge/.style={femm/point charge={charge=-1e-9},fill=blue!15}}
+\end{codeexample}
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={name=lesson dipole}]
+  \node[positive charge] (positive) at (-1,0) {$+$};
+  \node[negative charge] (negative) at (1,0) {$-$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={-900,-450,0,450,900}}]
+      {femm equipotentials};
+    \pic[femm/electric={lines per charge=12}] {femm electric field};
+  \end{scope}
+  \draw[thick,densely dotted,
+    femm/electric profile={name=above dipole,samples=161}]
+    (-2,1)--(2,1) node[right] {$\mathcal C$};
+\end{tikzpicture}
+\end{codeexample}
+
+The order matters. First declare \emph{all} the source nodes, then request
+fields or profiles. The first evaluation freezes the source list. Adding another
+physical charge afterwards is an error: otherwise an earlier field picture and
+a later graph could describe different problems. Ordinary labels, arrows and
+other annotations can still be added at any time.
+
+The profile has a document-wide name. It owns its source data and remains
+available after the picture ends. With PGFPlots loaded, Kamil can now plot the
+potential without reproducing a single charge definition:
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+  \begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+    xlabel={$x$ (cm)},ylabel={$V$ (V)}]
+    \femmelectricplot[profile=above dipole,component=V,abscissa=x,
+      plot options={blue!70!black,thick}]
+  \end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+The potential vanishes on the perpendicular bisector. That does not mean the
+field vanishes there: the two horizontal field components reinforce each other.
+Kamil uses the same sampled contour to display both components and their norm.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+  \begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+    xlabel={$x$ (cm)},ylabel={Electric field (V/m)},
+    legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+    \femmelectricplot[profile=above dipole,component=Ex,abscissa=x,
+      plot options={blue!70!black,thick}]
+    \addlegendentry{$E_x$}
+    \femmelectricplot[profile=above dipole,component=Ey,abscissa=x,
+      plot options={red!70!black,dashed,thick}]
+    \addlegendentry{$E_y$}
+    \femmelectricplot[profile=above dipole,component=E,abscissa=x,
+      plot options={black,densely dotted,thick}]
+    \addlegendentry{$|\mathbf E|$}
+  \end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{Keeping the model, changing the view}
+The picture's |name=lesson dipole| saved an independent source snapshot at the
+end of that picture. Kamil reuses it for a vector view. Each arrow below has the
+same length, so it indicates direction only. A quantitative arrow map instead
+uses |vector mode=scaled| and a chosen |vector scale|.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={snapshot=lesson dipole}]
+  \node[circle,draw,fill=red!15] at (-1,0) {$+$};
+  \node[circle,draw,fill=blue!15] at (1,0) {$-$};
+  \pic[femm/electric={vector spacing=.4,vector length=.22}]
+    {femm electric vectors};
+\end{tikzpicture}
+\end{codeexample}
+
+These are ordinary circles used as annotations. Repeating physical charge nodes
+in a restored snapshot would try to add sources to an already frozen model and
+is rejected. The snapshot stores source coordinates and physical units; its new
+picture supplies the display transform. Thus |scale|, |rotate|, and TikZ's |x|
+and |y| vectors can change the appearance without changing the calculation.
+
+\subsection{Choosing which lines to show}
+Automatic lines start just outside positive charge masks, or negative masks if
+there are no positive charges. The line count is a drawing choice; it is not a
+measurement of three-dimensional flux. In particular, a net negative collection
+can have incoming lines from infinity that positive-source seeding will miss.
+Kamil can set |seed sign=negative| or give his own starting points.
+
+A TikZ contour is often more convenient than a list of coordinates. This one
+places nine seeds uniformly in arclength along a short segment. Each line is
+integrated in both directions and its arrows always point along $\mathbf E$.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={snapshot=lesson dipole}]
+  \node[circle,draw,fill=red!15] at (-1,0) {$+$};
+  \node[circle,draw,fill=blue!15] at (1,0) {$-$};
+  \draw[gray,densely dotted,femm/electric seeds={samples=9}]
+    (0,.2)--(0,1.8);
+  \pic[femm/electric={step=.05,tolerance=.00001}] {femm electric field};
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{More charges, the same declarations}
+A quadrupole requires no new solver settings. Local TikZ transformations position
+the source centres just as they position the visible nodes. The empty-looking
+central region contains a null point, where a field direction is undefined;
+line integration stops if it reaches such a point.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={xmin=-2.5,xmax=2.5},scale=.9]
+  \foreach \x/\y in {-1/-1,1/1}
+    \node[positive charge] at (\x,\y) {$+$};
+  \foreach \x/\y in {-1/1,1/-1}
+    \node[negative charge] at (\x,\y) {$-$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={-700,-300,300,700}}] {femm equipotentials};
+    \pic[femm/electric={lines per charge=12}] {femm electric field};
+  \end{scope}
+\end{tikzpicture}
+\end{codeexample}
+
+Finally Kamil tries an asymmetric collection. The charge values remain explicit;
+the text inside a node does not set its charge. Superposition works for any
+finite number of prescribed coplanar charges in the same homogeneous medium.
+Putting a conducting outline or a dielectric region in the drawing would not
+redistribute those charges or change the field.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={relative permittivity=2,
+    xmin=-3,xmax=3,ymin=-2,ymax=2}]
+  \node[femm/point charge={charge=2e-9},fill=red!15] at (-1.4,-.4) {$2q$};
+  \node[femm/point charge={charge=-1e-9},fill=blue!15] at (.9,.7) {$-q$};
+  \node[femm/point charge={charge=-.5e-9},fill=blue!10] at (.6,-1) {$-q/2$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={-300,0,300,600,900}}] {femm equipotentials};
+    \pic[femm/electric={lines per charge=20}] {femm electric field};
+  \end{scope}
+\end{tikzpicture}
+\end{codeexample}
+
+Here $q=1\,\mathrm{nC}$ and $\epsilon_r=2$. Multiplying a uniform permittivity
+changes the magnitudes of $V$ and $\mathbf E$, but not the direction of the lines.
+Only their interaction with a nonuniform medium would require a different
+physical model.
+\luafemmexampleend{electric-charges}

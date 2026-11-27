@@ -1,0 +1,305 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Electric source declarations and view-only controls. Loaded with @ a letter.
+% Numeric source expressions are evaluated by PGF's FPU before safe string
+% transport; the remaining numeric keys accept finite literals, including e notation.
+\def\luafemm@electricid{}
+\def\luafemm@electricvalue#1{\pgfkeysvalueof{/femm/electrostatic/#1}}
+\pgfkeys{/femm/electrostatic/.is family,/femm/electrostatic,
+  length unit/.initial=cm,length unit/.is choice,
+  length unit/m/.code={\pgfkeyssetvalue{/femm/electrostatic/length unit}{m}},
+  length unit/cm/.code={\pgfkeyssetvalue{/femm/electrostatic/length unit}{cm}},
+  length unit/mm/.code={\pgfkeyssetvalue{/femm/electrostatic/length unit}{mm}},
+  length unit/um/.code={\pgfkeyssetvalue{/femm/electrostatic/length unit}{um}},
+  relative permittivity/.initial=1,
+  xmin/.initial=-3,xmax/.initial=3,ymin/.initial=-2,ymax/.initial=2,
+  name/.initial={},snapshot/.initial={}}
+% Physical symmetry data are owned by restored snapshots. Track explicit
+% assignments separately from defaults so that an attempted override fails.
+\def\luafemm@classicexplicit{}
+\def\luafemm@electricxminexplicit{}
+\def\luafemm@electricdepthexplicit{}
+\pgfkeys{/femm/electrostatic/xmin/.code={%
+  \pgfkeyssetvalue{/femm/electrostatic/xmin}{#1}\def\luafemm@electricxminexplicit{1}}}
+\pgfkeys{/femm/electrostatic/model/.initial={point charges},/femm/electrostatic/model/.is choice}
+\pgfkeys{/femm/electrostatic/model/point charges/.code={\pgfkeyssetvalue{/femm/electrostatic/model}{point charges}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/model/charged sphere/.code={\pgfkeyssetvalue{/femm/electrostatic/model}{charged sphere}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/model/charged cylinder/.code={\pgfkeyssetvalue{/femm/electrostatic/model}{charged cylinder}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/model/parallel plate capacitor/.code={\pgfkeyssetvalue{/femm/electrostatic/model}{parallel plate capacitor}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/model/cylindrical capacitor/.code={\pgfkeyssetvalue{/femm/electrostatic/model}{cylindrical capacitor}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/model/spherical capacitor/.code={\pgfkeyssetvalue{/femm/electrostatic/model}{spherical capacitor}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/charge distribution/.initial={volume},/femm/electrostatic/charge distribution/.is choice}
+\pgfkeys{/femm/electrostatic/charge distribution/volume/.code={\pgfkeyssetvalue{/femm/electrostatic/charge distribution}{volume}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/charge distribution/surface/.code={\pgfkeyssetvalue{/femm/electrostatic/charge distribution}{surface}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/center x/.initial={0},/femm/electrostatic/center x/.code={\pgfkeyssetvalue{/femm/electrostatic/center x}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/center y/.initial={0},/femm/electrostatic/center y/.code={\pgfkeyssetvalue{/femm/electrostatic/center y}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/radius/.initial={1},/femm/electrostatic/radius/.code={\pgfkeyssetvalue{/femm/electrostatic/radius}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/volume charge density/.initial={},/femm/electrostatic/volume charge density/.code={\pgfkeyssetvalue{/femm/electrostatic/volume charge density}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/surface charge density/.initial={},/femm/electrostatic/surface charge density/.code={\pgfkeyssetvalue{/femm/electrostatic/surface charge density}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/reference radius/.initial={},/femm/electrostatic/reference radius/.code={\pgfkeyssetvalue{/femm/electrostatic/reference radius}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/reference potential/.initial={0},/femm/electrostatic/reference potential/.code={\pgfkeyssetvalue{/femm/electrostatic/reference potential}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/voltage/.initial={},/femm/electrostatic/voltage/.code={\pgfkeyssetvalue{/femm/electrostatic/voltage}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/inner radius/.initial={.7},/femm/electrostatic/inner radius/.code={\pgfkeyssetvalue{/femm/electrostatic/inner radius}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/outer radius/.initial={1.4},/femm/electrostatic/outer radius/.code={\pgfkeyssetvalue{/femm/electrostatic/outer radius}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/separation/.initial={1},/femm/electrostatic/separation/.code={\pgfkeyssetvalue{/femm/electrostatic/separation}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/normal angle/.initial={0},/femm/electrostatic/normal angle/.code={\pgfkeyssetvalue{/femm/electrostatic/normal angle}{#1}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/interface value/.initial={upper},/femm/electrostatic/interface value/.is choice}
+\pgfkeys{/femm/electrostatic/interface value/lower/.code={\pgfkeyssetvalue{/femm/electrostatic/interface value}{lower}\def\luafemm@classicexplicit{1}}}
+\pgfkeys{/femm/electrostatic/interface value/upper/.code={\pgfkeyssetvalue{/femm/electrostatic/interface value}{upper}\def\luafemm@classicexplicit{1}}}
+\tikzset{femm/electrostatic/.code={%
+    \pgfqkeys{/femm/electrostatic}{#1}%
+    \tikzset{x=1cm,y=1cm,execute at begin picture={\luafemm@electricstart},
+      execute at end picture={\luafemm@electricfinish}}},
+  femm/electrostatic/.default={}}
+\def\luafemm@electricstart{%
+  \ifx\luafemm@electricid\pgfutil@empty
+    \ifluafemm@modelstarted\pgferror{luafemm: use separate electric and magnetic pictures}\fi
+    \pgfgettransform\luafemm@electrictransform
+    \directlua{require('luafemm-electric-tex').new({
+      native_file='\luaescapestring{\luafemm@electricvalue{native file}}',
+      file_override='\luafemm@electricfileoverride',
+      native_unit_explicit='\luafemm@nativeunitexplicit',
+      file_edition='\luaescapestring{\luafemm@electricvalue{file edition}}',
+      file='\luaescapestring{\luafemm@electricvalue{file}}',
+      import_mesh_size='\luaescapestring{\luafemm@electricvalue{import mesh size}}',
+      import_curve_tolerance='\luaescapestring{\luafemm@electricvalue{import curve tolerance}}',
+      boundary_tolerance='\luaescapestring{\luafemm@electricvalue{boundary snap tolerance}}',
+      mesh_size='\luaescapestring{\luafemm@electricvalue{mesh size}}',
+      source_quadrature_tolerance='\luaescapestring{\luafemm@electricvalue{source quadrature tolerance}}',
+      source_quadrature_depth='\luaescapestring{\luafemm@electricvalue{maximum source quadrature depth}}',
+      source_quadrature_cells='\luaescapestring{\luafemm@electricvalue{maximum source quadrature cells}}',
+      mesh_tolerance='\luaescapestring{\luafemm@electricvalue{mesh tolerance}}',
+      min_angle='\luaescapestring{\luafemm@electricvalue{minimum angle}}',
+      max_area='\luaescapestring{\luafemm@electricvalue{maximum area}}',
+      max_steiner='\luaescapestring{\luafemm@electricvalue{maximum Steiner points}}',
+      solve_tolerance='\luaescapestring{\luafemm@electricvalue{solver tolerance}}',
+      max_iterations='\luaescapestring{\luafemm@electricvalue{maximum iterations}}',
+      problem_type='\luaescapestring{\luafemm@electricvalue{problem type}}',
+      xmin_explicit='\luafemm@electricxminexplicit',
+      depth_explicit='\luafemm@electricdepthexplicit',
+      depth='\luaescapestring{\luafemm@electricvalue{depth}}',
+      outer_potential='\luaescapestring{\luafemm@electricvalue{boundary potential}}',
+      outer_boundary='\luaescapestring{\luafemm@electricvalue{outer boundary}}',
+      classic_explicit='\luafemm@classicexplicit',
+      model='\luaescapestring{\luafemm@electricvalue{model}}',
+      distribution='\luaescapestring{\luafemm@electricvalue{charge distribution}}',
+      center_x='\luaescapestring{\luafemm@electricvalue{center x}}',
+      center_y='\luaescapestring{\luafemm@electricvalue{center y}}',
+      radius='\luaescapestring{\luafemm@electricvalue{radius}}',
+      volume_density='\luaescapestring{\luafemm@electricvalue{volume charge density}}',
+      surface_density='\luaescapestring{\luafemm@electricvalue{surface charge density}}',
+      reference_radius='\luaescapestring{\luafemm@electricvalue{reference radius}}',
+      reference_potential='\luaescapestring{\luafemm@electricvalue{reference potential}}',
+      voltage='\luaescapestring{\luafemm@electricvalue{voltage}}',
+      inner_radius='\luaescapestring{\luafemm@electricvalue{inner radius}}',
+      outer_radius='\luaescapestring{\luafemm@electricvalue{outer radius}}',
+      separation='\luaescapestring{\luafemm@electricvalue{separation}}',
+      normal_angle='\luaescapestring{\luafemm@electricvalue{normal angle}}',
+      interface_value='\luaescapestring{\luafemm@electricvalue{interface value}}',
+      length_unit='\luaescapestring{\luafemm@electricvalue{length unit}}',
+      material='\luaescapestring{\luafemm@electricvalue{material}}',
+      epsilon_r='\luaescapestring{\luafemm@electricvalue{relative permittivity}}',
+      epsilon_x='\luaescapestring{\luafemm@electricvalue{relative permittivity x}}',
+      epsilon_y='\luaescapestring{\luafemm@electricvalue{relative permittivity y}}',
+      material_angle='\luaescapestring{\luafemm@electricvalue{material angle}}',
+      xmin='\luaescapestring{\luafemm@electricvalue{xmin}}',
+      xmax='\luaescapestring{\luafemm@electricvalue{xmax}}',
+      ymin='\luaescapestring{\luafemm@electricvalue{ymin}}',
+      ymax='\luaescapestring{\luafemm@electricvalue{ymax}}',
+      snapshot='\luaescapestring{\luafemm@electricvalue{snapshot}}'},
+      '\luaescapestring{\luafemm@electrictransform}',
+      {'\the\pgf@xx','\the\pgf@xy','\the\pgf@yx','\the\pgf@yy'})}%
+  \fi}
+\def\luafemm@electricfinish{%
+  \directlua{require('luafemm-electric-tex').finish('\luafemm@electricid',
+    '\luaescapestring{\luafemm@electricvalue{name}}')}}
+\pgfkeys{/femm/point charge/.is family,/femm/point charge,
+  charge/.initial={},exclusion radius/.initial=.22}
+\tikzset{femm charge/.style={draw=black!65,fill=white,line width=.6pt,
+    minimum size=4mm,inner sep=1pt,outer sep=.5pt},
+  femm/point charge/.code={%
+    \pgfqkeys{/femm/point charge}{#1}%
+    \tikzset{femm charge,shape=femm point charge}},
+  femm/point charge/.default={}}
+% Reuse PGF's circle geometry and standard anchors. Only the actual drawing
+% hook registers a source; anchor lookup and border intersection are read-only.
+\pgfdeclareshape{femm point charge}{%
+  \inheritsavedanchors[from=circle]
+  \inheritanchorborder[from=circle]
+  \inheritbackgroundpath[from=circle]
+  \inheritanchor[from=circle]{center}
+  \inheritanchor[from=circle]{text}
+  \inheritanchor[from=circle]{base}
+  \inheritanchor[from=circle]{mid}
+  \inheritanchor[from=circle]{north}
+  \inheritanchor[from=circle]{south}
+  \inheritanchor[from=circle]{east}
+  \inheritanchor[from=circle]{west}
+  \inheritanchor[from=circle]{north east}
+  \inheritanchor[from=circle]{north west}
+  \inheritanchor[from=circle]{south east}
+  \inheritanchor[from=circle]{south west}
+  \behindbackgroundpath{%
+    \ifpgfmatrix\pgferror{luafemm: point charges require immediate node placement}\else
+    \ifpgflatenodepositioning\pgferror{luafemm: point charges require immediate node placement}\else
+      \begingroup
+      \edef\luafemm@q{\pgfkeysvalueof{/femm/point charge/charge}}%
+      \ifx\luafemm@q\pgfutil@empty\pgferror{luafemm: specify charge in coulombs}\fi
+      \luafemm@staticnumber{/femm/point charge/charge}\luafemm@q
+      \luafemm@staticnumber{/femm/point charge/exclusion radius}\luafemm@radius
+      \pgfgettransform\luafemm@electrictransform
+      \centerpoint
+      \directlua{require('luafemm-electric-tex').charge('\luafemm@electricid',
+        '\luaescapestring{\luafemm@electrictransform}','\the\pgf@x','\the\pgf@y',
+        '\luaescapestring{\luafemm@q}','\luaescapestring{\luafemm@radius}')}%
+      \endgroup
+    \fi\fi}}
+\pgfkeys{/femm/electric/.is family,/femm/electric,
+  xmin/.initial={},xmax/.initial={},ymin/.initial={},ymax/.initial={},
+  arrow position/.initial=.45,step/.initial=.08,tolerance/.initial=.0001,max length/.initial=40,
+  max steps/.initial=10000,null field/.initial=1e-9,
+  lines per charge/.initial=16,seeds/.initial={},
+  contour resolution/.initial=80,level count/.initial=11,levels/.initial={},
+  plate span/.initial=4,vector spacing/.initial=.5,vector length/.initial=.28,vector scale/.initial=1e-5,
+  direction/.initial=both,direction/.is choice,
+  seed sign/.initial=auto,seed sign/.is choice,
+  vector mode/.initial=normalized,vector mode/.is choice}
+\pgfkeys{/femm/electric/direction/both/.code={\pgfkeyssetvalue{/femm/electric/direction}{both}}}
+\pgfkeys{/femm/electric/direction/forward/.code={\pgfkeyssetvalue{/femm/electric/direction}{forward}}}
+\pgfkeys{/femm/electric/direction/backward/.code={\pgfkeyssetvalue{/femm/electric/direction}{backward}}}
+\pgfkeys{/femm/electric/seed sign/auto/.code={\pgfkeyssetvalue{/femm/electric/seed sign}{auto}}}
+\pgfkeys{/femm/electric/seed sign/positive/.code={\pgfkeyssetvalue{/femm/electric/seed sign}{positive}}}
+\pgfkeys{/femm/electric/seed sign/negative/.code={\pgfkeyssetvalue{/femm/electric/seed sign}{negative}}}
+\pgfkeys{/femm/electric/seed sign/all/.code={\pgfkeyssetvalue{/femm/electric/seed sign}{all}}}
+\pgfkeys{/femm/electric/vector mode/normalized/.code={\pgfkeyssetvalue{/femm/electric/vector mode}{normalized}}}
+\pgfkeys{/femm/electric/vector mode/scaled/.code={\pgfkeyssetvalue{/femm/electric/vector mode}{scaled}}}
+
+\tikzset{femm/electric/.code={\pgfqkeys{/femm/electric}{#1}},
+  femm electric oriented field/.code={\luafemm@fieldmarks{\pgfkeysvalueof{/femm/electric/arrow position}}{\pgfkeysvalueof{/tikz/femm/arrow spacing}}},
+  femm electric field/.style={blue!70!black,line width=.4pt,femm electric oriented field},
+  femm equipotential/.style={orange!75!black,densely dashed,line width=.35pt},
+  femm electric vector/.style={green!45!blue,line width=.4pt,-{Stealth[length=1.5mm]}},
+  femm charged body/.style={draw=red!65!black,fill=red!8,line width=.6pt},
+  femm charged surface/.style={draw=red!65!black,line width=.9pt},
+  femm electric conductor/.style={draw=black!75,fill=black!10,line width=.8pt},
+  femm electric electrode/.style={draw=black!75,line width=.8pt},
+  pics/femm electric geometry/.style={code={\luafemm@electricdraw{geometry}}},
+  pics/femm electric field/.style={code={\luafemm@electricdraw{lines}}},
+  pics/femm equipotentials/.style={code={\luafemm@electricdraw{contours}}},
+  pics/femm electric vectors/.style={code={\luafemm@electricdraw{vectors}}}}
+% Geometry is already in the model's captured canvas frame. Reset local pic
+% transformations to avoid applying rotations or scaling twice.
+\def\luafemm@electricviewoptions{%
+    plate_span='\luaescapestring{\pgfkeysvalueof{/femm/electric/plate span}}',
+    xmin='\luaescapestring{\pgfkeysvalueof{/femm/electric/xmin}}',
+    xmax='\luaescapestring{\pgfkeysvalueof{/femm/electric/xmax}}',
+    ymin='\luaescapestring{\pgfkeysvalueof{/femm/electric/ymin}}',
+    ymax='\luaescapestring{\pgfkeysvalueof{/femm/electric/ymax}}',
+    arrow_position='\luaescapestring{\pgfkeysvalueof{/femm/electric/arrow position}}',
+    step='\luaescapestring{\pgfkeysvalueof{/femm/electric/step}}',
+    tolerance='\luaescapestring{\pgfkeysvalueof{/femm/electric/tolerance}}',
+    max_length='\luaescapestring{\pgfkeysvalueof{/femm/electric/max length}}',
+    max_steps='\luaescapestring{\pgfkeysvalueof{/femm/electric/max steps}}',
+    null_field='\luaescapestring{\pgfkeysvalueof{/femm/electric/null field}}',
+    lines='\luaescapestring{\pgfkeysvalueof{/femm/electric/lines per charge}}',
+    seeds='\luaescapestring{\pgfkeysvalueof{/femm/electric/seeds}}',
+    grid='\luaescapestring{\pgfkeysvalueof{/femm/electric/contour resolution}}',
+    contour_tolerance='\luaescapestring{\pgfkeysvalueof{/femm/electric/contour tolerance}}',
+    contour_depth='\luaescapestring{\pgfkeysvalueof{/femm/electric/maximum contour depth}}',
+    contour_cells='\luaescapestring{\pgfkeysvalueof{/femm/electric/maximum contour cells}}',
+    count='\luaescapestring{\pgfkeysvalueof{/femm/electric/level count}}',
+    levels='\luaescapestring{\pgfkeysvalueof{/femm/electric/levels}}',
+    spacing='\luaescapestring{\pgfkeysvalueof{/femm/electric/vector spacing}}',
+    vector_length='\luaescapestring{\pgfkeysvalueof{/femm/electric/vector length}}',
+    vector_scale='\luaescapestring{\pgfkeysvalueof{/femm/electric/vector scale}}',
+    direction='\luaescapestring{\pgfkeysvalueof{/femm/electric/direction}}',
+    seed_sign='\luaescapestring{\pgfkeysvalueof{/femm/electric/seed sign}}',
+    vector_mode='\luaescapestring{\pgfkeysvalueof{/femm/electric/vector mode}}'}
+\def\luafemm@electricdraw#1{\begingroup\pgftransformreset
+  \directlua{require('luafemm-electric-tex').draw('\luafemm@electricid','#1',{
+\luafemm@electricviewoptions})}\endgroup}
+\pgfkeys{/femm/electric profile/.is family,/femm/electric profile,
+  name/.initial={},samples/.initial=201,curve tolerance/.initial=.001,
+  outside/.initial=error,outside/.is choice,
+  outside/error/.code={\pgfkeyssetvalue{/femm/electric profile/outside}{error}},
+  outside/nan/.code={\pgfkeyssetvalue{/femm/electric profile/outside}{nan}}}
+\tikzset{femm/electric profile/.code={%
+    \pgfqkeys{/femm/electric profile}{#1}%
+    \tikzset{postaction={femm/capture electric profile}}},
+  femm/capture electric profile/.code={\tikz@addmode{\luafemm@electriccapture{profile}}},
+  femm/electric seeds/.code={%
+    \pgfqkeys{/femm/electric profile}{samples=16,#1}%
+    \tikzset{postaction={femm/capture electric seeds}}},
+  femm/electric seeds/.default={},
+  femm/capture electric seeds/.code={\tikz@addmode{\luafemm@electriccapture{seeds}}}}
+\def\luafemm@electriccapture#1{\begingroup
+  \pgfsyssoftpath@getcurrentpath\luafemm@electricpath
+  \pgfprocessround{\luafemm@electricpath}{\luafemm@electricpath}%
+  \directlua{require('luafemm-electric-tex').capture('\luafemm@electricid',
+    '\luaescapestring{\pgfkeysvalueof{/femm/electric profile/name}}',
+    '\luaescapestring{\meaning\luafemm@electricpath}',{
+      samples='\luaescapestring{\pgfkeysvalueof{/femm/electric profile/samples}}',
+      tolerance='\luaescapestring{\pgfkeysvalueof{/femm/electric profile/curve tolerance}}',
+      outside='\luaescapestring{\pgfkeysvalueof{/femm/electric profile/outside}}'},'#1')}%
+  \endgroup}
+\pgfkeys{/femm/electric plot/.is family,/femm/electric plot,
+  profile/.initial={},component/.initial=E,component/.is choice,
+  abscissa/.initial=s,abscissa/.is choice,plot options/.initial={}}
+\pgfkeys{/femm/electric plot/component/V/.code={\pgfkeyssetvalue{/femm/electric plot/component}{V}}}
+\pgfkeys{/femm/electric plot/component/E/.code={\pgfkeyssetvalue{/femm/electric plot/component}{E}}}
+\pgfkeys{/femm/electric plot/component/Ex/.code={\pgfkeyssetvalue{/femm/electric plot/component}{Ex}}}
+\pgfkeys{/femm/electric plot/component/Ey/.code={\pgfkeyssetvalue{/femm/electric plot/component}{Ey}}}
+\pgfkeys{/femm/electric plot/component/D/.code={\pgfkeyssetvalue{/femm/electric plot/component}{D}}}
+\pgfkeys{/femm/electric plot/component/Dx/.code={\pgfkeyssetvalue{/femm/electric plot/component}{Dx}}}
+\pgfkeys{/femm/electric plot/component/Dy/.code={\pgfkeyssetvalue{/femm/electric plot/component}{Dy}}}
+\pgfkeys{/femm/electric plot/abscissa/s/.code={\pgfkeyssetvalue{/femm/electric plot/abscissa}{s}}}
+\pgfkeys{/femm/electric plot/abscissa/x/.code={\pgfkeyssetvalue{/femm/electric plot/abscissa}{x}}}
+\pgfkeys{/femm/electric plot/abscissa/y/.code={\pgfkeyssetvalue{/femm/electric plot/abscissa}{y}}}
+\pgfkeys{/femm/electric plot/abscissa/t/.code={\pgfkeyssetvalue{/femm/electric plot/abscissa}{t}}}
+
+\protected\def\femmelectricplot{\pgfutil@ifnextchar[{\luafemm@electricplot}{\luafemm@electricplot[]}}
+\def\luafemm@electricplot[#1]{%
+  \ifdefined\addplot
+    \begingroup\pgfqkeys{/femm/electric plot}{#1}%
+    \pgfkeysgetvalue{/femm/electric plot/plot options}\luafemm@plotoptions
+    \luafemm@plottoks=\expandafter{\luafemm@plotoptions}%
+    \edef\luafemm@plotcommand{\endgroup
+      \noexpand\addplot+[unbounded coords=jump,\the\luafemm@plottoks] coordinates {%
+        \directlua{tex.sprint(require('luafemm-electric-tex').coordinates(
+          '\luaescapestring{\pgfkeysvalueof{/femm/electric plot/profile}}',
+          '\luaescapestring{\pgfkeysvalueof{/femm/electric plot/component}}',
+          '\luaescapestring{\pgfkeysvalueof{/femm/electric plot/abscissa}}'))}};}%
+    \luafemm@plotcommand
+  \else\pgferror{luafemm: femmelectricplot requires pgfplots and an axis}\fi}
+
+% Integral quantities distinguish total, per-length and per-area results.
+% Number formatting stays entirely in TeX and uses native PGF number keys.
+\pgfkeys{/femm/electric value/.is family,/femm/electric value,
+  model/.initial={},quantity/.initial=charge,quantity/.is choice,
+  number format/.initial={sci,precision=3}}
+\pgfkeys{/femm/electric value/quantity/charge/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{charge}}}
+\pgfkeys{/femm/electric value/quantity/charge per length/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{charge per length}}}
+\pgfkeys{/femm/electric value/quantity/charge per area/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{charge per area}}}
+\pgfkeys{/femm/electric value/quantity/capacitance/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{capacitance}}}
+\pgfkeys{/femm/electric value/quantity/capacitance per length/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{capacitance per length}}}
+\pgfkeys{/femm/electric value/quantity/capacitance per area/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{capacitance per area}}}
+\pgfkeys{/femm/electric value/quantity/energy/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{energy}}}
+\pgfkeys{/femm/electric value/quantity/energy per length/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{energy per length}}}
+\pgfkeys{/femm/electric value/quantity/energy per area/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{energy per area}}}
+\pgfkeys{/femm/electric value/quantity/voltage/.code={\pgfkeyssetvalue{/femm/electric value/quantity}{voltage}}}
+
+\protected\def\femmelectricvalue{\pgfutil@ifnextchar[{\luafemm@electricresult}{\luafemm@electricresult[]}}
+\def\luafemm@electricresult[#1]{\begingroup
+  \pgfqkeys{/femm/electric value}{#1}%
+  \edef\luafemm@electricnumber{\directlua{require('luafemm-electric-tex').value(
+    '\luafemm@electricid',
+    '\luaescapestring{\pgfkeysvalueof{/femm/electric value/model}}',
+    '\luaescapestring{\pgfkeysvalueof{/femm/electric value/quantity}}',
+    '\luaescapestring{\pgfkeysvalueof{/femm/electric value/electrode}}')}}%
+  \pgfkeysgetvalue{/femm/electric value/number format}\luafemm@electricformat
+  \expandafter\pgfmathprintnumber\expandafter[\luafemm@electricformat]{\luafemm@electricnumber}%
+  \endgroup}
+\endinput

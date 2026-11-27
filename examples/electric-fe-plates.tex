@@ -1,0 +1,91 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm,backgrounds}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\usetikzlibrary{backgrounds}
+\tikzset{
+  lesson electric box/.style={femm/electrostatic={model=finite elements,
+    xmin=-3,xmax=3,ymin=-2,ymax=2,mesh size=.3}},
+  lesson electric plates/.pic={
+    \draw[very thick,femm/electric electrode={name=positive,potential=50}]
+      (-.5,-1)--(-.5,1);
+    \draw[very thick,femm/electric electrode={name=negative,potential=-50}]
+      (.5,-1)--(.5,1);}}
+
+\par\medskip
+\begin{tikzpicture}[lesson electric box,
+    femm/electrostatic={name=fe coarse},scale=.8]
+  \pic[transform shape] {lesson electric plates};
+  \begin{scope}[on background layer]
+    \pic {femm electric mesh};
+    \pic[femm/electric={lines per charge=20}] {femm electric field};
+  \end{scope}
+  \draw[gray,densely dotted] (-3,-2) rectangle (3,2);
+  \node[above] at (-.5,1) {$+50\,\mathrm V$};
+  \node[below] at (.5,-1) {$-50\,\mathrm V$};
+  \path[femm/electric profile={name=fe coarse axis,samples=101}]
+    (0,-1.8)--(0,1.8);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[lesson electric box,
+    femm/electrostatic={mesh size=.15,name=fe fine},scale=.8]
+  \pic[transform shape] {lesson electric plates};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={lines per charge=24}] {femm electric field};
+    \pic[femm/electric={levels={-40,-20,0,20,40}}] {femm equipotentials};
+  \end{scope}
+  \draw[gray,densely dotted] (-3,-2) rectangle (3,2);
+  \path[femm/electric profile={name=fe fine axis,samples=161}]
+    (0,-1.8)--(0,1.8);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[lesson electric box,femm/electrostatic={
+    xmin=-5,xmax=5,ymin=-5,ymax=5,mesh size=.15,name=fe wide}]
+  \pic[transform shape] {lesson electric plates};
+  \path[femm/electric seeds={samples=17}] (0,-1.8)--(0,1.8);
+  \pic[femm/electric={xmin=-2,xmax=2,ymin=-2,ymax=2}]
+    {femm electric field};
+  \draw[gray,densely dotted] (-2,-2) rectangle (2,2);
+  \path[femm/electric profile={name=fe wide axis,samples=161}]
+    (0,-1.8)--(0,1.8);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=5cm,no markers,grid=major,
+  xlabel={$y$ (cm)},ylabel={$E_x$ (V/m)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \femmelectricplot[profile=fe coarse axis,component=Ex,abscissa=y,
+    plot options={gray,thick}]
+  \addlegendentry{Coarse}
+  \femmelectricplot[profile=fe fine axis,component=Ex,abscissa=y,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Fine}
+  \femmelectricplot[profile=fe wide axis,component=Ex,abscissa=y,
+    plot options={red!70!black,thick}]
+  \addlegendentry{Wider box}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tabular}{lr}
+Calculation & Positive electrode charge per length (C/m)\\
+Coarse & \femmelectricvalue[model=fe coarse,electrode=positive,
+  quantity=charge per length]\\
+Fine & \femmelectricvalue[model=fe fine,electrode=positive,
+  quantity=charge per length]\\
+Wider box & \femmelectricvalue[model=fe wide,electrode=positive,
+  quantity=charge per length]
+\end{tabular}
+
+\end{document}

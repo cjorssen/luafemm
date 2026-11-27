@@ -1,0 +1,149 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Controlling mesh quality}
+\label{sec:mesh-quality}
+A smaller |mesh size| puts more points into the model, but it does not
+necessarily improve the shape of every triangle. A narrow air gap or the
+transition from a fine material region to coarse air can leave long, thin
+elements. The optional |minimum angle| and |maximum area| keys address
+triangle shape and area separately from nominal point spacing.
+
+\subsection{Draft first, request quality second}
+Keep both quality targets at zero while positioning parts and checking their
+material declarations. Inspect the mesh, then add a reusable style with a
+modest angle target, usually 20 degrees. Declare that style in the picture
+options, together with the domain and spacing: refinement is part of meshing,
+so it must be configured before the first mesh or field request.
+
+The following worked example uses the same U electromagnet and 8 mm draft
+spacing twice. Only the angle target changes. The two |femm/problem| keys
+provided by the styles configure one model per picture; their options compose
+before the model is created. |\pic {femm mesh};| performs meshing and quality
+refinement, but does not solve the magnetic field.
+
+For these sources, the minimum angle increases from about $7.29^\circ$ to
+$20.00^\circ$ with 148 added points. The diagnostics are computed by the
+example, rather than written into the figure. Counts are observations for
+this geometry and revision, not promises for other devices.
+\luafemmexamplebegin{mesh-quality}
+
+% manual example: mesh-quality/1
+
+\begin{codeexample}[setup code]
+\tikzset{
+  draft device/.style={femm/problem={
+    xmin=-65,xmax=65,ymin=-40,ymax=65,mesh size=8}},
+  quality target/.style={femm/problem={
+    minimum angle=#1,max Steiner points=5000}},
+  quality target/.default=20}
+\end{codeexample}
+
+Apply these styles to the physical paths before requesting the field.
+
+% manual example: mesh-quality/2
+
+\begin{codeexample}[width=0pt]
+\foreach \angle/\caption in {0/Spacing only,20/With quality refinement}{
+  \begin{tikzpicture}[draft device,quality target=\angle,scale=.48]
+    \node[femm/u electromagnet={gap=3,gap mesh size=0}] {};
+
+    \pic[femm/mesh style={black!55,line width=.1pt}] {femm mesh};
+    \node[above,font=\small] at (0,65) {\caption};
+    \node[below,align=center,font=\small] at (0,-42)
+      {Minimum angle: $\femmmeshstat{min_angle}^\circ$\\
+       Additional points: \femmmeshstat{steiner_points}};
+  \end{tikzpicture}
+
+}
+\end{codeexample}
+
+\luafemmexampleend{mesh-quality}
+
+\subsection{How the refinement proceeds}
+Before refinement, the mesher measures the smallest angle between constrained
+segments meeting at a vertex. If this angle is below |minimum angle|, the
+request fails immediately: subdividing that wedge cannot make every triangle
+angle larger than the wedge itself. This check does not introduce a quality
+exception or consume the |max Steiner points| budget.
+
+The initial mesh still follows global and local point spacing. When either
+quality target is nonzero, refinement first examines constrained segments.
+A neighbouring triangle's opposite vertex encroaches on a segment if it lies
+strictly inside the circle whose diameter is that segment. Such a segment
+is bisected before processing deficient triangles. Points exactly on the
+circle do not trigger subdivision; the disk test uses a filtered dot product
+with exact-expansion fallback.
+
+Deficient triangles are processed in order of shortest edge, with deterministic
+tie breaking. Their proposed circumcentres are checked against the constrained
+segments. If a candidate encroaches a segment, that segment is split instead.
+The point-location walk also stops at a constrained interface and requests
+its subdivision before continuing. Accepted insertions are followed by local
+Lawson flips that preserve every constrained edge. Newly created triangles
+and neighbouring segments are checked again. All split segments retain their
+material-interface role or their exterior tag for boundary conditions.
+
+Spatial searches discard distant segments and vertices before intersection,
+subdivision and encroachment tests. This acceleration is automatic; the same
+exact-sign predicates and distance tests make the final decisions. Candidate
+order is deterministic. Large search boxes use a bounded fallback instead of
+allocating an arbitrarily large grid. No new setting is required, and existing
+|femm/problem| and region styles retain their meaning.
+
+The final audit independently checks the requested angle and area bounds,
+constraint preservation, coverage, topology and constrained-Delaunay legality.
+Successful refinement therefore meets the requested criteria, within the
+documented floating-point audit margins ($10^{-8}$ degrees and $10^{-10}$
+relative area). It does not estimate the magnetic field error. Check field
+convergence with spacing and exterior-domain changes as before.
+
+\subsection{Inspect a narrow corner before asking for quality}
+The following triangle has a constrained corner of about $14.25^\circ$.
+The default zero angle target permits its mesh. A later request for
+|minimum angle=20| would be rejected, independently of the insertion budget.
+The two angle diagnostics distinguish the limitation of the input geometry
+from the smallest angle actually produced in the surrounding mesh.
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[scale=8,
+  femm/problem={xmin=-1,xmax=5,ymin=-2,ymax=2,mesh size=.5}]
+  \filldraw[femm/region={material=air},fill=blue!10]
+    (0,0)--(4,-.5)--(4,.5)--cycle;
+  \pic[femm/mesh style={gray,line width=.15pt}] {femm mesh};
+  \node[below,align=center] at (2,-2)
+    {Constrained angle: $\femmmeshstat{min_input_angle}^\circ$\\
+     Triangle angle: $\femmmeshstat{min_angle}^\circ$};
+\end{tikzpicture}
+\end{codeexample}
+
+For performance investigations, |\femmmeshstat{spatial_queries}| counts index
+queries and |\femmmeshstat{spatial_candidates}| counts the candidates they
+return, including repeated visits. These are work counters, not triangle counts
+or field-error estimates. They cover the constrained triangulator and its
+quality refinement, not all preceding path-arrangement or periodic-pairing
+operations. A cache preserves the original run's statistics; a restored mesh
+does not represent a new timing measurement. The |min_input_angle| diagnostic
+belongs to meshes generated by this library and is unavailable for passive
+ANS imports; imported search counters are zero.
+
+\subsection{Limits and failure diagnostics}
+This is an original, bounded Lua implementation of segment-first Delaunay
+refinement inspired by the algorithms studied in Triangle. It is not a full
+port of Triangle's refinement machinery. In particular, it has no specialised
+protection for acute input corners, no coarsening and no guaranteed smooth
+gradation between local sizes. Candidate disk checks are conservative across
+all segments, which can request more subdivisions than a visibility-aware test.
+
+A material wedge with a smaller angle than the requested target is rejected
+before refinement. Passing this necessary check does not guarantee termination:
+acute corners may still cause encroachment cascades. Closely spaced features
+can require many extra points. Splitting stops with an error when the Steiner
+budget, the total vertex cap or the geometric tolerance prevents further
+progress; a candidate indistinguishable from an existing vertex also raises
+an error. No partial result is silently accepted or saved as a successful mesh.
+Reduce the target or review the geometry first; increase the budget only when
+the extra resolution is intentional. These controls are shared by all three
+TeX formats and use no external meshing program.

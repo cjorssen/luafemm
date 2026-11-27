@@ -1,0 +1,73 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm,backgrounds}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=-.7,ymax=.7,outer boundary=insulated,
+    mesh size=.15,name=fe dielectric},scale=1.4]
+  \draw[fill=blue!10,draw=none,
+    femm/electric region={relative permittivity=4}]
+    (0,-.7) rectangle (1,.7);
+  \draw[very thick,femm/electric electrode={name=left,potential=100}]
+    (0,-.7)--(0,.7);
+  \draw[very thick,femm/electric electrode={name=right,potential=0}]
+    (2,-.7)--(2,.7);
+  \pic[femm/electric={lines per charge=7}] {femm electric field};
+  \pic[femm/electric={levels={20,40,60,80}}] {femm equipotentials};
+  \node[above] at (.5,.7) {$\epsilon_r=4$};
+  \node[above] at (1.5,.7) {$\epsilon_r=1$};
+  \path[femm/electric profile={name=fe dielectric radius,samples=2}]
+    (0,0)--(2,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm,no markers,grid=major,
+  xlabel={$x$ (cm)},ylabel={$E_x$ (V/m)}]
+  \femmelectricplot[profile=fe dielectric radius,component=Ex,abscissa=x,
+    plot options={blue!70!black,thick}]
+\end{axis}
+\end{tikzpicture}
+\begin{tikzpicture}
+\begin{axis}[width=7cm,height=4.5cm,no markers,grid=major,
+  xlabel={$x$ (cm)},ylabel={$D_x$ (C/m$^2$)}]
+  \femmelectricplot[profile=fe dielectric radius,component=Dx,abscissa=x,
+    plot options={red!70!black,thick}]
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=-.7,ymax=.7,outer boundary=insulated,
+    mesh size=.15,name=fe sheet},scale=1.4]
+  \draw[very thick,femm/electric electrode={name=left,potential=0}]
+    (0,-.7)--(0,.7);
+  \draw[very thick,femm/electric electrode={name=right,potential=0}]
+    (2,-.7)--(2,.7);
+  \draw[red!70!black,thick,
+    femm/electric charge layer={surface charge density=1e-9}]
+    (1,-.7)--(1,.7);
+  \pic[femm/electric={lines per charge=12}] {femm electric field};
+  \pic[femm/electric={levels={.1,.2,.3,.4,.5}}] {femm equipotentials};
+  \path[femm/electric profile={name=fe sheet radius,samples=21}]
+    (0,0)--(2,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$x$ (cm)},ylabel={$E_x$ (V/m)}]
+  \femmelectricplot[profile=fe sheet radius,component=Ex,abscissa=x,
+    plot options={blue!70!black,thick}]
+\end{axis}
+\end{tikzpicture}
+
+\end{document}

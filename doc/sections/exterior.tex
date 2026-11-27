@@ -1,0 +1,87 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Axisymmetric mapped exterior regions}
+\label{sec:exterior}
+
+A Kelvin exterior represents the space outside a physical sphere by a separate
+computational sphere. Both appear as half-disks in the $(r,z)$ section. The
+mapped sphere is not an additional physical body. Its scale and position serve
+the computation; field coordinates and volume averages inside it are mapped
+quantities and must not be presented as physical-space measurements.
+
+\begin{key}{/femm/problem/exterior inner radius=\meta{number} (initially 0)}
+Physical sphere radius in model units. Positive when a Kelvin region is used.
+\end{key}
+\begin{key}{/femm/problem/exterior outer radius=\meta{number} (initially 0)}
+Mapped sphere radius in model units. Despite the inherited FEMM terminology,
+it may be smaller than the physical radius. No ordering of the two radii is required.
+\end{key}
+\begin{key}{/femm/problem/exterior center z=\meta{number} (initially 0)}
+Mapped sphere's axial centre in model units. Both spheres are centred on $r=0$.
+\end{key}
+\begin{key}{/femm/region/exterior=none\textbar kelvin (initially none)}
+Mark only the mapped region. It must be linear, isotropic, nonconducting and
+source-free, with no permanent magnetization. Ordinary static and harmonic
+axisymmetric models are supported, not transient or operating-point responses.
+At an element centroid the relative reluctivity is multiplied by
+$(r^2+(z-z_o)^2)R_i/R_o^3$, following FEMM's exterior coefficient convention.
+\end{key}
+\begin{key}{/femm/pair/scale=\meta{positive number} (initially 1)}
+For a Kelvin interface, scale coordinates from the first frontier to the second.
+Use zero rotation and radial shift, with the required axial shift. The constraint
+preserves $\psi=2\pi rA_\phi$: if $r_2=s r_1$, then $A_{\phi,1}=s A_{\phi,2}$
+for periodic pairing. Ordinary planar pairs still require scale 1.
+\end{key}
+
+Declare the compound physical domain, currents/materials and mapped region,
+then the two |type=periodic| frontiers and their pair. Use exactly matching
+evaluated traces at the declared scale. The example below uses shared polygon
+definitions so all domain, region and frontier captures agree. Refining the
+angular polygon and the field mesh are independent operations.
+
+% The complete generic scene is included as executed source below.
+
+\begin{codeexample}[width=0pt]
+% Generic body: physical hemisphere and separate Kelvin computational bubble.
+\begingroup
+\def\Physical{(0,-20) \foreach \a in {-84,-78,...,84}{--({20*cos(\a)},{20*sin(\a)})} --(0,20)}
+\def\Mapped{(0,30) \foreach \a in {-84,-78,...,84}{--({5*cos(\a)},{35+5*sin(\a)})} --(0,40)}
+\tikzpicture[femm/problem={type=axisymmetric,xmin=0,xmax=20,
+ ymin=-20,ymax=40,mesh size=2,exterior inner radius=20,
+ exterior outer radius=5,exterior center z=35},scale=1.4]
+ \path[femm/domain] \Physical--cycle
+   \Mapped--cycle;
+ \path[femm/region={material=air,current density=1e6}] (5,-3) rectangle (10,3);
+ \path[femm/region={material=air,exterior=kelvin}]
+   \Mapped--cycle;
+ \path[femm/frontier={name=physical,type=periodic,curve tolerance=.03}]
+   \Physical;
+ \path[femm/frontier={name=mapped,type=periodic,curve tolerance=.0075}]
+   \Mapped;
+ \femmpair[first=physical,second=mapped,scale=.25,shift y=35,tolerance=.03]
+ \draw[gray,dashed] \Physical--cycle \Mapped--cycle;
+ \pic[femm/lines=10] {femm field};
+ \draw[orange,thick] (5,-3) rectangle (10,3);
+ \node[right] at (5,35) {Mapped exterior};
+ \draw[->] (0,-22)--(0,42) node[above] {$z$};
+\endtikzpicture
+\par
+\endgroup
+\end{codeexample}
+
+Native FEMM imports retain exterior radii, centre and label flags. Equal-angle
+periodic arcs use synchronized angular subdivisions. Static or harmonic ANS
+answers retain their nodal flux constraints; the mapped answer can therefore
+be restored without solving. Exporting scaled interfaces as an editable FEM
+would require unequal-length periodic straight primitives, so that export is
+rejected. ANS export stores the constraints in its nodal-pair trailer; extracting
+its embedded polygonal geometry alone is not an equivalent editable problem.
+Windows GUI acceptance remains unverified.
+
+Real point-potential properties on retained geometric vertices are also imported
+and exported. Point currents, complex prescribed point potentials and nonzero
+axisymmetric point-flux properties are explicitly rejected. An isolated input
+point which the mesher did not retain cannot silently become a nearby constraint.

@@ -1,0 +1,49 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm,backgrounds}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=-2.4,xmax=2.4,ymin=-2.4,ymax=2.4,mesh size=.15,
+    name=fe charged cylinder}]
+  \draw[fill=red!8,draw=red!60!black,
+    femm/electric region={volume charge density=1e-7,
+      mesh size=.1,curve tolerance=.0005}]
+    (0,0) circle[radius=1];
+  \draw[thick,femm/electric electrode={name=tube,potential=0,
+      interior=dielectric,curve tolerance=.0005}]
+    (0,0) circle[radius=2];
+  \pic[femm/electric={lines per charge=20}] {femm electric field};
+  \pic[femm/electric={levels={.1,.2,.3,.4,.5}}] {femm equipotentials};
+  \path[femm/electric profile={name=fe cylinder radius,samples=101}]
+    (0,0)--(1.9,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={model=charged cylinder,radius=1,
+    volume charge density=1e-7,reference radius=2}]
+  \pic {femm electric geometry};
+  \path[femm/electric profile={name=exact cylinder radius,samples=161}]
+    (0,0)--(1.9,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$r$ (cm)},ylabel={$E_r$ (V/m)},
+  legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmelectricplot[profile=exact cylinder radius,component=Ex,abscissa=x,
+    plot options={black,dashed}]
+  \addlegendentry{Analytical}
+  \femmelectricplot[profile=fe cylinder radius,component=Ex,abscissa=x,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Finite elements}
+\end{axis}
+\end{tikzpicture}
+
+\end{document}

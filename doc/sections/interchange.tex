@@ -1,0 +1,870 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{FEMM problem and solution interchange}
+\label{sec:interchange}
+The interchange described here applies to |field model=open|. Ideal-mode
+floating-window constraints cannot be represented by this subset; FEM/ANS
+export and import in ideal mode report an error.
+
+A drawing and its magnetic solution can travel between TeX and FEMM. Read a
+preprocessor |.fem| problem and solve it in Lua; export the computational problem
+for FEMM; or exchange an existing static or harmonic |.ans| solution. None requires
+FEMM, xfemm or a native library at document runtime. The optional native tools
+used for independent validation are development tools. This chapter describes a
+bounded subset of magnetic format~4.0, including linear harmonic materials,
+conductors, effective wires and insulated sheets. Unsupported physics is rejected;
+a successful parse alone does not imply that a problem is representable.
+
+\paragraph{FEMM 4 and FEMM 5.}
+The supported ordinary problem and answer subset retains the FEMM 4 file
+representation. Exports use conventional property delimiters accepted by both
+FEMM 4 readers and FEMM 5's Tangle mesher. Each exported face, including
+background air, carries the finer of the global and applicable local mesh
+spacings. External meshers may still produce different triangles, so compare
+converged fields rather than expecting identical remeshed solutions.
+Internal solver scaling does not alter file units, node numbering, periodic
+partners or previous-solution references. Native TikZ paths remain intact;
+only the exported geometric representation is polygonal.
+
+Independent exchange checks use xfemm for the FEMM 4-compatible subset and
+an unmodified FEMM 5 command-line solver. They test exported answers, independent
+remeshed solves and reimported answers; planar previous-solution cases have
+separate exact-mesh checks. For harmonic voltage-gradient records, the consistency check includes a
+bounded absolute allowance proportional to $\omega|A|$ and the stated solver
+precision (capped at $10^{-8}$), in addition to its relative terminal-state
+check. This covers near-cancellation of induced voltages; materially changed
+circuit records still fail. The Windows GUI itself has not been executed.
+This is compatibility within the documented subset, not support for every
+FEMM 5 record. Fixed planar transient answers have the separate contract in
+Section~\ref{sec:time-exchange}; they require an explicit absolute import time.
+Ordinary path-based imports and every export reject an existing same-basename
+FEMM 5 |.tmp| companion: for |motor.fem| or |motor.ans| the checked sibling is
+|motor.tmp|, not |motor.fem.tmp|. Response export checks both the destination and
+its owned DC companion before publishing either. The sidecar is never executed,
+deleted or overwritten. An inaccessible sibling location also fails. In-memory
+text codecs have no sibling filesystem context. Supported transient answer reads
+ignore the solver-control sidecar because the answer owns its step and history.
+
+Undeclared previous-solution columns and type~3 restart records are rejected.
+Ordinary planar native AGE answers require an explicit interpolation choice
+(Section~\ref{sec:native-gaps}). Declared planar incremental/frozen records retain
+their separate companion requirements below. Conductivity remains in MS/m in
+FEMM files and S/m in the Lua/PGF interface; series circuits use FEMM type~1.
+
+\subsection{First, keep drawing curves}
+
+Imagine that one side of a conductor is a Bezier curve and another conductor
+is a rotated ellipse. We need not replace these paths by hand-written circular
+arcs. PGF evaluates the drawing; luafemm approximates its curves by short straight
+segments before generating finite elements. This already happens in ordinary
+luafemm calculations. The FEM writer uses those computational interfaces.
+
+There are therefore three geometric representations to keep in mind:
+\begin{enumerate}
+\item The evaluated source path contains the PGF lines and cubic curves, or
+      the segments and circular arcs read from a FEM file. Native captured
+      soft-path data and their coordinate frame are retained in the model.
+\item The computational geometry is polygonal. Its faces carry materials and
+      excitations, and its edges carry boundary conditions. It is independent
+      of the interior triangle spacing.
+\item The solution consists of the actual triangles and nodal potential $A_z$.
+      ANS export preserves these data without remeshing or projection.
+\end{enumerate}
+
+The source TeX program, node anchors, text, colours and macros are not encoded
+in a FEM file. A round trip preserves the represented physical problem, not the
+original drawing program. Similarly, an imported circular arc may be preserved
+by the passive Lua document writer, whereas the computational exporter writes
+its polygonal approximation. No circular-arc fitting is performed on arbitrary
+TikZ curves.
+
+Start with a modest |curve tolerance| and |mesh size|. The first controls curve
+approximation, the second triangle spacing. Reducing the triangle size cannot
+recover curvature already removed by polygonalisation. As the drawing approaches
+its final form, reduce each independently and compare the field on the contour
+of interest. A narrow curved air gap deserves particular attention: its width
+must be resolved geometrically before refining triangles inside it.
+The chord tolerance is not a global error estimate for the magnetic field;
+PGF coordinate precision, snapping and constructed intersections also matter.
+
+Here is the declaration and its computed result. The dotted interfaces expose the polygonal geometry;
+the last drawing comes from importing the exported FEM problem and solving again.
+The graph still refers to the original named profile.
+\luafemmexamplebegin{interchange-curves}
+
+% manual example: interchange-curves/1
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[
+  femm/problem={xmin=-16,xmax=16,ymin=-13,ymax=13,
+    mesh size=2,curve tolerance=.12,depth=10,name=curved-source},
+  femm/export={format=fem,file=\jobname.fem},
+  femm/export={format=ans,file=\jobname.ans}]
+  \filldraw[femm/region={material=air,current density=100000},
+    fill=orange!20,draw=orange!80!black,thick]
+    (-10,-6) .. controls (12,-11) and (12,11) .. (-8,7) -- cycle;
+  \begin{scope}[rotate=20,xscale=1.3]
+    \filldraw[femm/region={material=air,current density=-100000},
+      fill=blue!15,draw=blue!60!black] (-4,0) ellipse (2 and 4);
+  \end{scope}
+  \pic[femm/geometry style={red,densely dotted}] {femm geometry};
+  \pic[femm/arrows=false,femm/lines=11] {femm field};
+  \draw[femm/profile={name=curve-scan,samples=61},dashed] (-12,9)--(12,9);
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: interchange-curves/2
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}
+  \begin{axis}[width=7cm,height=5cm,no markers,grid=major,
+    xlabel={Distance (mm)},ylabel={$B$ (T)}]
+    \femmplot[profile=curve-scan,component=B,plot options={blue}]
+  \end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: interchange-curves/3
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[femm/import={file=\jobname.fem},
+  femm/problem={mesh size=2}]
+  \pic {femm geometry};
+  \pic[femm/arrows=false,femm/lines=11] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+\luafemmexampleend{interchange-curves}
+
+\subsection{Reading a preprocessor problem}
+
+\begin{key}{/tikz/femm/import=\marg{options}}
+Create a model from a magnetic FEM or ANS file at the beginning of the picture, after
+picture options have been collected. The option family is |/femm/import|.
+This key installs the same millimetre coordinate convention as |femm/problem|.
+It can be combined with |femm/problem| to override numerical settings explicitly.
+A FEM import does not draw, mesh or solve. An ANS import restores its existing
+mesh and field without solving. Physical declarations must precede a native solve;
+imported snapshots already own theirs.
+\end{key}
+\begin{key}{/femm/import/file=\meta{filename} (initially empty)}
+Required input filename, normally ending in |.fem| or |.ans|. The bridge first uses TeX's normal
+file search, then checks the output directory for a file generated earlier in
+the same document, and finally uses the supplied path. The passive Lua API uses
+ordinary working-directory paths. Imported content is never executed as Lua or TeX.
+\end{key}
+
+\begin{key}{/femm/import/format=\meta{choice} (initially auto)}
+A scoped PGF |.is choice| selector: |auto|, |fem| or |ans|. In |auto| mode the
+case-insensitive filename extension selects the codec; another extension requires
+an explicit format. |fem| creates an unsolved problem; |ans| restores an immutable
+answer. The choice belongs to the picture's import family, has no units, and can
+be placed in a reusable TikZ style. For example,
+|femm/import={format=ans,file=measurement.dat}| reads an answer with a custom
+extension. See the executed examples below for both explicit and automatic
+selection. An extension does not grant support for otherwise unsupported records.
+\end{key}
+
+For FEM problems, only explicitly set problem keys override imported settings. In particular,
+unspecified luafemm defaults do not replace the file's depth or solver precision.
+Frequency and problem type must agree with the file. The domain bounds come from the imported geometry; explicitly supplying |xmin|,
+|xmax|, |ymin| or |ymax| together with import is an error. Source length units are
+converted directly into model millimetres without a TikZ drawing/recapture step.
+The Lua API can instead request another model unit.
+
+The initial imported mesh size is one twelfth of the largest bounding-box extent.
+A block-label mesh control supplies a local spacing hint in converted model units.
+FEMM's diameter-like area control, minimum-angle setting and smart-mesh heuristics
+are retained in passive metadata but do not imply identical meshing algorithms.
+Use the documented luafemm mesh and quality keys explicitly for the Lua solve.
+
+An imported model's physical topology is immutable in this version. Add ordinary
+TikZ annotations, measurement contours and plots freely, but edit physical
+boundaries/material regions in the FEM source before reimporting. Additional
+|femm/region| declarations and rectangular side-condition overrides are rejected
+rather than being silently ignored. Native TikZ models retain their existing
+paths, components, painting precedence and fill-rule interface.
+
+\subsection{Showing the computational geometry}
+
+\begin{key}{/tikz/pics/femm geometry}
+Draw the compiled physical interfaces of the current model. This picture does
+not register another material region and does not start a magnetic solve.
+For a native TikZ model it displays the polygonal interfaces used by the
+computational exporter, including the exterior rectangle. For an imported model
+it includes the boundaries of true exclusions.
+\end{key}
+\begin{stylekey}{/tikz/femm geometry}
+Base drawing style, initially |draw=black!65,line width=.3pt|.
+\end{stylekey}
+\begin{key}{/tikz/femm/geometry style=\marg{TikZ options}}
+Set |femm current geometry|, applied after the base style. Use this to inspect
+interfaces in another colour or with a dotted line without changing the physics.
+\end{key}
+\begin{stylekey}{/tikz/femm current geometry}
+Additional geometry style, initially empty.
+\end{stylekey}
+\begin{stylekey}{/tikz/femm group/\meta{integer}}
+Optional style for an imported segment group. It is tried after the base and
+current geometry styles. For example, |femm group/3/.style={red,thick}| highlights
+group~3. Undeclared group styles have no effect. Imported names are never turned
+into executable TeX control sequences.
+\end{stylekey}
+
+\subsection{Writing a problem or its existing solution}
+
+\begin{key}{/tikz/femm/export=\marg{options}}
+Append an export request to the picture's end hook. Repeated keys produce repeated
+exports, bound to that picture's model. All physical declarations precede export.
+A FEM request compiles geometry but does not mesh or solve. An ANS request requires
+a converged solution at that point: use a field picture or |\femmsolve| earlier.
+A missing solution is an error, not an implicit request for an expensive solve.
+\end{key}
+\begin{key}{/femm/export/format=\meta{choice} (initially fem)}
+A PGF |.is choice| selector with choices |fem| and |ans|. FEM writes a magnetic
+problem, ANS writes that problem followed by the existing solution.
+\end{key}
+\begin{key}{/femm/export/file=\meta{filename} (initially empty)}
+Required destination, including its extension. Relative paths follow TeX's
+|--output-directory|, as cache files do. Parent directories must already exist.
+The writer validates and serializes first, writes a temporary file beside the
+destination, then replaces the destination after success. Use a different filename
+from the imported source. Repeated exports to the same destination replace it.
+\end{key}
+\begin{key}{/femm/export/model=\meta{name} (initially empty)}
+Select the model for the explicit export command. Empty means the current Lua
+model. Picture-level export supplies its bound model automatically, so the option
+is intended for delayed command use. Named models remain available after their
+picture has ended.
+\end{key}
+\begin{command}{\femmexport\opt{\oarg{options}}}
+Immediately export using the same |/femm/export| family. This is useful after a
+profile outside the source picture has triggered its solve. Use |model| explicitly
+when subsequent pictures have created other models. It never starts a solve.
+\end{command}
+\begin{key}{/femm/problem/name=\meta{identifier} (initially empty)}
+Register the picture model under a unique name for delayed export. Duplicate
+names are errors. Prefer descriptive, nonnumeric names; internal picture IDs
+are reserved. Naming does not change the numerical problem or cache identity.
+\end{key}
+\begin{key}{/femm/problem/depth=\meta{positive number} (initially unset)}
+Planar thickness in model millimetres. A native model must specify it before
+FEM or ANS export. Imported depth is converted from the declared file unit.
+Depth does not change the planar $A_z$ solve, but it matters to FEMM's integrated
+quantities. It is included in the solution export signature.
+\end{key}
+\begin{key}{/femm/problem/interpolation=\meta{choice} (initially linear)}
+Choose |linear|, the existing piecewise-linear $H(B)$ law with vacuum-slope
+extrapolation, or |femm|, a natural cubic law with FEMM-compatible smoothing and
+endpoint-slope extrapolation. Imported nonlinear materials default to |femm|
+unless this key explicitly overrides it. Set it before declaring materials.
+Linear materials are unaffected.
+\end{key}
+
+Nonlinear ANS export requires |interpolation=femm| for every nonlinear material
+used by the mesh. The postprocessor reconstructs $B$ from nodal $A$, then computes
+$H$ from its own material law; preserving the B--H sample table alone is insufficient.
+The writer therefore rejects a nonlinear solution computed with the old law.
+FEM export remains available with either policy, but a subsequent FEMM solve
+uses FEMM's constitutive law and can produce a different solution.
+
+The ANS writer includes zero-based element-to-label references, one current
+record per block label, periodic nodal constraints when present, and an empty
+air-gap trailer. Current density is encoded in effective material records or
+in the associated circuit records. Spatially varying coercive directions use
+elementwise blocks to preserve the solved quadrature-averaged source; use the
+separate FEM file to edit the original angle law. The output uses the
+non-incremental four-column element dialect read by the audited postprocessors.
+It contains the actual mesh and potential: $A_z$ in tesla metres for planar
+problems, and $2\pi rA_\varphi$ in webers for axisymmetric problems. Harmonic
+nodes carry both real and imaginary values. It is an interchange snapshot,
+not a replacement for the private |.lfc| cache.
+
+\subsection{The order of operations}
+
+\begin{enumerate}
+\item Collect picture options and create or import exactly one model. Apply only
+      explicit overrides to imported numerical settings.
+\item Declare the native materials and physical paths, or draw a view of imported
+      geometry. Declare native boundary conditions before meshing.
+\item Compile geometry and mesh when a solve or mesh picture requires them.
+      A current-driven FEM export needs neither a mesh nor a solution.
+      Voltage/parallel harmonic export requires resolved branch currents.
+\item Solve explicitly or through a field picture/profile. Capture measurement
+      contours without turning them into physical interfaces. An imported answer
+      already supplies the field; a field picture does not solve it again.
+\item Run the queued exports at picture end. If solving occurs later, use a
+      named |\femmexport| command after that solve.
+\end{enumerate}
+
+Changing a source path, geometry tolerance, material or boundary requires a new
+model and solve. The writer rejects a stale solution whose input signature has
+changed. The private cache validates geometry, physical settings and carved-domain
+coverage; imported solutions restored from a matching cache can be exported.
+Drawing scales, styles and profile sampling do not invalidate the physical cache.
+Neither a FEM nor an ANS file reconstructs the original TeX program.
+
+\subsection{Two U-shaped devices, in both directions}
+
+The coil example uses the familiar node component. We add a depth and select the
+FEMM material law before declaring the component, then request both exports at
+picture end. The final drawing imports the produced FEM file and solves again.
+The two coil regions are exported with their effective current densities. Their
+original separate turn count and current cannot be recovered from an $NI$ value.
+\luafemmexamplebegin{interchange-coil}
+
+% manual example: interchange-coil/1
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[
+  femm/problem={xmin=-110,xmax=110,ymin=-95,ymax=115,mesh size=5,depth=20,interpolation=femm},
+  femm/cache={file=\jobname-field,mode=auto},
+  femm/export={format=fem,file=\jobname.fem},
+  femm/export={format=ans,file=\jobname.ans}]
+  \node[
+    femm/u electromagnet={
+      width=80,height=60,leg thickness=15,
+      gap=3,armature thickness=15,
+      coil width=6,coil height=26,coil clearance=2,coil center y=3,
+      ampere turns=6000,core material=armco-pure-iron,
+      armature material=armco-pure-iron,coil material=copper,
+      gap mesh size=1},
+    anchor=core center
+  ] (M) at (0,0) {};
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,57);
+    \pic[femm/lines=17,femm/arrow spacing=26mm,
+      femm/field style={teal!70!black}] {femm field};
+  \end{scope}
+
+  \draw[femm/profile={name=gap-scan,samples=101},red,dashed,thick,-Stealth]
+    ($(M.left gap)+(-15,0)$)--($(M.right gap)+(15,0)$);
+  \node[fill=white,font=\small] at (M.armature center) {Armature};
+  \node[fill=white,font=\small] at (M.yoke center) {Soft iron};
+  \node[fill=white,align=center,font=\small] at (M.window center)
+    {$NI=6000\,\mathrm{A\,turns}$\\Two $3\,\mathrm{mm}$ gaps};
+  \node at (M.coil positive) {$\odot$};
+  \node at (M.coil negative) {$\otimes$};
+\end{tikzpicture}
+\end{codeexample}
+
+Import the exported polygonal problem in a new picture and request a fresh solve.
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[femm/import={file=\jobname.fem},
+  femm/problem={mesh size=5},
+  femm/export={format=ans,file=\jobname-imported.ans}]
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,57);
+    \pic {femm geometry};
+    \pic[femm/lines=17,femm/arrows=false] {femm field};
+  \end{scope}
+\end{tikzpicture}
+\end{codeexample}
+
+\luafemmexampleend{interchange-coil}
+
+The permanent-magnet example follows the same sequence. The alnico region carries
+a constant magnetisation direction; the surrounding iron remains nonlinear.
+The field profiles belong to the original model even after the final imported
+picture creates another model.
+\luafemmexamplebegin{interchange-alnico}
+
+% manual example: interchange-alnico/1
+
+\begin{codeexample}[setup code]
+\tikzset{
+  core/.style={femm/region={material=armco-pure-iron},
+    draw=black!70,fill=gray!15},
+  magnet/.style={femm/region={material=cast-alnico-5-lng37,
+    magnetization angle=180},draw=red!70!black,fill=red!25},
+  gap mesh/.style={femm/region={material=air,mesh size=.5}}
+}
+\end{codeexample}
+
+The following picture uses the preceding definitions.
+
+% manual example: interchange-alnico/2
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[femm/problem={xmin=-110,xmax=110,
+  ymin=-95,ymax=115,mesh size=5,depth=20,interpolation=femm},
+  femm/cache={file=\jobname-field,mode=auto},
+  femm/export={format=fem,file=\jobname.fem},
+  femm/export={format=ans,file=\jobname.ans}]
+  \filldraw[core]
+    (-40,-30)--(40,-30)--(40,30)--(25,30)
+    --(25,-15)--(-25,-15)--(-25,30)--(-40,30)--cycle;
+
+  \filldraw[magnet] (-25,-30) rectangle (25,-15);
+  \filldraw[core] (-40,31) rectangle (40,46);
+  \path[gap mesh] (-40,30) rectangle (-25,31);
+  \path[gap mesh] (25,30) rectangle (40,31);
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,55);
+    \pic[femm/lines=17,femm/arrow spacing=26mm,
+      femm/field style={teal!70!black}] {femm field};
+  \end{scope}
+  \draw[femm/profile={name=magnet-gap,samples=101},
+    violet,dashed,thick,-Stealth] (-48,30.5)--(48,30.5);
+  \draw[femm/profile={name=magnet-arc,samples=101,
+    curve tolerance=.03},orange!85!black,dashed,thick,-Stealth]
+    (-18,-8) .. controls (-22,22) and (22,22) .. (18,-8);
+  \node[fill=gray!15,font=\small] at (0,39) {Armature};
+  \node[fill=red!25,font=\small] at (0,-20) {Alnico 5};
+  \draw[red!70!black,thick,-Stealth] (12,-25)--(-12,-25);
+  \node[fill=white,font=\small] at (0,5) {Air: $J_z=0$};
+  \node[fill=white,inner sep=1pt] at (-32.5,27) {N};
+  \node[fill=white,inner sep=1pt] at (32.5,27) {S};
+\end{tikzpicture}
+\end{codeexample}
+
+The same import operation restores the permanent-magnet problem for a new solve.
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[femm/import={file=\jobname.fem},
+  femm/problem={mesh size=5},
+  femm/export={format=ans,file=\jobname-imported.ans}]
+  \begin{scope}
+    \clip (-58,-42) rectangle (58,57);
+    \pic {femm geometry};
+    \pic[femm/lines=17,femm/arrows=false] {femm field};
+  \end{scope}
+\end{tikzpicture}
+\end{codeexample}
+
+\luafemmexampleend{interchange-alnico}
+
+\subsection{Supported features and explicit limits}
+
+The reader accepts LF/CRLF, case-insensitive section keywords, quoted names,
+optional label expressions as passive data, and all six FEMM length units.
+Names remain opaque byte strings in the Lua codec: no Windows code-page to UTF-8
+conversion is attempted. Numerical geometry rendering does not typeset those
+names. The writer rejects quotes/newlines that cannot be represented safely in a
+quoted scalar. FEM parse errors include the filename and line number; ANS
+errors identify invalid solution records or failed consistency checks.
+
+The solver adapter supports closed planar graphs, circular arcs up to $180^\circ$
+per record, nested and disconnected regions, default labels, diagonal linear
+anisotropy, isotropic B--H materials, linear and nonlinear directional DC laminations, constant
+or supported angular coercive directions, prescribed real current density,
+series circuits, paired periodic/antiperiodic straight chains or equal-angle arcs,
+tagged prescribed-potential and constant real mixed conditions, and natural
+boundaries. No Mesh seeds exclude their faces entirely. Each
+unanchored planar connected component receives its own gauge and current-balance check.
+
+Axisymmetric static input/output is supported as specified in
+Section~\ref{sec:axisymmetric}; Kelvin exterior maps and scaled flux constraints
+are specified in Section~\ref{sec:exterior}. Previous-solution FEM modes require the explicit companion described in
+Section~\ref{sec:response-exchange}. The adapter rejects nonlinear
+anisotropy, unsupported lamination/fill physics, FEMM parallel-circuit input,
+point currents, complex point potentials, arbitrary executable magnetisation
+expressions, sliding-gap boundaries, negative
+Robin coefficients, and mixed conditions on internal interfaces. Open or isolated
+constraints that do not bound valid faces also receive diagnostics. Default labels
+with circuits, conflicting labels and labels on interfaces are rejected.
+Unspecified FEM boundaries retain natural conditions; they do not inherit the
+native rectangle's default prescribed potential.
+
+Exact export rejects arbitrary source/boundary callbacks and affine mixed data
+that a constant FEMM boundary property cannot represent. Segment groups are
+retained for drawing. The computational export uses effective material records
+per face. Named DC windings export as series records with resolved currents;
+parallel connections and voltage control are reduced to the operating point.
+Rotated anisotropic tensors with cross terms cannot be exported. Supported
+angular laws export as passive expressions; only that restricted grammar and
+the presets |theta| and |theta+90| are accepted on import. Unsupported legacy
+ampere-turn inputs still export as current density: the writer does not invent
+separate turns and current or recover every preprocessor editing attribute. For an unmodified passive document,
+|luafemm-fem.serialize| retains its original property and arc records separately.
+
+\subsection{Harmonic exchange: what crosses the boundary}
+
+Both systems use peak phasors with $\exp(+\mathrm i\omega t)$. A current of 2 A
+at $35^\circ$ becomes $2\cos35^\circ+\mathrm i\,2\sin35^\circ$ A in the file;
+no RMS conversion, conjugation or time reversal is performed. Material current
+records use MA/m$^2$, conductivity uses MS/m, and wire/sheet dimensions remain in
+millimetres independently of the problem's six possible length units.
+
+\begin{center}\small
+\begin{tabular}{p{.26\linewidth}p{.64\linewidth}}
+\toprule
+Native declaration & FEM representation and conditions\\
+\midrule
+Prescribed series circuit & Complex current, signed turns and each winding's
+physical area. Turns must be integral per exported face; rounding noise is
+removed, but actual fractional turns are rejected. Distinct native branches
+receive distinct series records.\\
+Voltage or parallel drive & Solve first. Export freezes each branch's complex
+current at that operating condition. Re-solving the file does not reproduce
+changes to the original controller or parallel connection.\\
+Resolved solid conductor & Conductivity and a one-turn circuit for an imposed
+current; a zero-current constraint becomes a zero-current series record.
+Without a circuit, the imposed voltage gradient is zero.\\
+Ordinary stranded winding & Conductivity includes winding fill and any length
+correction. FEMM requires more than one absolute turn for a conducting wound
+label unless a physical wire model is supplied. A single-turn stranded solid
+is rejected instead of being silently resolved.\\
+Round, stranded or Litz wire & Intrinsic conductivity, diameter, strand count
+and signed turns; fill is recomputed from physical area. No bulk eddy term is
+added to the microscopic loss model.\\
+Linear loss or stacked sheets & Intrinsic principal permeabilities, loss angles,
+sheet thickness and fill. FEMM computes its own effective coefficients. Complex
+off-diagonal tensors and unsupported directional harmonic laminations fail.\\
+\bottomrule
+\end{tabular}\end{center}
+
+The writer rejects the native |harmonic law=fundamental|: its sinusoidal-$B$
+projection of $H(B)$ differs from FEMM's effective $B(H)$ construction. Nonlinear
+harmonic FEM input is rejected for the same reason. Permanent magnets require a
+separate DC bias; the bounded planar previous-solution codec is described in
+Section~\ref{sec:response-exchange}. Axial $H$ diffusion has no matching
+FEMM vector-potential format. Complex boundary phases, complex mixed data,
+analytical air gaps and FEMM parallel-circuit input
+remain outside this codec. A series circuit and a material current in the same
+label are rejected rather than combined with ambiguous terminal conventions.
+
+Here the winding surrounds a curved conducting screen. First draw and solve,
+then export both files. The ANS picture restores the two potential arrays on the
+same nodes. The FEM picture solves the polygonal problem again on a finer mesh.
+The graph displays the imaginary component explicitly, making a phase error
+visible even when two instantaneous contour plots happen to look similar.
+\luafemmexamplebegin{harmonic-interchange}
+
+% manual example: harmonic-interchange/1
+
+\begin{codeexample}[setup code]
+\tikzset{femm/materials/wire/.style={conductivity=58000000,
+  wire model=round,wire diameter=.4},femm/arrow spacing=10mm}
+\end{codeexample}
+
+The following picture uses the preceding definitions.
+
+% manual example: harmonic-interchange/2
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[scale=2.8,
+  femm/problem={frequency=10000,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.4},
+  femm/circuit={name=drive,current=2,phase=35},
+  femm/export={format=fem,file=\jobname-problem.fem},
+  femm/export={format=ans,file=\jobname-solution.ans}]
+  \path[femm/region={material=wire,circuit=drive,turns=20}]
+    (3.3,-2) rectangle (4.7,2);
+  \path[femm/region={material=wire,circuit=drive,turns=-20}]
+    (-4.7,-2) rectangle (-3.3,2);
+  \path[femm/region={material=copper,mesh size=.25}]
+    (-.7,-2) .. controls (1,-1) and (1,1) .. (-.7,2) -- cycle;
+  \path[femm/profile={name=original,samples=101}] (-6,0)--(6,0);
+  \pic {femm geometry};
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/phase=35] {femm field};
+  \node[above,font=\small] at (0,6) {TikZ, $\omega t=35^\circ$};
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: harmonic-interchange/3
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[scale=2.8,
+  femm/import={file=\jobname-solution.ans}]
+
+  \path[femm/profile={name=restored,samples=101}] (-6,0)--(6,0);
+  \pic {femm geometry};
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/phase=35] {femm field};
+  \node[above,font=\small] at (0,6) {Restored ANS};
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: harmonic-interchange/4
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}[scale=2.8,
+  femm/import={file=\jobname-problem.fem,format=fem},
+  femm/problem={mesh size=.35}]
+  \path[femm/profile={name=remeshed,samples=101}] (-6,0)--(6,0);
+  \pic {femm geometry};
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/phase=35] {femm field};
+  \node[above,font=\small] at (0,6) {FEM, new Lua mesh};
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: harmonic-interchange/5
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=6cm,grid=major,
+  xlabel={$x$ (mm)},ylabel={Imaginary $B_y$ (mT)},
+  y filter/.expression={1000*y},scaled y ticks=false,
+  legend style={at={(.5,1.02)},anchor=south,legend columns=3}]
+  \femmplot[profile=original,abscissa=x,component=By,representation=imaginary,
+    plot options={blue!70!black,thick,mark=none}]
+  \addlegendentry{Original}
+  \femmplot[profile=restored,abscissa=x,component=By,representation=imaginary,
+    plot options={orange!80!black,only marks,mark=o,mark repeat=8}]
+  \addlegendentry{ANS}
+  \femmplot[profile=remeshed,abscissa=x,component=By,representation=imaginary,
+    plot options={black,dashed,mark=none}]
+  \addlegendentry{FEM}
+\end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+\luafemmexampleend{harmonic-interchange}
+
+\subsection{Restoring an answer and using it as a bias}
+
+An answer import reads its embedded problem, ordered nodes, triangles and one
+current or voltage-gradient state per block label. It checks finite values,
+record counts, zero-based indices, positive triangle orientation, edge incidence,
+label correspondence, prescribed potentials and circuit-state consistency. It
+accepts ordinary four-, seven- and eight-column element dialects, and the
+planar response records described in Section~\ref{sec:response-exchange}.
+Analytical-gap data and periodic answer meshes remain rejected. The parser never evaluates imported expressions.
+
+Material interfaces and exposed boundaries are reconstructed from mesh edges.
+For a native circular-arc boundary, the original arc subdivisions identify its
+chords; solution nodes are retained, including refinement nodes inside a chord.
+No fresh curve flattening or magnetic solve changes the saved field. The public
+geometry picture therefore shows the computational interfaces of that answer.
+A snapshot's physical settings cannot be overridden: omit mesh size, frequency,
+depth and constitutive interpolation from its picture. Rendering, profiles and
+contour subdivisions remain configurable; the Lua API also accepts model units,
+logging and cache configuration. Answer loading itself bypasses the private cache.
+
+ANS does not provide a convergence certificate. An imported model is identified
+as an imported snapshot, not as a newly converged Lua solve. Its exact passive
+nodal/element/state records enter the bias provenance. Replacing a file with new
+values cannot silently reuse a response belonging to its predecessor. To change
+physical declarations and solve again, import the FEM problem instead.
+
+For a static bias, add |femm/operating point={name=imported-core}| to the import
+picture. Its end hook captures an owned copy. A subsequent picture selects
+|operating point=imported-core|, |permeability=incremental| and replacement
+|circuit currents|. The differential law is evaluated on the unchanged bias mesh.
+Incremental mode zeros the original region, circuit and tagged-boundary loads;
+frozen mode retains them. The following example generates its own input
+so that the manual is reproducible. A supported DC answer produced by FEMM can
+replace that producer picture without changing the consumer interface.
+\luafemmexamplebegin{imported-bias}
+
+% manual example: imported-bias/1
+
+\begin{codeexample}[setup code]
+\newbox\BiasCalculation
+\tikzset{femm/materials/core/.style={
+  bh={0/0,.5/50,1/150,1.5/600,1.8/3000,2/10000}},
+  femm/arrow spacing=18mm}
+\setbox\BiasCalculation=\hbox{
+\begin{tikzpicture}[femm/problem={depth=20,interpolation=femm,
+  xmin=-25,xmax=25,ymin=-20,ymax=20,mesh size=1.8},
+  femm/circuit={name=drive,current=4},
+  femm/export={format=ans,file=\jobname-bias.ans}]
+  \path[even odd rule,femm/region={material=core}]
+    (-13,-13) rectangle (13,13) (-7,-7) rectangle (7,7);
+  \path[femm/region={material=copper,circuit=drive,turns=100}]
+    (-19,-6) rectangle (-15,6);
+  \path[femm/region={material=copper,circuit=drive,turns=-100}]
+    (-5,-6) rectangle (-2,6);
+  \femmsolve
+\end{tikzpicture}}
+\end{codeexample}
+
+The following picture uses the preceding definitions.
+
+% manual example: imported-bias/2
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[scale=1.35,
+  femm/import={format=ans,file=\jobname-bias.ans},
+  femm/operating point={name=imported-core}]
+  \pic {femm geometry};
+  \pic {femm geometry};
+  \pic[femm/lines=13] {femm field};
+  \path[femm/profile={name=bias-cut,samples=81}] (-12,10)--(12,10);
+  \node[above,font=\small] at (0,20) {Imported DC bias, $I_0=4$ A};
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: imported-bias/3
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[scale=1.35,
+  femm/problem={operating point=imported-core,permeability=incremental,
+    frequency=200,circuit currents={drive=.1}}]
+  \pic {femm geometry};
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/field style={red!65!black}] {femm field};
+  \path[femm/profile={name=response-cut,samples=81}] (-12,10)--(12,10);
+  \node[above,font=\small] at (0,20) {Response, $\widehat{\delta I}=0.1$ A};
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: imported-bias/4
+
+\begin{codeexample}[width=0pt]
+\foreach \Profile/\View/\Title in
+  {bias-cut/real/{DC $B_x$ (T)},response-cut/real/{Real $\delta B_x$ (T)}}{
+\begin{tikzpicture}
+\begin{axis}[width=7.2cm,height=5.2cm,grid=major,
+  xlabel={$x$ along the upper limb (mm)},ylabel={\Title}]
+  \femmplot[profile=\Profile,abscissa=x,component=Bx,representation=\View,
+    plot options={blue!70!black,thick,mark=none}]
+\end{axis}
+\end{tikzpicture}}
+\end{codeexample}
+
+\luafemmexampleend{imported-bias}
+
+Planar P1 nodal interpolation is shared with FEMM. Axisymmetric answer import
+converts nodal flux to $A_\varphi$ and uses luafemm's meridional basis between
+nodes; it does not reproduce FEMM's different axisymmetric interpolation exactly.
+Flux on the axis must vanish. Static voltage-gradient circuit states are currently
+accepted only for planar conductors; axisymmetric cases requiring that conversion
+are rejected. Static wire records, answer meshes with unused nodes/labels and
+unsupported physical properties also fail explicitly. Use an independently
+verified bias and compare refinement before relying on quantitative derivatives.
+
+\subsection{Lua interface and independent validation}
+
+The principal Lua entry points are:
+\begin{itemize}
+\item |luafemm.import_fem(file, options)| creates an unsolved model;
+\item |luafemm.import_ans(file, options)| restores a supported answer snapshot;
+\item |luafemm.export_fem(model, file)| writes its computational geometry;
+\item |luafemm.export_ans(model, file)| writes its converged solution.
+\end{itemize}
+The passive |luafemm-fem| codec provides |read|, |parse|, |serialize| and |model|.
+The |luafemm-ans| codec provides |read|, |parse|, |model| and |write|. Parsing
+alone does not authorize unsupported physics for solving. Imported expressions are
+never passed to |load|, |dofile| or a TeX input command. The existing ownership
+rule applies: imported documents and material tables are copied into the model.
+
+Original small fixtures test units, indexing, malformed input, arc subdivision,
+exclusions, labels, series-current normalization, cubic derivatives and cache
+restoration. A separate optional C++ client loads emitted ANS files from disk
+through xfemm's FPProc. It compares $A$, unsmoothed $B$ and $H$ with Lua samples.
+Independent xfemm solves of the exported U devices are compared at two Lua mesh
+resolutions; different meshers are not expected to produce identical triangles.
+The validation notes record the audited revision, compiler and numerical scope.
+Windows FEMM GUI acceptance remains unverified on the macOS development host.
+
+\subsection{Snapshots of a moving rotor}
+A P1 sliding-position export is an ordinary static problem at the current angle.
+FEMM can remesh its |.fem|; the |.ans| preserves the solved P1 mesh. No native AGE
+or motion-controller record is emitted. Existing tensor and nonlinear-law
+restrictions remain in force. See Section~\ref{sec:sliding}. Native full-circle
+AGE choices instead retain their circular boundaries and native answer records
+(Section~\ref{sec:native-gaps}); Fourier answers cannot be exported as AGE.
+
+\subsection{Previous solutions and response answers}
+\label{sec:response-exchange}
+
+A planar incremental or frozen response can be exchanged with a separate DC
+bias answer. The companion contains the exact ordered mesh and bias potential;
+FEMM reuses that mesh instead of remeshing the response. A response answer also
+embeds the bias potential and the previous element current density. These are
+physical data: discarding them would change differential permeability and the
+first mechanical variation.
+
+This short example makes an ordinary P1 bias. Unlike an analytical gap, its
+field has a native triangle representation. The winding currents are
+prescribed; its two opposite legs give a closed signed-turn winding.
+
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[scale=3,
+ femm/problem={xmin=-5,xmax=5,
+   ymin=-4,ymax=4,mesh size=1,depth=10},
+ femm/circuit={name=coil,current=2},
+ femm/operating point={name=file-bias}]
+ \foreach \x/\n in {-2.5/20,2.5/-20}
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,
+      circuit=coil,turns=\n}]
+   (\x-.5,-1) rectangle (\x+.5,1);
+ \pic[femm/lines=9,femm/arrows=false]
+   {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+The response uses a one-ampere perturbation at 50 Hz. Both exports below write
+|response-bias.ans| beside their output. The problem file records
+|PrevType=1| and the companion leaf filename. An ordinary static frozen
+response instead records |PrevType=2|.
+
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[scale=3,
+ femm/problem={operating point=file-bias,
+   frequency=50,circuit currents={coil=1}}]
+ \pic[femm/lines=9,femm/arrows=false]
+   {femm field};
+ \femmexport[format=fem,file=response.fem,
+   bias file=response-bias.ans]
+ \femmexport[format=ans,file=response.ans,
+   bias file=response-bias.ans]
+\end{tikzpicture}
+\end{codeexample}
+
+An answer import is passive: it needs no external bias file and never follows
+its |PrevSoln| header. An editable problem import instead needs an explicitly
+selected companion. The following command solves the imported response on the
+companion mesh, then displays it. Run an external native solver from the
+files' directory so that its relative |PrevSoln| name resolves there.
+
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[scale=3,
+ femm/import={format=fem,file=response.fem,
+   bias file=response-bias.ans}]
+ \pic {femm geometry};
+ \pic[femm/lines=9,femm/arrows=false]
+   {femm field};
+\end{tikzpicture}
+\end{codeexample}
+
+\begin{key}{/femm/export/bias file=\meta{leaf filename} (initially empty)}
+  For a response FEM/ANS export, the companion DC answer to write in the same
+  directory. Empty derives \meta{output stem}|-bias.ans|. A supplied name must
+  end in |.ans|, contain no directory separators or control characters, and
+  differ from the response filename. Ordinary unpolarised exports do not
+  need a companion. Export checks the owned bias signature before writing.
+  Captured native or imported DC biases can supply a companion; a passively
+  imported response answer has embedded fields but no complete owned DC
+  problem and cannot be used to regenerate this pair.
+\end{key}
+\begin{key}{/femm/import/bias file=\meta{filename} (initially empty)}
+  Explicit DC companion for |format=fem| with a previous-solution header.
+  Relative names are resolved beside the imported problem, absolute names as
+  supplied. This key is rejected with |format=ans|. Omitting it leaves previous
+  FEM modes unsupported; the library never opens a path merely because an
+  imported header names it. Points, segments, arcs, holes and labels must have
+  exactly matching native order and values, and file length units must agree.
+  This conservative check rejects edited or merely similar meshes. It does
+  not interpolate the bias between geometries.
+\end{key}
+
+The supported response exchange is planar, static incremental or frozen,
+or harmonic incremental, with uniform magnetisation per region and the usual
+material/circuit representability requirements. Nonlinear materials require
+|interpolation=femm| before the bias solve. The response retains the original
+B--H data; its exact bias determines the element differential or secant tensor.
+Incremental exports remove coercive excitation. Nodal response potentials and
+embedded DC potentials use T m. The eighth element column stores the previous
+current density in MA/m$^2$, after the three edge-property indices. The importer
+checks all record widths and finite values and restores currents in A/m$^2$.
+
+Axisymmetric response exchange, analytical-gap answers, native AGE records,
+and remeshed bias interpolation are rejected. A full-circle analytical-gap
+\emph{ordinary problem} can still export its geometry as a FEM problem for an
+independent native remesh; that does not transfer its analytical operator.
+
+An unmodified FEMM 5 command-line solver independently checks the exported
+companion workflow on a common nonlinear mesh: static incremental, frozen and
+harmonic incremental nodal potentials agree to better than $2\times10^{-10}$
+relative on the checked cases. This is an interchange and common-discretisation
+check, not an estimate of finite-element error. Older native readers/writers
+have differing or malformed incremental-column dialects; an invalid record
+fails rather than being guessed or silently treated as an ordinary answer.

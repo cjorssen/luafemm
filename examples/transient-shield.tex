@@ -1,0 +1,58 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=160mm,border=3mm]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{femm}
+\begin{document}
+\tikzset{femm/materials/shield metal/.style={mu r=1,conductivity=5.8e7}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-9,xmax=9,ymin=-7,ymax=7,mesh size=1,depth=10},
+  femm/state={name=shield,initial=zero},scale=2]
+  \filldraw[fill=orange!15,
+    femm/region={material=shield metal,current constraint=zero}]
+    (0,0) circle[radius=3];
+  \filldraw[fill=red!15,
+    femm/region={material=copper,conductor=stranded,current density=1e7}]
+    (-6,-3) rectangle (-5,3);
+  \filldraw[fill=blue!15,
+    femm/region={material=copper,conductor=stranded,current density=-1e7}]
+    (5,-3) rectangle (6,3);
+  \node[above] at (0,3) {Initially unmagnetised conductor};
+\end{tikzpicture}
+\par
+\def\TimeResults{}
+\foreach \Step in {1,...,12}{%
+  \begin{tikzpicture}[
+    femm/problem={previous state=shield,time step=.0002},
+    femm/state={name=shield},scale=2]
+    \femmselect[name=shield-body,material=shield metal]
+    \femmmeasure[name=shield-\Step,quantity=integrals,selection=shield-body]
+    \ifnum\Step=1
+      \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+      \pic[femm/currents={material=shield metal,spacing=.8,
+        reference current=1e7}] {femm eddy currents};
+      \node[above] at (0,7) {$t=0.2\,\mathrm{ms}$};
+    \fi
+    \ifnum\Step=12
+      \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+      \node[above] at (0,7) {$t=2.4\,\mathrm{ms}$};
+    \fi
+  \end{tikzpicture}%
+  \xdef\TimeResults{\TimeResults,shield-\Step}%
+}
+\par
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=5.5cm,grid=major,
+  xlabel={Time (ms)},ylabel={Shield Joule loss (W)},ymin=0,
+  x filter/.expression={1000*x}]
+  \femmresultplot[results=\TimeResults,component=joule_loss,abscissa=time,
+    plot options={teal!70!black,thick,mark=*}]
+\end{axis}
+\end{tikzpicture}
+\femmstate[name=shield-saved,file=\jobname-shield.lft]
+\femmrestorestate[name=shield-restart,file=\jobname-shield.lft]
+\end{document}

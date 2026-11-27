@@ -1,0 +1,79 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Refining a mesh from the computed field}
+\label{sec:adaptive-mesh}
+
+Start with a coarse mesh, complete the geometry, then request adaptation before
+capturing final profiles or measurements. The estimator combines element current
+residuals and jumps of tangential H across shared edges. Bulk marking selects
+triangles accounting for a specified fraction of the total squared indicator.
+The present indicator includes interior jumps and volume currents, not a separate
+weak-boundary residual; it is heuristic for nonlinear and anisotropic media.
+Marked triangles receive red refinement; their neighbours receive conforming
+green splits. Material interfaces, holes and narrow features keep their original
+coordinates. This procedure cannot repair a poorly approximated curved boundary.
+
+\begin{command}{\femmadapt\oarg{options}}
+Solve and locally refine the current planar model. Ordinary static and harmonic
+P1 models are supported; imported states, periodicity, operating responses,
+motion, external networks and flux controllers are excluded. Use |cache mode=off|
+(the default); save a finished answer as |.ansx| if persistence is needed.
+Each successful pass replaces the current model in place. A failed next pass
+leaves the last solved mesh available. Previously captured profiles remain owned
+snapshots and are not retroactively updated.
+\end{command}
+\begin{key}{/tikz/femm/adapt=\meta{options}}
+Invoke |\femmadapt| through a TikZ key, after all physical path postactions.
+Do not put this operation among the options of a region still being constructed.
+\end{key}
+\begin{key}{/femm/adapt/passes=\meta{integer} (initially 3)}
+Maximum additional refinements, from 1 to 12. The initial solve is separate.
+Reaching this limit returns the last field and indicator, not a claim of accuracy.
+\end{key}
+\begin{key}{/femm/adapt/fraction=\meta{number} (initially .5)}
+Fraction in $(0,1]$ of the summed squared indicators to mark per pass.
+Larger values spread refinement more broadly; 1 marks the entire positive set.
+\end{key}
+\begin{key}{/femm/adapt/tolerance=\meta{nonnegative number} (initially .05)}
+Stop when the dimensionless residual indicator divided by the field-energy norm
+falls below this value. Zero requests the stated passes unless the residual is
+exactly zero. This is an estimator, \emph{not} a certified error percentage.
+\end{key}
+\begin{key}{/femm/adapt/maximum nodes=\meta{integer} (initially 100000)}
+Hard node budget, between 3 and 1000000. Budget and minimum-angle failures occur
+before replacing the previous solved model. The existing |minimum angle| remains
+an acceptance condition; reduce it explicitly if it conflicts with local splits.
+\end{key}
+
+Use |\femmstat| with the following names:
+\begin{center}
+\begin{tabular}{ll}
+\toprule Statistic & Meaning\\
+\midrule
+|adaptive_error| & Final normalized residual indicator\\
+|adaptive_passes| & Completed additional refinements\\
+|adaptive_seconds| & CPU time in seconds\\
+|adaptive_memory_kib| & Nonnegative Lua heap increase in KiB\\
+\bottomrule
+\end{tabular}
+\end{center}
+The heap increase is not peak process memory.
+The mesh statistics |min_angle| and |max_area| describe the final mesh.
+Localized problems may benefit substantially; a smooth global field may favour
+uniform refinement. Convergence of flux, loss and especially force must still be
+checked directly, with geometric approximation and exterior extent held separately.
+
+\begin{codeexample}[width=5cm]
+\begin{tikzpicture}[femm/problem={xmin=-20,xmax=20,
+ ymin=-20,ymax=20,mesh size=5}]
+ \path[femm/region={material=air,current density=1e6}]
+   (-6,-6) rectangle (6,6);
+ \femmadapt[passes=2,fraction=.6,tolerance=0,
+   maximum nodes=5000]
+ \pic {femm scalar map};
+ \pic {femm mesh};
+\end{tikzpicture}
+\end{codeexample}

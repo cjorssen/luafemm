@@ -1,0 +1,52 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{pgfplots}
+\usetikzlibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+
+\tikzset{lesson floating screen/.style={orange!80!black,very thick,
+    femm/electric electrode={name=screen,condition=charge}}}
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=0,ymax=1,depth=3,
+    outer boundary=insulated,mesh size=.2,name=screen cell},scale=1.6]
+  \draw[very thick,femm/electric electrode={name=left,potential=10}]
+    (0,0)--(0,1);
+  \draw[very thick,femm/electric electrode={name=right,potential=0}]
+    (2,0)--(2,1);
+  \draw[lesson floating screen] (1,0)--(1,1);
+  \pic {femm electric field};\pic {femm equipotentials};
+  \node[above] at (0,1) {$10$ V};
+  \node[above] at (1,1) {$Q=0$};
+  \node[above] at (2,1) {$0$ V};
+\end{tikzpicture}
+\qquad
+$V_s=\femmelectricvalue[model=screen cell,electrode=screen,
+    quantity=voltage]$ V.
+
+\par\medskip
+
+\femmelectricmatrix[name=screen capacitance,model=screen cell,
+    electrodes={left,right}]
+$C_{11}=\femmelectricmatrixvalue[matrix=screen capacitance,
+    row=left,column=left]$ F,
+\quad
+$C_{12}=\femmelectricmatrixvalue[matrix=screen capacitance,
+    row=left,column=right]$ F.
+
+\par\medskip
+
+\begin{tikzpicture}
+  \begin{axis}[width=7cm,height=4.5cm,ybar,
+      xtick={1,2},xticklabels={Left plate,Right plate},
+      xlabel={Receiving electrode},ylabel={$C_{i1}$ (F)},
+      ymin=-1.8e-13,ymax=1.8e-13,enlarge x limits=.5,
+      ymajorgrids,bar width=14pt]
+    \femmelectricmatrixplot[matrix=screen capacitance,column=left,
+      plot options={fill=blue!30,draw=blue!60!black}]
+  \end{axis}
+\end{tikzpicture}
+
+\end{document}

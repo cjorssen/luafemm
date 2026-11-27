@@ -1,0 +1,11 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\usetikzlibrary{femm,circuits.ee.IEC}
+\edef\luafemmEERestoreAt{\catcode64=\the\catcode64\relax}
+\catcode64=11\relax
+\luafemm@input{luafemm-ee.tex}
+\luafemmEERestoreAt
+\endinput

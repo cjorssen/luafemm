@@ -17,9 +17,9 @@
 \begin{tikzpicture}[half model,femm/problem={
     xmin=0,xmax=85,ymin=-75,ymax=95,mesh size=4},
     femm/cache={file=\jobname-half,mode=auto}]
-  \filldraw[femm/region={material=pure-iron},fill=gray!25]
+  \filldraw[femm/region={material=armco-pure-iron},fill=gray!25]
     (0,-30)--(40,-30)--(40,30)--(25,30)--(25,-15)--(0,-15)--cycle;
-  \filldraw[femm/region={material=pure-iron},fill=gray!25]
+  \filldraw[femm/region={material=armco-pure-iron},fill=gray!25]
     (0,33) rectangle (40,48);
   \filldraw[femm/region={material=copper,current density=-3000/(6*26)*1e6},
     fill=orange!30] (17,-10) rectangle (23,16);

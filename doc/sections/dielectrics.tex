@@ -1,0 +1,74 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{The dielectric catalogue}
+\label{sec:dielectrics}
+
+The electric interface includes the 95 entries in FEMM~5's electrostatic
+|statlib.dat|, independently of the magnetic material catalogue. These are
+nominal properties, with the material conditions retained in the original
+names below. No network access or native FEMM installation is needed when
+compiling a document. Data provenance, the pinned upstream revision and byte
+checksums are supplied in |data/femm5/README.md|. The unchanged data and their
+transcription retain the MIT notice in |data/femm5/LICENSE.txt|; the original
+package implementation remains LPPL. FEMM~4 dielectric data are not bundled.
+
+\begin{key}{/femm/electrostatic/material=\meta{custom or catalogue identifier} (initially custom)}
+Picture-local choice of background dielectric for analytical or FE electric
+models. This is a PGF |.is choice| handler: use an identifier from the table,
+not the original material name. Selection assigns its relative permittivity.
+It does not add a region, source or conducting electrode. Background volume
+charge remains an explicit |volume charge density| input for a compatible
+model. All catalogue entries currently have zero tabulated volume charge.
+
+Ordinary key order applies. A following |relative permittivity| overrides
+the selected scalar value; selecting the material again resets it. |custom|
+clears the catalogue identifier and retains the current numeric settings.
+Selecting any material while restoring a snapshot is a physical override and
+is rejected. The snapshot already owns its material and constitutive values.
+\end{key}
+\begin{key}{/femm/electric region/material=\meta{custom or catalogue identifier} (initially custom)}
+Path-local FE dielectric choice, available in both planar and axisymmetric
+models. Selection assigns |relative permittivity| and |volume charge density|
+from the record; later explicit keys override either value. |custom| retains
+those numeric settings while clearing the identifier. The existing region
+fill rule, overlap order, local mesh size and curve tolerance are unchanged.
+A style can collect this key with the usual native drawing options.
+\end{key}
+
+\begin{codeexample}[width=0pt]
+\tikzset{electric glass/.style={fill=blue!10,
+    femm/electric region={material=glass-soda-lime}}}
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=0,ymax=1,outer boundary=insulated,
+    material=air-dry-co2-free,mesh size=.2}]
+  \draw[electric glass] (0,0) rectangle (1,1);
+  \path[femm/electric region={material=ptfe,relative permittivity=2.2}]
+    (1,0) rectangle (2,1);
+  \draw[thick,femm/electric electrode={potential=10}] (0,0)--(0,1);
+  \draw[thick,femm/electric electrode={potential=0}] (2,0)--(2,1);
+  \pic {femm electric field};\pic {femm equipotentials};
+  \node[below,font=\scriptsize] at (.5,0) {Glass};
+  \node[below,font=\scriptsize] at (1.5,0) {PTFE};
+\end{tikzpicture}
+\end{codeexample}
+
+There are 94 isotropic records and one anisotropic record, silicon carbide
+with its crystal axis along $y$. All 95 are usable by the FE provider. Material
+selection installs both principal values at angle zero; subsequent scalar
+|relative permittivity| assignments deliberately replace them with an isotropic
+value. Analytical providers reject the anisotropic catalogue entry.
+The tensor keys and their precedence are documented in
+Section~\ref{sec:electric-extended}. In axisymmetry the directions are $r,z$.
+No dispersion, dielectric loss, temperature dependence or nonlinear dielectric
+law is inferred from a name.
+
+The following table is generated from the same pinned source as the runtime
+choices. It lists relative permittivities (dimensionless); every volume charge
+density in this edition is zero. Use catalogue values as starting points,
+and use measured or supplier-certified properties when an application needs
+them. Trade names identify the data and imply no endorsement.
+
+\input{\luafemmdocdir/dielectrics-table.tex}

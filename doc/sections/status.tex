@@ -1,0 +1,143 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Release scope and convergence evidence}
+\label{sec:status}
+Version \luafemmversion{} supports planar and axisymmetric modelling, linear
+harmonic diffusion, DC-biased responses, transient diffusion, controlled P1 motion and quantitative
+postprocessing, including mean and twice-frequency mechanical loads. The following matrix distinguishes implemented capabilities from
+approximations and unsupported models. ``Supported'' always refers to the stated
+scope; it does not certify accuracy for an arbitrary user geometry.
+Detailed physical assumptions and FEMM exchange restrictions are specified in
+the corresponding chapters.
+
+\begin{longtable}{p{.24\linewidth}p{.13\linewidth}p{.53\linewidth}}
+\toprule Capability & Status & Scope or restriction\\
+\midrule\endhead
+Prescribed-current 3D & Supported subset & Filaments and finite-radius current models, planar loops, straight/toroidal coils, true 3D lines and profiles in a homogeneous medium; Section~\ref{sec:biot}.\\
+Reusable 3D scenes & Supported subset & Owned paths, repeated cameras, axes, layered drawing or vector visibility for lines, opaque planes and faceted conductor tubes; bounded translucent foreground. No general translucent solids; Section~\ref{sec:view-3d}.\\
+Generic formats & Supported & plain LuaTeX, LuaLaTeX and ConTeXt MkIV; pure Lua runtime.\\
+TikZ geometry & Supported & Arbitrary paths, compound domains and parametric nodes; curves are flattened with a declared tolerance.\\
+Planar nonlinear fields & Supported & Single-valued B--H curves, reversible directional sheet mixtures and permanent magnets.\\
+Linear tensors & Supported & Rotated anisotropy and directional linear sheet mixtures.\\
+Spatial magnetisation & Supported & Uniform, radial, tangential and angular laws.\\
+Named frontiers & Supported & Dirichlet, Neumann, nonnegative Robin, periodic and antiperiodic paired traces.\\
+Open exterior & Partial & Circular multipole Robin approximation and source-free linear axisymmetric Kelvin regions; see the corresponding limits.\\
+DC windings & Supported & Named series/parallel branches, external networks and series linkage/flux control.\\
+Circuit measurements & Partial & Resistance, power, closed-winding flux linkage and supported secant inductance; incremental self and mutual response matrices.\\
+IEC schematics & Supported & Optional declarations on native symbols, passive result labels and basic generated views; Section~\ref{sec:ee-keys}.\\
+Electrical networks & Supported subset & Grounded DC/linear AC RLC/source/winding graphs; conservation checks and peak phasors; Section~\ref{sec:network-keys}.\\
+Ideal circuits & Supported & Confined flux, junction conservation and mean contours; separate physical model.\\
+Field plots & Supported & Oriented lines, component profiles, angular scans and spatial Fourier spectra.\\
+Regional measurements & Supported & Area, volume, current, B/H averages, energy and coenergy.\\
+Forces and torques & Supported subset & Static and harmonic Maxwell/Lorentz loads; mean and complex twice-frequency components, planar torque and full-revolution axial force. First-order DC-biased responses; Sections~\ref{sec:harmonic-force} and~\ref{sec:mechanical-response}.\\
+Caches & Supported & Passive format 25; cold, warm and frozen reuse across the three formats.\\
+FEM/ANS exchange & Partial & Static/linear harmonic subset; complex ANS snapshots, imported DC biases, polygonal geometry and representability checks.\\
+Axisymmetry & Partial & Static meridional formulation, full-revolution integrals and supported FEM/ANS exchange; see Section~\ref{sec:axisymmetric}.\\
+Harmonic fields & Partial & Linear planar/axisymmetric diffusion, phased currents, snapshots and Joule losses; Section~\ref{sec:harmonic}.\\
+Harmonic materials & Supported subset & Passive complex tensors, insulated-sheet homogenisation and separate intrinsic/sheet losses; Section~\ref{sec:losses}.\\
+Effective windings & Supported subset & Round, untransposed-strand, Litz, square and CCA models; transport/proximity losses and corrected internal energy.\\
+Nonlinear AC & Approximation & Lossless fundamental or lossy equivalent-amplitude H(B) law; no higher harmonics or history hysteresis.\\
+Harmonic circuits & Supported subset & Coupled current/voltage/network/linkage ports, series/parallel branches and solid-current constraints; Section~\ref{sec:ac-circuits}.\\
+Eddy-current loops & Supported subset & Axial diffusion, normal glyphs and transverse axisymmetric sections; Section~\ref{sec:currents}.\\
+Operating points & Partial & Static frozen/incremental and small harmonic responses on the exact bias mesh; Sections~\ref{sec:operating}--\ref{sec:biased-harmonic}.\\
+Sliding air bands & Partial & Circular P1/Fourier/native AGE gaps, eccentric P1 positions and physical reduced-sector Fourier views; angle studies and torque; Section~\ref{sec:sliding}.\\
+Time fields & Supported subset & Backward Euler, owned restart states, current-fed windings and P1 mechanical motion; Section~\ref{sec:time}.\\
+Advanced magnetics & Deferred & General nonlinear harmonic laws, irreversible hysteresis and general transient electrical networks.\\
+Quantitative rendering & Implemented subset & Raw/recovered scalar maps, colour bars and B/H vectors; explicit harmonic convention.\\
+Analytical electrostatics & Supported subset & Coplanar Coulomb charges, classical charged bodies and ideal capacitors; Sections~\ref{sec:electrostatic} and~\ref{sec:electric-classics}.\\
+Electrostatic FE & Supported subset & Positive dielectric tensors, volume/surface charge, voltage/floating electrodes, Maxwell matrices and contour forces, planar or axisymmetric; Sections~\ref{sec:electric-fe}--\ref{sec:dielectrics}.\\
+Electric source correction & Supported subset & Planar line and axial point sources, tensor contrasts, floating conductors, mixed/periodic boundaries, matrices, interaction energy and contour forces; Section~\ref{sec:electric-hybrid}. No total self-energy or native export.\\
+Other physics & Deferred & Broader electrostatics, electrical conduction and thermal solvers.\\
+\bottomrule
+\end{longtable}
+
+The material catalogue is larger than the supported physics. A stored loss,
+frequency or wire property does not necessarily activate its associated material model.
+Supported round-wire catalogue records select their documented effective law.
+Positive |frequency| explicitly selects the supported harmonic solver; nonlinear projection requires an explicit material key. Similarly,
+a spatial Fourier spectrum of a winding field is not a time-harmonic solve.
+Native rotated tensors can be solved, but FEMM export rejects model-frame
+cross terms. Native parallel and voltage-driven circuits export their resolved
+operating currents, not an editable equivalent circuit controller.
+
+\subsection{Three separate sensitivity questions}
+The following sensitivity study asks whether refining the field mesh reduces a known error, whether
+moving an artificial boundary changes an observable, and whether a nonlinear
+force stabilises. These questions require different comparisons.
+
+For the manufactured potential $A_z=\sin(\pi x)$ on the unit square,
+$\mathbf B=(0,-\pi\cos(\pi x))$. Antiperiodic left/right traces and homogeneous
+Neumann top/bottom data exercise the signed constraints. Three-point triangle
+quadrature estimates the squared field error, including variation inside each
+triangle. The relative $L^2$ errors are:
+\begin{center}
+\begin{tabular}{rrr}
+\toprule Spacing (m) & Triangles & Relative field error\\
+\midrule
+.16 & 110 & 12.823\%\\
+.08 & 386 & 6.334\%\\
+.04 & 1518 & 3.155\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+Successive error ratios 2.02 and 2.01 agree with first-order convergence of
+piecewise-constant P1 fields. The runner requires each ratio to exceed 1.6.
+
+For the exterior study, a disk of radius .25 m centred at $(.4,0)$ m has
+$\mu_r=1$ and $\mu_0H_c=1$ T. Its exact internal field in infinite air is
+$B_x=.5$ T. The offset deliberately excites modes beyond the first circular
+Robin multipole. The observable is the area-averaged internal $B_x$.
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule Outer radius (m) & Global spacing (m) & Mean $B_x$ (T) & Error\\
+\midrule
+.9 & .14 & .491457 & 1.709\%\\
+1.5 & .14 & .484485 & 3.103\%\\
+2.5 & .14 & .483158 & 3.368\%\\
+1.5 & .07 & .495453 & .909\%\\
+1.5 & .035 & .499307 & .139\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+The radius sweep holds the 64-sided magnet polygon and its local spacing
+.035 m fixed. Refinement reduces the global spacing, the local spacing
+(one quarter of the global value) and the exterior polygon edge target;
+the magnet polygon remains fixed. The small coarse domain appears more
+accurate because truncation and discretisation errors partly cancel.
+Enlarging it alone therefore does not establish accuracy. Refinement at fixed
+radius reduces the combined error, but does not isolate the remaining
+boundary error from polygonal geometry and finite-element errors.
+
+Finally, a nonlinear U armature at 3000 ampere-turns, 20 mm depth and fixed
+75 mm exterior half-width gives:
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule Spacing (mm) & Triangles & $F_y$ (N) & Successive change\\
+\midrule
+4 & 3374 & $-101.208792$ & ---\\
+2 & 12768 & $-103.446281$ & 2.163\%\\
+1.5 & 22144 & $-104.437018$ & .949\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+The changes use the finer force as denominator. The final .949\% change
+is sensitivity evidence, not a certified 1\% error bound. The first two
+meshes also pass the independent xfemm postprocessor comparison for energy,
+coenergy, force and torque. Agreement on the same mesh checks implementation;
+it does not measure the mesh error.
+
+\subsection{Release checks and remaining validation}
+The release checks all three formats, cache reuse, the exact-predicate oracle,
+the complete manual source/output examples, and an extracted TDS
+installation. Optional xfemm checks compare exported snapshots and independent
+solves. Windows FEMM GUI acceptance remains unverified. The source repository
+records the commands and measured tolerances in
+\nolinkurl{doc/validation.md}.
+
+Old cache snapshots must be recomputed. Automatic mode rebuilds incompatible
+results; frozen mode reports the incompatibility instead of guessing a
+conversion. Keep the original TikZ source alongside any exported FEMM files:
+file-format restrictions can prevent a lossless round trip of native semantics.

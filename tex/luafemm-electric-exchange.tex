@@ -1,0 +1,40 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Native documents own physical geometry. Import mesh/chord controls are in
+% metres, independent of the picture's chosen model unit and canvas transform.
+\pgfkeys{/femm/electrostatic/file/.initial={},
+ /femm/electrostatic/file edition/.initial=femm5,
+ /femm/electrostatic/file edition/.is choice,
+ /femm/electrostatic/file edition/femm4/.code={\pgfkeyssetvalue{/femm/electrostatic/file edition}{femm4}},
+ /femm/electrostatic/file edition/femm5/.code={\pgfkeyssetvalue{/femm/electrostatic/file edition}{femm5}},
+ /femm/electrostatic/import mesh size/.initial={},
+ /femm/electrostatic/import curve tolerance/.initial=.00001}
+\pgfkeys{/femm/electric export/.is family,/femm/electric export,
+ file/.initial={},model/.initial={},edition/.initial=femm5,edition/.is choice,
+ edition/femm4/.code={\pgfkeyssetvalue{/femm/electric export/edition}{femm4}},
+ edition/femm5/.code={\pgfkeyssetvalue{/femm/electric export/edition}{femm5}},
+ format/.initial=fee,format/.is choice,
+ format/fee/.code={\pgfkeyssetvalue{/femm/electric export/format}{fee}},
+ format/res/.code={\pgfkeyssetvalue{/femm/electric export/format}{res}}}
+% Escaped strings only: neither input documents nor filenames become Lua code.
+\protected\def\femmelectricexport{\pgfutil@ifnextchar[{\luafemm@electricexport}{\luafemm@electricexport[]}}
+\def\luafemm@electricexport[#1]{\begingroup
+ \pgfqkeys{/femm/electric export}{#1}%
+ \directlua{require('luafemm-electric-tex').export('\luafemm@electricid',{
+  edition='\luaescapestring{\pgfkeysvalueof{/femm/electric export/edition}}',
+  file='\luaescapestring{\pgfkeysvalueof{/femm/electric export/file}}',
+  model='\luaescapestring{\pgfkeysvalueof{/femm/electric export/model}}',
+  format='\luaescapestring{\pgfkeysvalueof{/femm/electric export/format}}'})}%
+ \endgroup}
+% Window and scalar-medium overrides remain valid for ordinary models/snapshots,
+% but must not silently override or be ignored by a physical file import.
+\def\luafemm@electricfileoverride{}
+\pgfkeys{/femm/electrostatic/xmin/.append code={\def\luafemm@electricfileoverride{1}},
+ /femm/electrostatic/xmax/.code={\pgfkeyssetvalue{/femm/electrostatic/xmax}{#1}\def\luafemm@electricfileoverride{1}},
+ /femm/electrostatic/ymin/.code={\pgfkeyssetvalue{/femm/electrostatic/ymin}{#1}\def\luafemm@electricfileoverride{1}},
+ /femm/electrostatic/ymax/.code={\pgfkeyssetvalue{/femm/electrostatic/ymax}{#1}\def\luafemm@electricfileoverride{1}},
+ /femm/electrostatic/relative permittivity/.append code={\def\luafemm@electricfileoverride{1}}}
+\endinput

@@ -1,0 +1,545 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Three-dimensional fields of prescribed currents}
+\label{sec:biot}
+
+A loop drawn in a plane still produces a three-dimensional magnetic field.
+The |femm/biot| provider evaluates that field from prescribed steady currents
+in a homogeneous linear medium. It needs no finite-element mesh. Filaments,
+round volume-current wires, circular and arbitrary planar loops, straight
+coils and toroidal windings share one model and may be superposed.
+
+Use |femm/problem| for induced magnetization in iron, permanent-magnet material
+laws or resolved eddy currents. The prescribed-current provider does not solve
+for a redistribution of current, skin effect, conductivity, magnetic interfaces,
+forces or inductance. A camera projection is a presentation of a 3D field, not
+a planar or axisymmetric finite-element formulation.
+
+\subsection{A loop and its axial field}
+Create the model at picture initialization, declare all sources, and then capture
+profiles or draw fields. A field request freezes the declarations. The following
+example compares the computed field with
+\[
+ B_z(z)=\frac{\mu_0 I R^2}{2(R^2+z^2)^{3/2}}.
+\]
+The model uses centimetres, so $R=1$ means $0.01\,\mathrm m$. The current is in
+amperes and the returned field in teslas. The same source supplies the diagram
+and the profile. The camera changes neither of them physically.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzset{source view/.style={femm/biot,
+ femm/biot view={azimuth=-30,elevation=25,step=.12,
+ maximum length=20,xmin=-2.5,xmax=2.5,ymin=-2.5,ymax=2.5,
+ zmin=-2.5,zmax=2.5}}}
+\tikzpicture[source view]
+ \femmbiotsource[kind=loop,current=2,radius=1]
+ \femmbiotprofile[name=biot-axis,from=0/0/-2,to=0/0/2,samples=61]
+ \pic {femm biot field};
+ \pic {femm biot geometry};
+\endtikzpicture
+\par
+\tikzpicture
+ \axis[width=8cm,height=5cm,no markers,grid=major,
+ xlabel={$z$ (cm)},ylabel={$B_z$ (T)},legend style={at={(.5,-.32)},anchor=north,legend columns=2}]
+  \femmbiotplot[profile=biot-axis,component=Bz,abscissa=z,
+   plot options={blue!70!black,thick}]
+  \addlegendentry{Biot--Savart}
+  \addplot[orange!80!black,dashed,domain=-2:2,samples=101]
+   {4*pi*1e-5/(1+x*x)^1.5};
+  \addlegendentry{On-axis formula}
+ \endaxis
+\endtikzpicture
+\par
+\endgroup
+\end{codeexample}
+
+\subsection{A wire with a finite radius}
+An infinite round wire of radius $a$ carrying a uniform current density has
+$B_\theta=\mu I r/(2\pi a^2)$ inside and $B_\theta=\mu I/(2\pi r)$ outside.
+The nonzero |wire radius| selects the volume-current model described below.
+The diagram is a transverse section, and the signed profile crosses the axis.
+A missing filament sample at the axis produces a gap, never a zero-field value.
+The filled disk is ordinary TikZ annotation of the physical radius; the generated
+3D source picture itself draws centre lines.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={azimuth=0,elevation=90,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-1,zmax=1,
+ seeds={.2/0/0;.6/0/0;1.1/0/0},step=.08}]
+ \femmbiotsource[kind=wire,extent=infinite,current=3,wire radius=.4]
+ \femmbiotprofile[name=thick-wire,from=-1.4/0/0,to=1.4/0/0,samples=141]
+ \filldraw[fill=orange!15,draw=orange!75!black] (0,0) circle[radius=.4];
+ \pic {femm biot field};
+ \node at (0,0) {$\odot$};
+\endtikzpicture
+\tikzpicture[femm/biot]
+ \femmbiotsource[kind=wire,extent=infinite,current=3]
+ \femmbiotprofile[name=thin-wire,from=-1.4/0/0,to=1.4/0/0,samples=141]
+\endtikzpicture
+\par
+\tikzpicture
+ \axis[width=8cm,height=5cm,no markers,grid=major,
+ xlabel={$x$ (cm)},ylabel={$B_y$ (T)},ymin=-.0003,ymax=.0003,
+ legend pos=north west]
+  \femmbiotplot[profile=thick-wire,component=By,abscissa=x,
+   plot options={blue!70!black,thick}]
+  \addlegendentry{Round wire}
+  \femmbiotplot[profile=thin-wire,component=By,abscissa=x,
+   plot options={orange!80!black,dashed}]
+  \addlegendentry{Filament}
+ \endaxis
+\endtikzpicture
+\par
+\endgroup
+\end{codeexample}
+
+\subsection{Polygonal and Bezier loops}
+A |femm/current path| postaction captures a connected evaluated PGF path.
+Use ordinary coordinates, node anchors, straight segments, arcs, rounded corners
+or cubic Bezier controls. The source is defined in a chosen physical plane,
+then rotated and translated in 3D. The original path need not itself be drawn:
+|femm biot geometry| supplies its camera projection.
+
+PGF paths are two-dimensional after evaluation. A TikZ coordinate with three
+components has already been projected by PGF and cannot be inverted into a
+unique 3D curve. Use |plane|, |offset| and the source pose for planar paths;
+use explicit |from|/|to| triples or a generated helix for spatial sources.
+Circular |kind=loop| sources use an analytic circle; a TikZ |circle| captured
+as a path retains PGF's Bezier approximation and the additional chord tolerance.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,femm/biot view={seeds={0/0/0;.4/0/0},
+ step=.15,maximum length=15}]
+ \path[femm/current path={current=2,curve tolerance=.001}]
+  (-1,-.7)--(1,-.7)..controls(1.6,.9) and(-1.6,.9)..cycle;
+ \pic {femm biot field};
+ \pic {femm biot geometry};
+\endtikzpicture
+\qquad
+\tikzpicture[femm/biot,femm/biot view={seeds={0/0/0;.4/0/0},
+ step=.15,maximum length=15}]
+ \path[femm/current path={current=2,rotate y=25}]
+  (-1,-1)--(1,-1)--(1,1)--(-1,1)--cycle;
+ \pic {femm biot field};
+ \pic {femm biot geometry};
+\endtikzpicture
+\par
+\endgroup
+\end{codeexample}
+
+\subsection{Independent loops and a continuous helical winding}
+For |winding=turns|, the straight coil contains independent circular loops,
+equally spaced from $-L/2$ to $L/2$. A single turn is placed at zero. They may be
+interpreted as a series winding whose external leads have been omitted from this
+idealized source model; each included loop is individually closed.
+
+For |winding=helix|, the path makes $N$ full revolutions while advancing by $L$.
+An axial return adds two radial leads and a straight return along the axis.
+Their field is included. This geometry is an explicit example, not an automatic
+model of an experimental feed cable. To combine an open contribution with a
+separately described feed, request |closure=contribution| and supply the rest
+of the circuit. Never interpret isolated finite endpoints as a complete steady
+current distribution.
+\begin{codeexample}[width=0pt]
+\begingroup
+\pgfkeys{/femm/biot source/coil sources/.style={current=2,radius=1,length=3,
+ turns=6,wire radius=.04}}
+\tikzset{coil view/.style={femm/biot,
+ femm/biot view={azimuth=-20,elevation=20,
+ seeds={0/.35/0;0/-.35/0},step=.15,maximum length=16,
+ geometry samples=32}}}
+\tikzpicture[coil view]
+ \femmbiotsource[coil sources,kind=solenoid,winding=turns]
+ \pic {femm biot field};\pic {femm biot geometry};
+ \node[below=3mm] at (current bounding box.south) {Independent loops};
+\endtikzpicture
+\qquad
+\tikzpicture[coil view]
+ \femmbiotsource[coil sources,kind=solenoid,winding=helix,closure=axis]
+ \pic {femm biot field};\pic {femm biot geometry};
+ \node[below=3mm] at (current bounding box.south) {Helix and axial return};
+\endtikzpicture
+\par
+\endgroup
+\end{codeexample}
+
+\subsection{Toroidal windings}
+Independent poloidal loops lie in meridional planes at uniformly spaced azimuths.
+The toroidal helix makes one major-circle revolution and $N$ poloidal revolutions;
+it is closed for the required integer turn count. Its additional toroidal current
+component changes the field, so these two windings need not have identical
+leakage or field lines. A finite number of turns is not the perfectly confined
+continuous-sheet toroid. Overlapping volume-current supports simply superpose;
+this provider does not check insulation or winding manufacture.
+\begin{codeexample}[width=0pt]
+\begingroup
+\pgfkeys{/femm/biot source/toroidal winding/.style={current=2,
+ radius=.55,major radius=1.7,turns=12,wire radius=.03}}
+\tikzset{toroid view/.style={femm/biot,
+ femm/biot view={azimuth=-35,elevation=45,
+ seeds={1.7/0/0;1.7/0/.25},step=.15,
+ maximum length=12,geometry samples=32}}}
+\tikzpicture[toroid view]
+ \femmbiotsource[toroidal winding,kind=toroid,winding=turns]
+ \pic {femm biot geometry};\pic {femm biot field};
+ \node[below=3mm] at (current bounding box.south) {Poloidal loops};
+\endtikzpicture
+\qquad
+\tikzpicture[toroid view]
+ \femmbiotsource[toroidal winding,kind=toroid,winding=helix]
+ \pic {femm biot geometry};\pic {femm biot field};
+ \node[below=3mm] at (current bounding box.south) {Toroidal helix};
+\endtikzpicture
+\par
+\endgroup
+\end{codeexample}
+
+\subsection{Commands, scope and operation order}
+\begin{key}{/tikz/femm/biot=\meta{options} (default empty)}
+Initialize a prescribed-current picture using |/femm/biot|. Use a separate picture
+from the FE and electric providers. The default drawing basis is one centimetre
+per model coordinate, independently of its physical unit. A root TikZ transform
+changes display only. All numerical options below accept finite numeric literals,
+including scientific notation; ordinary TikZ coordinate expressions are evaluated
+by PGF before a path is captured.
+\end{key}
+\begin{command}{\femmbiotsource\oarg{options}}
+Declare one source using |/femm/biot source|. Options are grouped and may be
+composed with ordinary PGF styles in that family. Supply the current explicitly.
+Position and orientation use the source pose keys, independently of the camera
+and local drawing scopes. At most 2000 source declarations and 100000 initial curve panels are accepted.
+\end{command}
+\begin{key}{/tikz/femm/biot source=\meta{options}}
+Invoke the same declaration through a TikZ key, after model initialization.
+\end{key}
+\begin{key}{/tikz/femm/current path=\meta{options}}
+Capture one connected physical path in a postaction. Options belong to
+|/femm/biot source|; |kind=wire| is selected by the capture. Use |--cycle| or an
+explicitly returning path for closed circuits. Local TikZ path transforms affect
+its evaluated planar coordinates. Do not draw fields or save the model among
+this path's own options: its capture has not yet occurred there.
+\end{key}
+\begin{key}{/tikz/femm/biot view=\meta{options}}
+Set grouped display/tracing controls from |/femm/biot view|. Declare all physical
+sources before the first picture, profile or value request. Drawing geometry
+also freezes the source list. Subsequent views and profiles remain available.
+\end{key}
+\begin{key}{/tikz/pics/femm biot geometry}
+Draw projected source centre lines. An infinite wire is clipped to the physical
+view box. Curved geometry uses the independent |geometry samples| control.
+This drawing is not a surface rendering of a thick conductor.
+\end{key}
+\begin{key}{/tikz/pics/femm biot field}
+Integrate true 3D field lines in both directions by default, then project their
+vertices. Every arrow follows $\mathbf B$, including a backward-only request.
+Source exclusions, null fields, the physical box, length and step budgets stop
+integration. A near-return to the seed closes a curve at the tracing resolution.
+Line counts and seed placement are aesthetic and do not measure flux.
+\end{key}
+\begin{key}{/tikz/pics/femm biot vectors}
+Sample the full 3D field on a selected coordinate plane, normalize in 3D and
+project each arrow. A vector normal to the screen can disappear in projection;
+it is not a zero magnetic field. No in-plane streamline approximation is used.
+\end{key}
+\begin{key}{/tikz/femm biot conductor}
+Default orange-brown centre line, width |.9pt|. Ordinary TikZ styles control
+colour, thickness and annotations independently of physical radius.
+\end{key}
+\begin{key}{/tikz/femm biot field}
+Default dark-blue line, width |.4pt|, with a Stealth arrow at relative position
+|.55|. Use |/.append style| to preserve the orientation decoration.
+\end{key}
+\begin{key}{/tikz/femm biot vector}
+Default dark-teal arrow, width |.4pt|, with a |1.4mm| Stealth tip.
+\end{key}
+\begin{command}{\femmbiotprofile\oarg{options}}
+Capture an owned 3D polyline profile using |/femm/biot profile|. Samples are
+equispaced in physical path length. Names have document lifetime; reusing one
+replaces that profile. Later source or picture changes do not alter its samples.
+\end{command}
+\begin{command}{\femmbiotplot\oarg{options}}
+Inside a PGFPlots axis, plot a stored profile using |/femm/biot plot|. It behaves
+like |\addplot+|, retaining axis cycle lists and legends. Invalid filament samples
+create gaps. Axes, units, legends and formatting remain ordinary PGFPlots options.
+\end{command}
+\begin{command}{\femmbiotvalue\oarg{options}}
+Print one SI field component using |/femm/biot value| and the current PGF number
+format. A point in an excluded filament neighbourhood is an error.
+\end{command}
+
+\subsection{Model controls}
+\begin{key}{/femm/biot/length unit=m\textbar cm\textbar mm\textbar um (initially cm)}
+Physical length unit for every source, profile and tracing coordinate. It does not set the printed axis label or change the camera scale.
+\end{key}
+\begin{key}{/femm/biot/relative permeability=\meta{value} (initially 1)}
+Positive, spatially uniform relative permeability. There are no material interfaces or nonlinear laws in this provider.
+\end{key}
+\begin{key}{/femm/biot/quadrature tolerance=\meta{value} (initially 1e-5)}
+Positive relative acceptance tolerance, smaller than one, for each curve integral. Combined with the absolute tolerance; this is a numerical estimate, not a certified error bound.
+\end{key}
+\begin{key}{/femm/biot/absolute tolerance=\meta{value} (initially 1e-12)}
+Positive absolute field tolerance in teslas, shared between source curves at each sample. It is essential near cancellations and nulls.
+\end{key}
+\begin{key}{/femm/biot/maximum quadrature depth=\meta{value} (initially 20)}
+Subdivision depth per initial parametric panel, an integer from 1 to 30. Exhaustion is an error, never a silently accepted field.
+\end{key}
+\begin{key}{/femm/biot/maximum evaluations=\meta{value} (initially 200000)}
+Total integrand evaluations per field sample, an integer from 24 to 10000000. Exact straight-wire formulae need no quadrature evaluations.
+\end{key}
+\begin{key}{/femm/biot/exclusion radius=\meta{value} (initially .001)}
+Positive distance in model units around a zero-radius filament. It masks singular positions without changing the field law elsewhere. It does not apply to a positive-radius volume current.
+\end{key}
+\begin{key}{/femm/biot/native file=\meta{value} (initially empty)}
+Read a prescribed-current |.femx| or |.ansx| at picture initialization. The file owns physical and numerical settings; explicit overrides are rejected. Camera settings remain independent.
+\end{key}
+\begin{key}{/femm/biot/name=\meta{value} (initially empty)}
+Optional document-wide snapshot name, captured at picture end. Use it in later profile/value requests or |\femmsave[model=...]|. Keep magnetic model names unique.
+\end{key}
+\subsection{Source controls}
+\begin{key}{/femm/biot source/kind=wire\textbar loop\textbar solenoid\textbar toroid (initially loop)}
+Registered source geometry. A wire uses a straight segment or captured planar path; a loop is an analytic circle; the two coils use the selected winding construction.
+\end{key}
+\begin{key}{/femm/biot source/current=\meta{value} (initially empty)}
+Required signed current in amperes, per loop or along the continuous wire. A positive current follows the source parameter; a negative value reverses the magnetic field.
+\end{key}
+\begin{key}{/femm/biot source/wire radius=\meta{value} (initially 0)}
+Nonnegative physical radius in model units. Zero selects a filament; a positive value selects the round convolution model below. It must be smaller than the winding radius for generated curved sources.
+\end{key}
+\begin{key}{/femm/biot source/center=\meta{value} (initially 0/0/0)}
+Translation triple |x/y/z| in model units, applied after the source rotations. For paths, it translates the lifted evaluated coordinates.
+\end{key}
+\begin{key}{/femm/biot source/rotate x=\meta{value} (initially 0)}
+Rotation in degrees about the source x axis. Rotations are applied in x, then y, then z order, followed by translation.
+\end{key}
+\begin{key}{/femm/biot source/rotate y=\meta{value} (initially 0)}
+Rotation in degrees about the y axis after the x rotation. It rotates geometry and current together.
+\end{key}
+\begin{key}{/femm/biot source/rotate z=\meta{value} (initially 0)}
+Final rotation in degrees about the z axis, before translation.
+\end{key}
+\begin{key}{/femm/biot source/closure=closed\textbar contribution\textbar axis (initially closed)}
+A finite wire must return to its initial point in closed mode. Contribution mode explicitly permits an incomplete circuit. Axis mode is for a straight helical coil and includes its radial leads and axial return.
+\end{key}
+\begin{key}{/femm/biot source/winding=turns\textbar helix (initially turns)}
+For solenoid and toroid sources: independent planar circles or a continuous spatial helix. A straight helix requires an explicit axis return or contribution declaration.
+\end{key}
+\begin{key}{/femm/biot source/handedness=right\textbar left (initially right)}
+Sign of the azimuthal advance of a straight helix, or poloidal advance of a toroidal helix. Current sign remains independent. Applies to helical windings.
+\end{key}
+\begin{key}{/femm/biot source/extent=finite\textbar infinite (initially finite)}
+For wire sources only. Infinite extent requires exactly two distinct points defining the oriented axis. A captured multi-segment path is finite.
+\end{key}
+\begin{key}{/femm/biot source/from=\meta{value} (initially 0/0/-1)}
+Initial triple |x/y/z| in model units for an explicitly declared wire. Source pose is applied afterwards.
+\end{key}
+\begin{key}{/femm/biot source/to=\meta{value} (initially 0/0/1)}
+Final triple |x/y/z| for a wire. With infinite extent, the two points set only the line and positive-current direction, not endpoints.
+\end{key}
+\begin{key}{/femm/biot source/radius=\meta{value} (initially 1)}
+Positive loop radius, straight-coil radius or toroidal minor winding radius, in model units.
+\end{key}
+\begin{key}{/femm/biot source/major radius=\meta{value} (initially 2)}
+Toroidal centre-line radius in model units; it must exceed the minor winding radius.
+\end{key}
+\begin{key}{/femm/biot source/length=\meta{value} (initially 3)}
+Positive axial span of a straight coil in model units. Planar turns include both endpoints of the span when there is more than one turn.
+\end{key}
+\begin{key}{/femm/biot source/turns=\meta{value} (initially 10)}
+Integer turn count from 1 to 1000 for either coil. A single straight-coil planar turn lies at its centre. A toroidal helix has exactly one major revolution.
+\end{key}
+\begin{key}{/femm/biot source/phase=\meta{value} (initially 0)}
+Geometrical starting angle in degrees. For a straight coil it shifts the initial circular angle; for a toroid it shifts the major azimuth. It is not an AC phasor angle.
+\end{key}
+\begin{key}{/femm/biot source/plane=xy\textbar xz\textbar yz (initially xy)}
+Plane used to lift a captured two-dimensional PGF path. Positive planar orientation follows the ordered coordinates: x/y, x/z or y/z; the x/z normal is therefore negative y.
+\end{key}
+\begin{key}{/femm/biot source/offset=\meta{value} (initially 0)}
+Coordinate perpendicular to the captured path plane, in model units, before the source pose is applied.
+\end{key}
+\begin{key}{/femm/biot source/curve tolerance=\meta{value} (initially .002)}
+Positive chord tolerance in model units for PGF path flattening. Refine it independently of quadrature tolerance. Generated analytic circles/helices do not use this polygonalization.
+\end{key}
+\subsection{View controls}
+\begin{key}{/femm/biot view/azimuth=\meta{value} (initially -45)}
+Camera angle in degrees. The screen horizontal basis is $(\cos\alpha,\sin\alpha,0)$. No physical source rotation is implied.
+\end{key}
+\begin{key}{/femm/biot view/elevation=\meta{value} (initially 25)}
+Camera angle in degrees. The screen vertical basis is $(-\sin\alpha\sin\beta,\cos\alpha\sin\beta,\cos\beta)$. With azimuth zero and elevation 90 degrees, the screen is the physical x/y plane.
+\end{key}
+\begin{key}{/femm/biot view/step=\meta{value} (initially .08)}
+Maximum Runge--Kutta arc-length step in model units. Adaptive steps may be smaller. It also sets the near-return resolution for closing a traced loop.
+\end{key}
+\begin{key}{/femm/biot view/tolerance=\meta{value} (initially .0002)}
+Positive local streamline error tolerance in model units, estimated by step doubling. It does not change Biot--Savart quadrature or source geometry.
+\end{key}
+\begin{key}{/femm/biot view/maximum length=\meta{value} (initially 30)}
+Positive traced length in model units, separately for each direction from a seed.
+\end{key}
+\begin{key}{/femm/biot view/maximum steps=\meta{value} (initially 3000)}
+Accepted-step budget per direction, an integer from 1 to 100000. Exhaustion retains the partial trace with a diagnostic.
+\end{key}
+\begin{key}{/femm/biot view/null field=\meta{value} (initially 1e-14)}
+Nonnegative threshold in teslas below which a field direction is undefined for tracing or arrows.
+\end{key}
+\begin{key}{/femm/biot view/geometry samples=\meta{value} (initially 64)}
+Integer from 8 to 1000, per circle or minor helical turn in the source drawing. It affects presentation only.
+\end{key}
+\begin{key}{/femm/biot view/xmin=\meta{value} (initially -3)}
+Physical x coordinate of the lower view-box face, in model units. Bounds must be ordered. They stop traces and clip infinite-wire drawings; they impose no magnetic boundary condition.
+\end{key}
+\begin{key}{/femm/biot view/xmax=\meta{value} (initially 3)}
+Physical x coordinate of the upper view-box face, in model units. Bounds must be ordered. They stop traces and clip infinite-wire drawings; they impose no magnetic boundary condition.
+\end{key}
+\begin{key}{/femm/biot view/ymin=\meta{value} (initially -3)}
+Physical y coordinate of the lower view-box face, in model units. Bounds must be ordered. They stop traces and clip infinite-wire drawings; they impose no magnetic boundary condition.
+\end{key}
+\begin{key}{/femm/biot view/ymax=\meta{value} (initially 3)}
+Physical y coordinate of the upper view-box face, in model units. Bounds must be ordered. They stop traces and clip infinite-wire drawings; they impose no magnetic boundary condition.
+\end{key}
+\begin{key}{/femm/biot view/zmin=\meta{value} (initially -3)}
+Physical z coordinate of the lower view-box face, in model units. Bounds must be ordered. They stop traces and clip infinite-wire drawings; they impose no magnetic boundary condition.
+\end{key}
+\begin{key}{/femm/biot view/zmax=\meta{value} (initially 3)}
+Physical z coordinate of the upper view-box face, in model units. Bounds must be ordered. They stop traces and clip infinite-wire drawings; they impose no magnetic boundary condition.
+\end{key}
+\begin{key}{/femm/biot view/seeds=\meta{value} (initially auto)}
+Use |auto| for aesthetic seeds near the first source, or a semicolon-separated list of triples such as |0/0/0;.5/0/0|. At most 500 seeds are allowed, all inside the tracing box. Explicit seeds are preferable for comparisons.
+\end{key}
+\begin{key}{/femm/biot view/direction=both\textbar forward\textbar backward (initially both)}
+Direction of integration from each seed. Emitted paths always carry arrows in the physical field direction.
+\end{key}
+\begin{key}{/femm/biot view/plane=xy\textbar xz\textbar yz (initially xz)}
+Coordinate plane on which full-vector arrows are sampled. It does not constrain the three-dimensional field-line integrator.
+\end{key}
+\begin{key}{/femm/biot view/offset=\meta{value} (initially 0)}
+Perpendicular coordinate of the vector sampling plane, in model units.
+\end{key}
+\begin{key}{/femm/biot view/spacing=\meta{value} (initially .5)}
+Positive vector-grid spacing in model units. At most 10000 sample positions are accepted.
+\end{key}
+\begin{key}{/femm/biot view/vector length=\meta{value} (initially .25)}
+Positive normalized arrow length in 3D model units before projection. Apparent projected lengths may therefore differ.
+\end{key}
+\subsection{Profile controls}
+\begin{key}{/femm/biot profile/name=\meta{value} (initially empty)}
+Required document-wide profile identifier: letters/digits followed by letters, digits, colon, underscore or hyphen.
+\end{key}
+\begin{key}{/femm/biot profile/model=\meta{value} (initially empty)}
+Empty selects the current Biot--Savart picture; otherwise select a named snapshot.
+\end{key}
+\begin{key}{/femm/biot profile/from=\meta{value} (initially 0/0/-3)}
+Initial profile point |x/y/z| in model units. It is independent of the camera and source pose.
+\end{key}
+\begin{key}{/femm/biot profile/to=\meta{value} (initially 0/0/3)}
+Final profile point |x/y/z| in model units.
+\end{key}
+\begin{key}{/femm/biot profile/points=\meta{value} (initially empty)}
+Optional semicolon-separated polyline triples. When supplied, replaces from/to. Successive vertices must be distinct.
+\end{key}
+\begin{key}{/femm/biot profile/samples=\meta{value} (initially 101)}
+Integer from 2 to 10001, including both profile endpoints. Samples are uniform in polyline arc length.
+\end{key}
+\subsection{Plot controls}
+\begin{key}{/femm/biot plot/profile=\meta{value} (initially empty)}
+Required previously captured profile name. No field recalculation occurs when plotting it.
+\end{key}
+\begin{key}{/femm/biot plot/component=B\textbar Bx\textbar By\textbar Bz\textbar H\textbar Hx\textbar Hy\textbar Hz (initially B)}
+SI field magnitude or Cartesian component. B quantities are in teslas; H quantities are in amperes per metre.
+\end{key}
+\begin{key}{/femm/biot plot/abscissa=s\textbar x\textbar y\textbar z (initially s)}
+Arc length s from the profile start, or a Cartesian coordinate. Values use the model length unit, not necessarily metres.
+\end{key}
+\begin{key}{/femm/biot plot/abscissa scale=\meta{value} (initially 1)}
+Positive multiplier applied to the displayed abscissa, for example 10 to convert a centimetre profile to millimetres. Set the axis label yourself.
+\end{key}
+\begin{key}{/femm/biot plot/plot options=\meta{value} (initially empty)}
+Unexpanded native PGFPlots options for this plot, including reusable styles. They supplement the normal cycle-list choice.
+\end{key}
+\subsection{Value controls}
+\begin{key}{/femm/biot value/model=\meta{value} (initially empty)}
+Empty selects the current Biot--Savart picture; otherwise select a named snapshot.
+\end{key}
+\begin{key}{/femm/biot value/at=\meta{value} (initially 0/0/0)}
+Sample triple |x/y/z| in model units. The result is evaluated before PGF number formatting.
+\end{key}
+\begin{key}{/femm/biot value/component=B\textbar Bx\textbar By\textbar Bz\textbar H\textbar Hx\textbar Hy\textbar Hz (initially B)}
+SI field magnitude or Cartesian component. B quantities are in teslas; H quantities are in amperes per metre.
+\end{key}
+
+\subsection{Biot--Savart integration and finite-radius currents}
+For a filament curve $\mathbf c(t)$, the evaluator computes
+\[
+ \mathbf B(\mathbf x)=\frac{\mu_0\mu_r I}{4\pi}
+ \int\frac{\mathbf c'(t)\mathbin\times(\mathbf x-\mathbf c(t))}
+ {|\mathbf x-\mathbf c(t)|^3}\,dt.
+\]
+Straight segments and infinite wires use exact formulas where applicable.
+Analytic curves use nested 4/8-point Gauss--Legendre rules, with initial panels
+resolving each turn. The largest estimated contribution is refined first.
+Absolute and relative tolerances are checked on each curve integral; summed
+error estimates do not certify relative accuracy after cancellation of large
+source fields. Budgets fail explicitly. Refine source chord tolerance,
+quadrature tolerance, tracing tolerance and profile sampling independently.
+
+For a nonzero radius $a$, the prescribed current is the convolution of the
+filament current with the normalized radial kernel
+\[
+ K_a(r)=\begin{cases}
+ [\pi^2 a^2\sqrt{a^2-r^2}]^{-1},&r<a,\\
+ 0,&r\geq a.
+ \end{cases}
+\]
+For a straight infinite wire, integrating this kernel along the wire gives
+exactly $J=I/(\pi a^2)$ throughout its circular cross-section. Convolution
+preserves zero divergence for a closed current path. In a bend, it defines
+its own curvature-dependent volume-current distribution; it is \emph{not}
+an exact solution for uniform current in every normal disk of a curved metal
+wire. Finite segment ends are rounded by the same kernel. No conductivity,
+charge redistribution, skin or proximity law is solved.
+
+Radial symmetry reduces the volume integration to the same curve integral,
+with the factor $1/d^3$ replaced by $F(d/a)/d^3$, where
+\[
+ F(q)=\frac2\pi\bigl(\arcsin q-q\sqrt{1-q^2}\bigr)\quad(0\leq q<1),
+ \qquad F(q)=1\quad(q\geq1).
+\]
+The removable limit is used at zero. Outside the radius-a neighbourhood of all
+filaments, the field equals the filament field for this particular model.
+Thus increasing the radius is a physical change to the interior source model,
+not a universal approximation to the field of an arbitrary thick curved wire.
+
+Sources and projection data stay separate. The orthographic renderer does not
+remove hidden lines, draw occluding conductor surfaces or infer a flux density
+from the number of field lines. A projected crossing need not be a physical
+intersection in three dimensions.
+
+\subsection{Native storage and scope}
+Use |\femmsave| after source capture, with |kind=problem| and a |.femx| filename,
+or |kind=answer| and a |.ansx| filename. The registered
+|magnetic-biot-1| adapter owns source geometry, currents, units, finite-radius
+law and quadrature controls. Answers store the registered evaluation law rather
+than fabricated finite-element coefficients. Reading performs no field
+integration; a later view or profile evaluates the retained sources.
+
+No FEMM |.fem|/|.ans| representation is provided for these 3D sources. There is
+no general magnetic 3D finite-element solve, imported 3D dataset adapter or
+material response in this provider. A positive homogeneous permeability
+multiplies the Biot--Savart field; it does not model an inserted ferromagnetic core.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/biot]
+ \femmbiotsource[kind=loop,current=1]
+ \femmsave[kind=answer,file=manual-biot.ansx]
+ \pic {femm biot geometry};
+\end{tikzpicture}
+\qquad
+\begin{tikzpicture}[femm/biot={native file=manual-biot.ansx}]
+ \pic[femm/biot view={seeds={0/0/0},maximum length=3}]
+  {femm biot field};
+ \pic {femm biot geometry};
+\end{tikzpicture}
+\end{codeexample}

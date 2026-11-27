@@ -1,0 +1,58 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic time-state capture and backward-Euler problem selectors. PGF parses
+% numerical expressions; all strings cross the Lua boundary with luaescapestring.
+\pgfkeys{/femm/import/time/.initial=,
+  /femm/problem/previous state/.initial=,
+  /femm/problem/state/.initial=,
+  /femm/problem/time step/.initial=0,
+  /femm/problem/source scale/.initial=,
+  /femm/problem/boundary scale/.initial=,
+  /femm/problem/inertia/.initial=0,
+  /femm/problem/load torque/.initial=0,
+  /femm/problem/damping/.initial=0,
+  /femm/problem/motion/.initial=fixed,
+  /femm/problem/motion/.is choice,
+  /femm/problem/motion/fixed/.code={\pgfkeyssetvalue{/femm/problem/motion}{fixed}},
+  /femm/problem/motion/prescribed/.code={\pgfkeyssetvalue{/femm/problem/motion}{prescribed}},
+  /femm/problem/motion/dynamic/.code={\pgfkeyssetvalue{/femm/problem/motion}{dynamic}},
+  /femm/state/.is family,/femm/state,
+  name/.initial=,model/.initial=,file/.initial=,
+  time/.initial=,speed/.initial=,sliding band/.initial=,
+  initial/.initial=equilibrium,initial/.is choice,
+  initial/equilibrium/.code={\pgfkeyssetvalue{/femm/state/initial}{equilibrium}},
+  initial/zero/.code={\pgfkeyssetvalue{/femm/state/initial}{zero}}}
+\def\luafemm@timeoptions{%
+  \luafemm@staticoptional{/femm/import/time}\luafemm@importtime
+  \luafemm@staticnumber{/femm/problem/time step}\luafemm@timedt
+  \luafemm@staticoptional{/femm/problem/source scale}\luafemm@timesource
+  \luafemm@staticoptional{/femm/problem/boundary scale}\luafemm@timeboundary
+  \luafemm@staticnumber{/femm/problem/inertia}\luafemm@timeinertia
+  \luafemm@staticnumber{/femm/problem/load torque}\luafemm@timeload
+  \luafemm@staticnumber{/femm/problem/damping}\luafemm@timedamping}
+\tikzset{femm/state/.code={\tikzset{execute at end picture={%
+  \femmstate[#1,model=\luafemm@picturemodel]}}}}
+\protected\def\femmstate{\pgfutil@ifnextchar[{\luafemm@state}{\luafemm@state[]}}
+\def\luafemm@state[#1]{\begingroup
+  \pgfqkeys{/femm/state}{name=,model=,file=,time=,speed=,sliding band=,initial=equilibrium,#1}%
+  \luafemm@staticoptional{/femm/state/time}\luafemm@statetime
+  \luafemm@staticoptional{/femm/state/speed}\luafemm@statespeed
+  \directlua{luafemm.tex.time_state(
+    '\luaescapestring{\pgfkeysvalueof{/femm/state/name}}',
+    '\luaescapestring{\pgfkeysvalueof{/femm/state/model}}',{
+      initial='\luaescapestring{\pgfkeysvalueof{/femm/state/initial}}',
+      time='\luaescapestring{\luafemm@statetime}',speed='\luaescapestring{\luafemm@statespeed}',
+      band='\luaescapestring{\pgfkeysvalueof{/femm/state/sliding band}}',
+      file='\luaescapestring{\pgfkeysvalueof{/femm/state/file}}'})}%
+  \endgroup}
+\protected\def\femmrestorestate{\pgfutil@ifnextchar[{\luafemm@restorestate}{\luafemm@restorestate[]}}
+\def\luafemm@restorestate[#1]{\begingroup
+  \pgfqkeys{/femm/state}{name=,file=,#1}%
+  \directlua{luafemm.tex.restore_time_state(
+    '\luaescapestring{\pgfkeysvalueof{/femm/state/name}}',
+    '\luaescapestring{\pgfkeysvalueof{/femm/state/file}}')}%
+  \endgroup}
+\endinput

@@ -1,0 +1,30 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm.circuits.ee.IEC}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+
+\begin{tikzpicture}[
+  femm/problem={xmin=-10,xmax=10,ymin=-8,ymax=8,
+    mesh size=1,depth=20},
+  femm/circuit={name=controlled,drive=linkage,linkage=2e-5},scale=2]
+  \filldraw[fill=gray!25,femm/region={material=armco-pure-iron}]
+    (-2,-5) rectangle (2,5);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=controlled,turns=20}]
+    (-6,-4) rectangle (-4,4);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=controlled,turns=-20}]
+    (4,-4) rectangle (6,4);
+  \femmmeasure[name=controlled-terminal,quantity=circuit,circuit=controlled]
+  \pic[femm/lines=10] {femm field};
+  \node[above] at (0,9) {$I=\femmvalue[component=current]{controlled-terminal}$};
+\end{tikzpicture}
+
+\end{document}

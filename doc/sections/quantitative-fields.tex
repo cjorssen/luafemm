@@ -1,0 +1,108 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Quantitative magnetic colour maps and vectors}
+\label{sec:quantitative-fields}
+
+Load PGFPlots as well as the |femm| library for colour maps and colour bars.
+Declare the physical geometry first, draw the colour map, then add vectors,
+field contours and labels. All these views use the same solved model.
+The defaults use the perceptually ordered |viridis| colour map and short,
+normalized arrows. A colour discontinuity can be physical: recovering a gradient
+is a presentation choice, not a numerical improvement to the solution.
+
+\begin{key}{/tikz/femm/visual=\meta{options}}
+Set the |/femm/visual| family in the current TikZ scope. The pictures
+|femm scalar map| and |femm vectors| solve on demand after all declarations.
+They support ordinary planar and axisymmetric P1 models, including harmonic
+fields; ideal circuits, axial diffusion and sliding templates are excluded.
+Axisymmetric coordinates mean $(r,z)$, and component suffixes |x,y| mean |r,z|.
+\end{key}
+\begin{key}{/femm/visual/component=\meta{component} (initially B)}
+Maps accept |B|, |Bx|, |By| in T, |H|, |Hx|, |Hy| in A/m, or |A| in T m.
+Vectors accept |B| or |H|. The potential is $A_z$ or $A_\phi$, not axial flux.
+\end{key}
+\begin{key}{/femm/visual/values=raw\textbar recovered (initially raw)}
+Raw values use the solved basis. Recovered vector components are area-weighted
+at vertices separately for each material, then interpolated inside each element.
+Neither forces, profiles nor loss integrals are changed by this key.
+Maps assign the selected centroid value to each triangle; extra rendering
+samples would not add physical resolution. Potential itself is never recovered.
+\end{key}
+\begin{key}{/femm/visual/representation=\meta{choice} (initially snapshot)}
+Use |snapshot|, |real|, |imaginary|, |amplitude| or |rms| with peak harmonic
+phasors. Vectors require one of the first three signed choices. A component's
+amplitude is its complex modulus. For |B| and |H|, amplitude means
+$\sqrt{|\widehat F_x|^2+|\widehat F_y|^2}$, and RMS divides this by $\sqrt2$.
+For elliptical polarization this amplitude is \emph{not} the maximum
+instantaneous vector magnitude. A snapshot magnitude uses the two real
+instantaneous components. Phase maps are unavailable.
+\end{key}
+\begin{key}{/femm/visual/phase=\meta{degrees} (initially 0)}
+The time angle in $\operatorname{Re}(\widehat F e^{i\theta})$, for snapshot views.
+Static fields require |real| or a zero-phase |snapshot|; AC-only choices are rejected.
+\end{key}
+\begin{key}{/femm/visual/colormap=\meta{name} (initially viridis)}
+A defined PGFPlots colour-map identifier. Define custom maps with PGFPlots.
+The name uses letters, digits or hyphens. PGFPlots owns colour interpolation.
+\end{key}
+\begin{key}{/femm/visual/name=\meta{name} (initially last)}
+Document-wide name for the resulting colour range and unit, used by a colour
+bar. Drawing another map with the same name replaces this small metadata record.
+The name stores no mutable physical model.
+\end{key}
+\begin{key}{/femm/visual/minimum=\meta{number or auto} (initially auto)}
+\end{key}
+\begin{key}{/femm/visual/maximum=\meta{number or auto} (initially auto)}
+Colour limits in the selected component's SI unit. Auto uses finite centroid
+extrema of the entire model, independently of a later TikZ clip. Explicit limits
+are useful when comparing figures; out-of-range colours saturate at the endpoints.
+A constant field receives a small symmetric range so that its colour bar remains
+defined. Reversed ranges fail.
+\end{key}
+\begin{key}{/femm/visual/spacing=\meta{number or auto} (initially auto)}
+Vector sampling spacing in model units. Auto uses the longer problem-box span
+divided by 18. Samples outside the physical domain are omitted. More than
+100000 requested grid positions is an error.
+\end{key}
+\begin{key}{/femm/visual/length=\meta{number or auto} (initially auto)}
+Normalized arrow length in model units; auto is $0.65$ times the spacing.
+Zero vectors are omitted.
+\end{key}
+\begin{key}{/femm/visual/mode=normalized\textbar scaled (initially normalized)}
+Normalized arrows show direction. Scaled arrows encode magnitude using |scale|.
+\end{key}
+\begin{key}{/femm/visual/scale=\meta{positive number} (initially 1)}
+Model-coordinate length per T or per A/m, in scaled mode. The library does not
+silently clip a large scaled arrow: choose an appropriate scale and TikZ clip.
+\end{key}
+\begin{key}{/tikz/femm scalar cell (style)}
+Default |draw=none|. Change opacity or other native path options with |/.append style|.
+\end{key}
+\begin{key}{/tikz/femm vector (style)}
+Default dark arrows with a 3 pt Stealth tip and 0.3 pt stroke. Ordinary TikZ
+styling controls colour, thickness and tips.
+\end{key}
+\begin{command}{\femmcolorbar\oarg{options}}
+Inside a separate |tikzpicture|, draw a PGFPlots colour bar for a previously
+named map. Keys |/femm/colorbar/name| (default |last|), |height| (default |4cm|)
+and |axis options| (default empty) select the map and native PGFPlots overrides.
+The default label gives the component's SI unit. Use, for example,
+|axis options={colorbar style={ylabel={$B$ (T)}}}| to customize it.
+\end{command}
+
+\begin{codeexample}[width=6cm]
+\begin{tikzpicture}[femm/problem={xmin=-20,xmax=20,
+ ymin=-20,ymax=20,mesh size=2},scale=1.1]
+ \path[femm/region={material=air,current density=1e6}]
+   (-6,-6) rectangle (6,6);
+ \pic[femm/visual={name=conductor-map}] {femm scalar map};
+ \pic[femm/visual={spacing=4,length=2}] {femm vectors};
+ \draw[white,thick] (-6,-6) rectangle (6,6);
+\end{tikzpicture}
+\begin{tikzpicture}
+ \femmcolorbar[name=conductor-map,height=4cm]
+\end{tikzpicture}
+\end{codeexample}

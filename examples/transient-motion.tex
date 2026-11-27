@@ -1,0 +1,53 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=160mm,border=3mm]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{femm}
+\begin{document}
+\tikzset{femm/materials/rotor iron/.style={mu r=200}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-8,xmax=8,ymin=-8,ymax=8,mesh size=1,depth=10},
+  femm/sliding band={name=time-band,inner radius=3,outer radius=4,
+    segments=48,layers=1},scale=2]
+  \filldraw[fill=gray!20,femm/region={material=rotor iron}]
+    (0,0) ellipse[x radius=2.6,y radius=1.2];
+  \draw[femm/region={material=copper,conductor=stranded,current density=5e7}]
+    (-6,-3) rectangle (-5,3);
+  \draw[femm/region={material=copper,conductor=stranded,current density=-5e7}]
+    (5,-3) rectangle (6,3);
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/problem={sliding band=time-band,rotor angle=25},
+  femm/state={name=rotor-time,sliding band=time-band,speed=0},scale=2]
+  \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+  \node[above] at (0,8) {$t=0$};
+\end{tikzpicture}
+\par
+\def\MotionResults{}
+\foreach \Step in {1,...,20}{%
+  \begin{tikzpicture}[
+    femm/problem={previous state=rotor-time,time step=.001,
+      motion=dynamic,inertia=1e-8,damping=1e-7},
+    femm/state={name=rotor-time},scale=2]
+    \femmmeasure[name=motion-\Step,quantity=force,method=band]
+    \ifnum\Step=20
+      \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+      \node[above] at (0,8) {$t=20\,\mathrm{ms}$};
+    \fi
+  \end{tikzpicture}%
+  \xdef\MotionResults{\MotionResults,motion-\Step}%
+}
+\begin{tikzpicture}
+\begin{axis}[width=8cm,height=5cm,grid=major,
+  xlabel={Time (ms)},ylabel={Rotor angle (degrees)},
+  x filter/.expression={1000*x}]
+  \femmresultplot[results=\MotionResults,abscissa=time,component=angle,
+    plot options={blue!65!black,thick,mark=*}]
+\end{axis}
+\end{tikzpicture}
+\femmstate[name=rotor-saved,file=\jobname-rotor.lft]
+\end{document}

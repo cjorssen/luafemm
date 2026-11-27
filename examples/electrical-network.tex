@@ -1,0 +1,49 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm.circuits.ee.IEC}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+
+\begin{tikzpicture}[
+  femm/problem={name=network-demo,frequency=200,
+    xmin=-10,xmax=10,ymin=-8,ymax=8,mesh size=1,depth=20},
+  femm/circuit={name=coil,drive=network},
+  femm/network={name=supply},
+  femm/element={name=source,kind=voltage source,p=a,n=0,value=1},
+  femm/element={name=load,kind=resistor,p=a,n=b,value=2},
+  femm/element={name=winding,kind=winding,p=b,n=0,circuit=coil},
+  scale=2]
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=coil,turns=20}]
+    (-6,-4) rectangle (-4,4);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,circuit=coil,turns=-20}]
+    (4,-4) rectangle (6,4);
+  \femmmeasure[name=coil-terminal,quantity=circuit,circuit=coil]
+  \femmmeasure[name=coil-element,quantity=network,element=winding]
+  \pic[femm/lines=10] {femm field};
+\end{tikzpicture}
+
+\par
+
+\begin{tikzpicture}[circuit ee IEC]
+  \draw (0,0) to[voltage source={info={$1\,\mathrm V$}}] (0,2)
+    to[resistor={info={$2\,\Omega$}}] (4,2)
+    to[inductor={femm/ee={model=network-demo,
+      element=winding,result=coil-element,values=solution,
+      show=current,representation=rms}}] (4,0) -- (0,0);
+\end{tikzpicture}
+
+\par
+
+\begin{tikzpicture}
+  \pic[femm/ee view={model=network-demo}] {femm ee circuit};
+\end{tikzpicture}
+
+\end{document}

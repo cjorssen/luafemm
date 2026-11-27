@@ -1,0 +1,509 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Effective windings and nonlinear fundamental fields}
+\label{sec:harmonic-material-models}
+
+A fine-wire winding and a saturated core ask two different questions. In the
+winding, current crowds inside each conductor and neighbouring turns induce
+additional currents. In the core, the slope of the B--H curve changes during a
+cycle. The models in this chapter address these effects separately. Both use
+ordinary material styles, the existing circuit keys and the existing field,
+profile and measurement commands. Their applicability limits are part of their
+interfaces: selecting an unsupported combination raises an error.
+
+\subsection{Replacing a thick wire by Litz wire}
+Suppose a winding uses twenty turns of round copper wire. Its copper diameter
+is 0.4 mm. At low frequency, a uniform current-density model is sufficient;
+at higher frequency, it misses skin and proximity effects. Describe the wire
+in the material style and connect the two signed winding sections to a circuit:
+\begin{codeexample}[code only]
+\tikzset{femm/materials/wire/.style={mu r=1,conductivity=58000000,
+  wire model=round,wire diameter=.4}}
+\end{codeexample}
+The diameter is the conducting diameter, excluding insulation. Do not enter a
+separate |winding fill|: the copper area follows from turns and diameter, and
+the available winding area follows from the captured geometry. This gives the
+same physical filling factor when the mesh is refined.
+
+Now replace each wire by sixteen insulated 0.1 mm strands, perfectly transposed
+so that each strand sees the same average environment. The copper area per turn
+is unchanged. Change the style to |wire model=litz,wire diameter=.1,strands=16|.
+The following complete comparison starts with a short frequency list and a
+moderate mesh. Refine the winding and surrounding air when the diagram and
+circuit have settled; meshing the wire diameter itself is unnecessary.
+
+\luafemmexamplebegin{wire-windings}
+
+% manual example: wire-windings/1
+
+\begin{codeexample}[setup code]
+\newbox\Calculation
+\tikzset{
+  femm/materials/wire/.style={mu r=1,conductivity=58000000,
+    wire model=\WireModel,wire diameter=\Diameter,strands=\Strands},
+  experiment/.style={femm/problem={frequency=\Frequency,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.5},
+    femm/circuit={name=drive,current=2}},
+  /femm/region/coil/.style={material=wire,circuit=drive,mesh size=.25}}
+\newcommand\Geometry{
+  \path[femm/region={coil,turns=-20}] (-4.7,-2) rectangle (-3.3,2);
+  \path[femm/region={coil,turns=20}] (3.3,-2) rectangle (4.7,2);}
+\foreach \WireModel/\Diameter/\Strands in {round/.4/1,litz/.1/16}{
+  \foreach \Frequency in {100,1000,5000,10000,50000,100000}{
+    \setbox\Calculation=\hbox{
+      \begin{tikzpicture}[experiment,
+        femm/cache={file=\jobname-\WireModel-\Frequency,mode=auto}]
+        \Geometry
+        \femmmeasure[name=\WireModel-\Frequency,parameter=\Frequency]
+      \end{tikzpicture}}}}
+\def\Frequency{100000}
+\end{codeexample}
+
+The following picture uses the preceding definitions.
+
+% manual example: wire-windings/2
+
+\begin{codeexample}[width=0pt]
+\foreach \WireModel/\Diameter/\Strands/\Title in
+  {round/.4/1/{Round wire},litz/.1/16/{Litz wire}}{
+  \begin{tikzpicture}[experiment,scale=3.2,
+    femm/cache={file=\jobname-\WireModel-\Frequency,mode=auto}]
+    \Geometry
+    \filldraw[fill=orange!20,draw=orange!65!black] (-4.7,-2) rectangle (-3.3,2);
+    \filldraw[fill=orange!20,draw=orange!65!black] (3.3,-2) rectangle (4.7,2);
+    \pic[femm/lines=15,femm/phase=0,femm/arrow spacing=12mm] {femm field};
+    \node[above] at (0,6) {\Title, $100\,\mathrm{kHz}$};
+    \node at (-4,0) {$\otimes$}; \node at (4,0) {$\odot$};
+    \node[below,font=\small] at (0,-6)
+      {$P=\femmvalue[component=total_loss]{\WireModel-100000}$};
+  \end{tikzpicture}}
+\end{codeexample}
+
+% manual example: wire-windings/3
+
+\begin{codeexample}[setup code]
+\def\Round{round-100,round-1000,round-5000,round-10000,round-50000,round-100000}
+\def\Litz{litz-100,litz-1000,litz-5000,litz-10000,litz-50000,litz-100000}
+\end{codeexample}
+
+The following picture uses the preceding definitions.
+
+% manual example: wire-windings/4
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Total winding loss (W)},
+  legend style={font=\small,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\Round},component=total_loss,
+    plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Round, $d=0.4$ mm}
+  \femmresultplot[results={\Litz},component=total_loss,
+    plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Litz, $16\times0.1$ mm}
+\end{semilogxaxis}
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: wire-windings/5
+
+\begin{codeexample}[width=5.2cm]
+\begin{tikzpicture}
+\begin{loglogaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Frequency (Hz)},ylabel={Round-wire loss terms (W)},
+  legend style={font=\small,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={\Round},component=wire_transport_loss,
+    plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Transport term}
+  \femmresultplot[results={\Round},component=proximity_loss,
+    plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Proximity term}
+\end{loglogaxis}
+\end{tikzpicture}
+\end{codeexample}
+
+\luafemmexampleend{wire-windings}
+
+The total loss includes both terms shown in the second plot. The transport term
+includes an effective-medium correction and need not, on its own, exceed the DC
+loss. Compare the total losses of geometries with the same copper area and
+excitation. The model excludes end turns, capacitive effects and imperfect
+transposition. Adding more strands does not automatically make a physically
+manufacturable Litz bundle or establish the model's accuracy for that bundle.
+
+\subsection{Wire material keys}
+\label{sec:wire-keys}
+These keys belong to |/tikz/femm/materials|. Define them in material styles
+before capturing any affected region. Empty numeric values inherit catalogue
+properties, then the native defaults. A material style is evaluated separately
+for each region; a material can therefore be shared by winding sections with
+different areas and derived fills. Ordinary TeX grouping scopes style changes.
+
+\begin{key}{/tikz/femm/materials/wire model=\meta{choice} (initially inherit)}
+A choice handler accepting |inherit|, |none|, |round|, |stranded|, |litz|, |square|, |cca10| and |cca15|.
+|inherit| selects supported catalogue wire data at positive frequency,
+otherwise |none|. Static catalogue selection uses bulk conductivity and unit
+permeability; an explicitly selected nontrivial wire law still requires AC. With |none|,
+the existing uniform stranded conductor or resolved solid-conductor model is
+unchanged. |round| models one round wire per turn. |stranded| treats an
+untransposed bundle as one equal-copper-area round wire. |litz| uses the
+individual strand radius and assumes ideal transposition. These are
+homogenisation choices, not geometric generators.
+
+A nontrivial wire model requires positive |frequency|, conductivity greater
+than zero, $\mu_x=\mu_y=1$, no B--H curve, no coercivity, no sheet model and no
+intrinsic loss angle. Every wire region must belong to a named circuit and have
+|conductor=auto| or |stranded|. Both current and voltage drive, and series and
+parallel branches, use the coupled circuit solver. Positive |depth| is required
+in planar models; axisymmetric integrals use the actual ring circumference.
+Captured operating points and the axial diffusion formulation are excluded.
+
+Leave |winding fill=1| and |conductor length=0|: these values request geometry-
+derived quantities, not physically full copper occupancy. Solid-current
+constraints and independent source-density regions are rejected. Static use of
+a selected wire model is rejected; use an ordinary conductive material with an
+explicit winding fill for a DC model. The additional square and copper-clad aluminium models are described below.
+\end{key}
+
+\begin{key}{/tikz/femm/materials/wire diameter=\meta{millimetres} (initially empty)}
+Positive finite conducting diameter (square side for |square|) in millimetres, independent of |unit|. For
+|stranded| and |litz| this is the diameter of one strand. There is no guessed
+positive default; a nontrivial wire model requires this value or supported
+catalogue data. The native value zero is valid only with |wire model=none|.
+PGF expressions are accepted, for example |wire diameter=.4/sqrt(16)|.
+\end{key}
+
+\begin{key}{/tikz/femm/materials/strands=\meta{integer} (initially empty)}
+Number of strands per electrical turn. Native default one; accepts positive
+integers, including integer-valued PGF expressions. |round| and |square| require one.
+The circuit's signed |turns| still counts turns of the complete bundle, not
+individual strands. |wire model=none| requires the default strand count and
+zero wire diameter, preventing silently ignored wire data.
+\end{key}
+
+For winding area $S$, signed turn count $N$, strand count $n$ and strand radius
+$a=d/2$ in metres, the copper fraction is
+\[
+  \eta=\frac{|N|n\pi a^2}{S},\qquad
+  0<\eta\leq\frac{\pi}{\sqrt{12}}.
+\]
+The upper bound is the round-wire hexagonal packing limit; insulation normally
+requires a smaller fraction. Overfilled regions fail after their mesh areas
+are available. The effective skin radius is $a$ for round/Litz wire and
+$a\sqrt n$ for untransposed strands. Thus the round and untransposed equal-area
+models coincide for the example's parameters, while the Litz model differs.
+
+Catalogue |LamType=3| round-wire records activate this law in harmonic solves;
+|LamType=4| and |5| conversions use the corresponding strand models when present.
+Types 6, 7 and 8 select square, CCA10 and CCA15 respectively.
+The wire dimensions remain catalogue data. Unsupported records fail explicitly.
+
+\subsection{What is integrated, and what is drawn?}
+\label{sec:wire-losses}
+The approximation supplies a complex relative reluctivity $\nu_r^*$ and an
+internal effective resistivity $\rho^*$. With peak phasors,
+\[
+ p_{\rm transport}=\tfrac12\Re(\rho^*)|\widehat J|^2,
+ \qquad
+ p_{\rm proximity}=\frac{\omega}{2\mu_0}\Im(\nu_r^*)|\widehat{\mathbf B}|^2.
+\]
+Here $\widehat J=NI/S$ is the \emph{macroscopic} section current density, not the
+current density inside the copper. Its transport voltage contribution is
+$Z_{\rm local}I$, with $Z_{\rm local}=N^2\ell\rho^*/S$ for section length $\ell$.
+The circuit also includes $\mathrm i\omega\lambda$ from the computed potential.
+The effective resistivity includes the local-energy correction used in FEMM's
+wire formulation, so this energy is not counted again in both terms.
+
+\begin{center}
+\begin{tabular}{lp{.64\linewidth}}
+\toprule Measurement component & Meaning in a harmonic integral\\
+\midrule
+|wire_transport_loss| & Integral of $p_{\rm transport}$, in W.\\
+|proximity_loss| & Integral of $p_{\rm proximity}$, in W.\\
+|wire_energy| & Signed local correction $\int\Im(\rho^*)|\widehat J|^2/(4\omega)\,dV$, in J.\\
+|joule_loss| & Ordinary solid/stranded losses plus both wire loss terms, exactly once.\\
+|eddy_loss| & Resolved bulk eddy-current contribution only; zero inside a homogenised wire region.\\
+|magnetic_loss| & Intrinsic and sheet losses, as in Section~\ref{sec:losses}; excludes wire losses.\\
+|total_loss| & |joule_loss| plus |magnetic_loss|.\\
+\bottomrule
+\end{tabular}
+\end{center}
+These quantities use |\femmmeasure|, |\femmvalue| and |\femmresultplot| with the
+usual selection, formatting and plot options. All three new wire components
+are zero in ordinary planar/axisymmetric harmonic materials. |energy| includes
+|wire_energy|; for these linear models |coenergy=energy|. The terminal
+|resistance| remains the geometrically derived DC resistance, while
+|impedance_real| and |impedance_imaginary| include frequency-dependent transport
+and field contributions. A port's power is not a regional loss if other ports
+exchange energy with it; compare the sum of terminal powers with total losses.
+
+Field lines and B/H profiles show the homogenised magnetic field. Current
+profiles and glyphs show the macroscopic transport current; |Jeddy=0| inside
+a wire region. They cannot display microscopic skin/proximity loops without
+explicitly resolving the individual wires. Lorentz forces in the homogenised
+wire material are rejected; a surrounding-air Maxwell selection remains subject
+to the force chapter's usual geometry and material checks.
+
+The effective-medium construction follows David Meeker's
+\href{https://www.femm.info/doku/doku.php?id=proximityloss}{skin/proximity model}.
+The fitted coefficients and local-energy convention were audited against
+FEMM/xfemm's |GetFillFactor| implementation. The Lua runtime evaluates the
+mathematical model without a native dependency. Agreement with xfemm checks
+implementation of the same approximation; it does not validate arbitrary real
+winding constructions. See the validation report for independent meshes and
+measured discrepancies.
+
+\subsection{A saturated core: choose the approximation explicitly}
+\label{sec:fundamental-law}
+A static B--H curve is not, by itself, a complete AC material description.
+If hysteresis and eddy currents are negligible and only the fundamental field
+is required, an explicitly selected single-harmonic approximation is useful.
+Use a single-valued isotropic table and |harmonic law=fundamental|. All
+excitations must be real, phase zero, prescribed currents or real boundary data.
+This assumption fixes the direction of the local oscillating flux; it does not
+represent a rotating elliptical flux locus.
+
+\begin{key}{/tikz/femm/materials/harmonic law=\meta{choice} (initially inherit)}
+Choice handler accepting |inherit|, |standard|, |fundamental| and |equivalent|. |inherit|
+uses the material's setting, otherwise |standard|. The standard law retains
+linear harmonic behaviour or the separately requested operating-point response.
+It never silently converts a B--H curve into a large-signal harmonic law.
+
+Select |fundamental| for a positive-frequency model with an isotropic |bh| table.
+The |interpolation| problem option must be |linear| (the default).
+This law projects $H(B)$ assuming sinusoidal
+$B$, then solves the real nonlinear fundamental balance. The DC B--H data are
+preserved. No loss angle, lamination, permanent-magnet coercivity, operating
+point, wire homogenisation, voltage drive, parallel circuit, isolated solid or
+resolved eddy current may be combined with this approximation. Conductive coil
+materials are allowed only with a stranded interpretation; their ordinary
+transport loss remains available. All circuit and current-density phases must
+be exactly zero. The planar and axisymmetric vector-potential formulations
+are supported; the axial out-of-plane formulation is excluded.
+
+The standard Newton tolerance and iteration limit govern convergence. Failure
+does not produce a saved solution. Force/torque measurements are rejected for
+this approximation because neglected harmonics can contribute to mechanical
+loads. Use the documented static or linear harmonic force models instead.
+\end{key}
+
+\luafemmexamplebegin{nonlinear-fundamental}
+
+% manual example: nonlinear-fundamental/1
+
+\begin{codeexample}[setup code]
+\newbox\Calculation
+\tikzset{
+  femm/materials/core/.style={bh={0/0,1/100,1.5/500,2/5000},
+    harmonic law=\Law},
+  experiment/.style={femm/problem={frequency=\Frequency,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.5},
+    femm/circuit={name=drive,current=\Current}},
+  /femm/region/coil/.style={material=copper,circuit=drive,winding fill=.6}}
+\newcommand\Geometry{
+  \path[even odd rule,femm/region={material=core,mesh size=.25}]
+    (-3,-4) rectangle (3,4) (-1.5,-2.5) rectangle (1.5,2.5);
+  \path[femm/region={coil,turns=-20}] (.8,-2) rectangle (1.3,2);
+  \path[femm/region={coil,turns=20}] (3.7,-2) rectangle (4.2,2);}
+\foreach \Case/\Law/\Frequency in {ac/fundamental/50,dc/standard/0}{
+  \foreach \Index/\Current in {a/.1,b/.3,c/1,d/3,e/10,f/30}{
+    \setbox\Calculation=\hbox{
+      \begin{tikzpicture}[experiment,
+        femm/cache={file=\jobname-\Case-\Current,mode=auto}]
+        \Geometry
+        \femmmeasure[name=\Case-\Index,quantity=circuit,circuit=drive,parameter=\Current]
+        \path[femm/profile={name=profile-\Case-\Index,samples=61}]
+          (1.6,0)--(2.9,0);
+      \end{tikzpicture}}}}
+\def\Law{fundamental}\def\Frequency{50}\def\Current{10}
+\end{codeexample}
+
+The following picture uses the preceding definitions.
+
+% manual example: nonlinear-fundamental/2
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[experiment,scale=6,
+  femm/cache={file=\jobname-ac-10,mode=auto}]
+  \Geometry
+  \filldraw[even odd rule,fill=blue!10,draw=blue!50!black]
+    (-3,-4) rectangle (3,4) (-1.5,-2.5) rectangle (1.5,2.5);
+  \filldraw[fill=orange!25,draw=orange!65!black] (.8,-2) rectangle (1.3,2);
+  \filldraw[fill=orange!25,draw=orange!65!black] (3.7,-2) rectangle (4.2,2);
+  \pic[femm/lines=11,femm/arrow spacing=12mm] {femm field};
+  \draw[red!75!black,very thick] (1.6,0)--(2.9,0);
+  \node[above] at (0,5) {Fundamental approximation, $10$ A peak};
+  \node at (1.05,0) {$\otimes$}; \node at (3.95,0) {$\odot$};
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: nonlinear-fundamental/3
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Peak current (A)},ylabel={Flux linkage (Wb turn)},
+  legend style={font=\scriptsize,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={ac-a,ac-b,ac-c,ac-d,ac-e,ac-f},
+    component=linkage_real,plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Fundamental at 50 Hz}
+  \femmresultplot[results={dc-a,dc-b,dc-c,dc-d,dc-e,dc-f},
+    component=linkage,plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Static at peak current}
+\end{semilogxaxis}
+\end{tikzpicture}
+\end{codeexample}
+
+% manual example: nonlinear-fundamental/4
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+\begin{axis}[width=7.5cm,height=6cm,grid=major,
+  no markers,yticklabel style={/pgf/number format/fixed,/pgf/number format/precision=3},
+  xlabel={$x$ in the right limb (mm)},ylabel={$B_y$ (T)},
+  legend style={font=\scriptsize,at={(.5,1.03)},anchor=south}]
+  \femmplot[profile=profile-ac-e,component=By,abscissa=x,representation=real,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Fundamental amplitude}
+  \femmplot[profile=profile-dc-e,component=By,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Static at peak current}
+\end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+\luafemmexampleend{nonlinear-fundamental}
+
+The comparison uses the same geometry and peak current in both solves. Static
+flux at peak current and the retained harmonic amplitude generally differ once
+saturation matters. Neither curve is a reconstructed transient solution. Begin
+with a few amplitudes and a coarse mesh; then refine the core, interfaces and
+surrounding air and check both flux linkage and local field profiles. A current
+sweep changes the physical solution and must not reuse a frozen cache from a
+different amplitude.
+
+\subsection{Projection, energy and limits of interpretation}
+Write $b=|\widehat{\mathbf B}|$. The projected constitutive law and its tangent are
+\[
+ H_1(b)=\frac4\pi\int_0^{\pi/2}H(b\cos\theta)\cos\theta\,d\theta,
+ \qquad
+ H'_1(b)=\frac4\pi\int_0^{\pi/2}H'(b\cos\theta)\cos^2\theta\,d\theta.
+\]
+Each linear B--H segment is integrated analytically between its cosine crossing
+angles. The continuation beyond the last point has vacuum slope, matching the
+static piecewise-linear law. Avoid relying on that continuation to replace
+measured saturation data. The consistent tangent drives the damped Newton
+solver; this avoids fitting a new table at every trial field.
+
+The reported cycle-average energies are
+\[
+ \overline w=\frac2\pi\int_0^{\pi/2}
+       \left[\int_0^{b\cos\theta}H(s)\,ds\right]d\theta,
+ \qquad
+ \overline w'=\tfrac12 bH_1(b)-\overline w.
+\]
+In general they are unequal, and neither can be replaced by $bH_1/4$.
+The |energy| and |coenergy| measurements use these expressions. In the lossless
+current-driven limit, reactive terminal power satisfies
+$Q=\omega\int(\overline w+\overline w')\,dV$.
+H/B profiles and phase snapshots use the retained fundamental phasors. In
+particular, an H snapshot displays $H_1\cos\omega t$, not a reevaluation of
+the full instantaneous law $H(b\cos\omega t)$.
+Hysteresis loss is zero because the underlying law is single-valued and
+reversible. A nonlinear waveform can contain higher harmonics even when its
+fundamental is known; this solver does not compute them.
+
+This projection assumes sinusoidal B and projects H(B). FEMM's effective
+large-signal curve construction instead projects B(H) under its own assumptions;
+the two are not generally equivalent. Accordingly, nonlinear validation uses
+independent integration of the original B--H curve, manufactured uniform fields,
+linear limits, nonlinear residuals and energy identities, rather than claiming
+numerical equivalence to FEMM's large-signal solver.
+
+Native cache revision 25 fingerprints wire dimensions, strand interpretation
+and harmonic-law choice. Derived fill factors, complex coefficients and network
+states are rebuilt from saved geometry and potentials. Changing these physical
+inputs invalidates the solution; only compatible geometry may reuse its mesh.
+Supported linear, sheet and wire harmonic FEM/ANS interchange is described in
+Section~\ref{sec:interchange}. Fundamental-law export remains unsupported.
+
+\subsection{Square and copper-clad aluminium conductors}
+The |square| choice interprets |wire diameter| as the side $d$ of one insulated
+square conductor. Its area is $d^2$, |strands=1| is required and the geometrical
+filling fraction may not exceed one. An equivalent foil stack, with linear fill
+$\sqrt\eta$, supplies both the field reluctivity and the terminal resistivity.
+This is a homogenized array, not a resolved square-wire current distribution.
+Use a resolved conducting region when corner crowding itself is of interest.
+
+The |cca10| and |cca15| choices describe round copper-clad aluminium conductors
+with respectively 10\% and 15\% copper cross-sectional fractions. Conductivity is
+the \emph{bulk DC conductivity of the composite}, not the conductivity of copper.
+The fitted skin/proximity laws require $0.05\leq\eta\leq\pi/\sqrt{12}$.
+The stated diameter excludes insulation; the strand count counts equal wires.
+Their fit coefficients follow the FEMM 5 conductor models. The square model uses
+one consistent diffusion frequency for field and terminal calculations; FEMM 5's
+preprocessor and postprocessor use different square-wire factors. Consequently,
+exact numerical identity with both native paths is not claimed.
+
+For example, use the existing winding declaration with the following style.
+The conductor area and turn count must fit inside the captured winding region.
+\begin{codeexample}[code only]
+\tikzset{femm/materials/composite wire/.style={mu r=1,
+ conductivity=38000000,wire model=cca10,wire diameter=.4,strands=1}}
+\end{codeexample}
+All winding transport/proximity components and terminal power balances retain
+the definitions above. These models require no native library at runtime.
+
+\subsection{An equivalent nonlinear harmonic law with losses}
+\label{sec:equivalent-harmonic}
+Choose |harmonic law=equivalent| for an isotropic, piecewise-linear B--H curve
+with a common |loss angle| in both directions. For a peak vector phasor define
+\[
+ B_{\rm eq}=\sqrt{|\widehat B_x|^2+|\widehat B_y|^2},\qquad
+ H_1(b)=\frac4\pi\int_0^{\pi/2}H(b\cos\theta)\cos\theta\,d\theta,
+ \qquad \nu_r^*=\mu_0\frac{H_1(B_{\rm eq})}{B_{\rm eq}}e^{i\delta}.
+\]
+The zero-amplitude limit uses the initial slope. This is the fundamental of a
+linearly polarized sinusoid followed by a prescribed phase lag. For an ellipse,
+$B_{\rm eq}$ is $\sqrt2$ times vector RMS, not the peak vector magnitude.
+No harmonics, remanence history, minor loops or irreversible demagnetization are
+reconstructed. The loss-angle convention is passive for the supported angles.
+
+This law accepts fixed planar or axisymmetric fields and prescribed complex
+stranded current densities. It excludes conductivity, wire/sheet homogenization,
+permanent magnets, coupled voltage circuits, networks, flux controllers,
+operating points, motion and time integration. Declare ideal impressed-current
+regions with a nonconducting material when using this approximation. Do not mix
+|fundamental| and |equivalent| materials in the same problem.
+
+The existing problem |tolerance| and |max iterations| keys also control a damped
+coefficient iteration. Both the inner linear solve and the constitutive
+fixed-point defect must converge. Strong saturation may require a larger
+iteration budget; failure is reported instead of drawing an unconverged field.
+Harmonic losses use the final complex reluctivity. Reported harmonic energy is
+the equivalent quadratic quantity $\frac14\operatorname{Re}(\widehat{\mathbf B}
+\cdot\overline{\widehat{\mathbf H}})$, not the exact cycle-averaged nonlinear stored
+energy. Force integrals are unavailable with this effective constitutive law.
+
+The following deliberately simple imposed-flux patch makes the units and
+representation visible before introducing a complicated core geometry.
+\begin{codeexample}[width=0pt]
+% Generic body: a passive equivalent-amplitude nonlinear harmonic core.
+\begingroup
+\tikzset{femm/materials/lossy core/.style={
+ bh={0/0,1/100,1.5/500,2/5000},harmonic law=equivalent,loss angle=15}}
+\tikzpicture[femm/problem={frequency=50,depth=10,
+ xmin=0,xmax=2,ymin=0,ymax=2,mesh size=.25,max iterations=150},
+ femm/boundary={side=all,type=dirichlet,y coefficient=1.8},scale=15]
+ \path[femm/region={material=lossy core}] (0,0) rectangle (2,2);
+ \pic[femm/visual={component=H,representation=amplitude,name=core-H}] {femm scalar map};
+ \pic[femm/lines=5] {femm field};
+ \draw (0,0) rectangle (2,2);
+\endtikzpicture
+\tikzpicture\femmcolorbar[name=core-H,height=3cm]\endtikzpicture
+\par
+\endgroup
+\end{codeexample}

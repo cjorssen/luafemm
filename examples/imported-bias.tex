@@ -1,0 +1,68 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\newbox\BiasCalculation
+\tikzset{femm/materials/core/.style={
+  bh={0/0,.5/50,1/150,1.5/600,1.8/3000,2/10000}},
+  femm/arrow spacing=18mm}
+\newcommand\PaintImportedCore{%
+  \fill[even odd rule,blue!7] (-13,-13) rectangle (13,13)
+    (-7,-7) rectangle (7,7);
+  \fill[orange!25] (-19,-6) rectangle (-15,6) (-5,-6) rectangle (-2,6);}
+\begin{document}
+\centering
+% A producer: this could instead be a supported DC answer written by FEMM.
+\setbox\BiasCalculation=\hbox{%
+\begin{tikzpicture}[femm/problem={depth=20,interpolation=femm,
+  xmin=-25,xmax=25,ymin=-20,ymax=20,mesh size=1.8},
+  femm/circuit={name=drive,current=4},
+  femm/export={format=ans,file=\jobname-bias.ans}]
+  \path[even odd rule,femm/region={material=core}]
+    (-13,-13) rectangle (13,13) (-7,-7) rectangle (7,7);
+  \path[femm/region={material=copper,circuit=drive,turns=100}]
+    (-19,-6) rectangle (-15,6);
+  \path[femm/region={material=copper,circuit=drive,turns=-100}]
+    (-5,-6) rectangle (-2,6);
+  \femmsolve
+\end{tikzpicture}}
+% Restore, display, then capture an owned operating point at picture end.
+\begin{tikzpicture}[scale=1.35,
+  femm/import={format=ans,file=\jobname-bias.ans},
+  femm/operating point={name=imported-core}]
+  \PaintImportedCore
+  \pic {femm geometry};
+  \pic[femm/lines=13] {femm field};
+  \path[femm/profile={name=bias-cut,samples=81}] (-12,10)--(12,10);
+  \node[above,font=\small] at (0,20) {Imported DC bias, $I_0=4$ A};
+\end{tikzpicture}\hspace{5mm}%
+\begin{tikzpicture}[scale=1.35,
+  femm/problem={operating point=imported-core,permeability=incremental,
+    frequency=200,circuit currents={drive=.1}}]
+  \PaintImportedCore
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/field style={red!65!black}] {femm field};
+  \path[femm/profile={name=response-cut,samples=81}] (-12,10)--(12,10);
+  \node[above,font=\small] at (0,20) {Response, $\widehat{\delta I}=0.1$ A};
+\end{tikzpicture}
+\par\medskip
+\foreach \Profile/\View/\Title in
+  {bias-cut/real/{DC $B_x$ (T)},response-cut/real/{Real $\delta B_x$ (T)}}{%
+\begin{tikzpicture}
+\begin{axis}[width=7.2cm,height=5.2cm,grid=major,
+  xlabel={$x$ along the upper limb (mm)},ylabel={\Title}]
+  \femmplot[profile=\Profile,abscissa=x,component=Bx,representation=\View,
+    plot options={blue!70!black,thick,mark=none}]
+\end{axis}
+\end{tikzpicture}}
+\par\smallskip\small
+Illustrative single-valued steel law. The incremental field uses the unchanged
+bias mesh and the differential reluctivity. Its contours have their own levels;
+it is a small response at 200 Hz, not the total field or a new nonlinear bias.
+\end{document}

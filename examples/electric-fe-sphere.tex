@@ -1,0 +1,75 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{pgfplots}
+\usetikzlibrary{femm,backgrounds}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\tikzset{
+  lesson spherical domain/.style={femm/electrostatic={
+    model=finite elements,problem type=axisymmetric,
+    xmin=0,xmax=2.4,ymin=-2.4,ymax=2.4,
+    outer boundary=insulated,mesh size=.3}},
+  lesson spherical electrodes/.pic={
+    \draw[femm electric conductor,
+      femm/electric electrode={name=inner,potential=100}]
+      (0,-1) arc[start angle=-90,end angle=90,radius=1]--cycle;
+    \draw[very thick,femm/electric electrode={name=outer,
+        potential=0,interior=dielectric}]
+      (0,-2) arc[start angle=-90,end angle=90,radius=2]--cycle;}}
+
+\par\medskip
+\begin{tikzpicture}[lesson spherical domain,
+    femm/electrostatic={name=spherical coarse},scale=.85]
+  \pic[transform shape] {lesson spherical electrodes};
+  \begin{scope}[on background layer]
+    \pic {femm electric mesh};
+    \pic[femm/electric={lines per charge=14}] {femm electric field};
+  \end{scope}
+  \draw[->] (0,-2.5)--(0,2.7) node[above] {$z$};
+  \draw[->] (0,0)--(2.7,0) node[right] {$r$};
+  \path[femm/electric profile={name=spherical coarse radial,samples=81}]
+    (1.02,0)--(1.98,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[lesson spherical domain,femm/electrostatic={
+    mesh size=.12,name=spherical fine},scale=.85]
+  \pic[transform shape] {lesson spherical electrodes};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={lines per charge=18}] {femm electric field};
+    \pic[femm/electric={levels={10,25,50,75,90}}] {femm equipotentials};
+  \end{scope}
+  \draw[densely dashed,gray] (0,-2.3)--(0,2.3);
+  \node[above] at (1.5,2) {$V_{\rm inner}=100\,\mathrm V$};
+  \path[femm/electric profile={name=spherical fine radial,samples=121}]
+    (1.02,0)--(1.98,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=5.4cm,no markers,grid=major,
+    xlabel={$r$ (cm)},ylabel={$E_r$ (V/m)},
+    legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+  \addplot[black,dashed,domain=1.02:1.98,samples=101] {20000/x^2};
+  \addlegendentry{Analytical}
+  \femmelectricplot[profile=spherical coarse radial,component=Er,abscissa=r,
+    plot options={gray,thick}]
+  \addlegendentry{Coarse}
+  \femmelectricplot[profile=spherical fine radial,component=Er,abscissa=r,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Fine}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tabular}{lr}
+Calculation & Inner electrode charge (C)\\
+Coarse & \femmelectricvalue[model=spherical coarse,electrode=inner,
+  quantity=charge]\\
+Fine & \femmelectricvalue[model=spherical fine,electrode=inner,
+  quantity=charge]\\
+\end{tabular}
+
+\end{document}

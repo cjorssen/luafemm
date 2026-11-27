@@ -16,19 +16,19 @@
 \noindent\textsf{luafemm \luafemmversion{} · Lua computation · PGFPlots graphs}
 
 \smallskip
-\noindent The U and armature use \texttt{pure-iron}; the crosspiece uses
+\noindent The U and armature use \texttt{armco-pure-iron}; the crosspiece uses
 \texttt{cast-alnico-5-lng37}. The side rectangle uses \texttt{copper}.
 All four materials, including air, come from the FEMM library.
 No current is imposed.
 
 \begin{center}
 \begin{tikzpicture}[femm/problem={xmin=-90,xmax=90,ymin=-70,ymax=85,mesh size=3}]
-  \filldraw[femm/region={material=pure-iron},fill=gray!15]
+  \filldraw[femm/region={material=armco-pure-iron},fill=gray!15]
     (-40,-30)--(40,-30)--(40,30)--(25,30)--(25,-15)
     --(-25,-15)--(-25,30)--(-40,30)--cycle;
   \filldraw[femm/region={material=cast-alnico-5-lng37,magnetization angle=180},
     fill=red!25] (-25,-30) rectangle (25,-15);
-  \filldraw[femm/region={material=pure-iron},fill=gray!15]
+  \filldraw[femm/region={material=armco-pure-iron},fill=gray!15]
     (-40,31) rectangle (40,46);
   \filldraw[femm/region={material=copper},fill=orange!30]
     (49,-15) rectangle (56,15);

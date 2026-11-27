@@ -1,0 +1,76 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\begingroup
+\tikzpicture[scale=.7,femm/electrostatic={length unit=cm},
+ femm/electric={lines per charge=6,contour resolution=40,
+ levels={-500,-200,0,200,500},max length=12}]
+ \node[femm/point charge={charge=1e-9}] at (-.8,0) {$+$};
+ \node[femm/point charge={charge=-1e-9}] at (.8,0) {$-$};
+ \pic {femm electric field};
+ \pic {femm equipotentials};
+ \femmelectricscene[name=electric-dipole,mode=spatial]
+ \node[below] at (0,-2.2) {Section $z=0$};
+\endtikzpicture
+\quad
+\tikzpicture[femm/view 3d={scene=electric-dipole,
+ visibility=vector,hidden=dashed,coordinate scale=.8,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2,
+ azimuth=-35,elevation=30}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{electric-dipole}
+\endgroup
+
+\bigskip
+\begingroup
+\tikzpicture[femm/electrostatic={model=charged sphere,
+ length unit=m,radius=.7,volume charge density=1e-9},
+ femm/electric={lines per charge=8,levels={10,15,20},
+ contour resolution=40,xmin=-2,xmax=2,ymin=-2,ymax=2}]
+ \femmelectricscene[name=sphere-section,mode=slice,plane=xz]
+ \femmelectricscene[name=sphere-space,mode=spatial,
+  plane=xy,offset=.4,zmin=-2,zmax=2]
+\endtikzpicture
+\tikzset{sphere view/.style={femm/view 3d={
+ visibility=vector,hidden=dashed,coordinate scale=.8,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2}}}
+\tikzpicture[sphere view,femm/view 3d={scene=sphere-section}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[sphere view,femm/view 3d={scene=sphere-space}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{sphere-section}\femmviewclear{sphere-space}
+\endgroup
+\par\bigskip
+\begingroup
+\pgfkeys{/femm/electric scene/course/.style={mode=spatial,
+ plane=xz,offset=0,zmin=0,zmax=1,
+ seeds={.5/0/.5,0/.5/.5,-.5/0/.5,0/-.5/.5}}}
+\tikzpicture[femm/electrostatic={model=finite elements,
+ problem type=axisymmetric,length unit=cm,
+ xmin=0,xmax=1,ymin=0,ymax=1,
+ outer boundary=insulated,mesh size=.3},
+ femm/electric={xmin=-1,xmax=1,ymin=-1,ymax=1,
+ levels={2,5,8},contour resolution=32}]
+ \path[femm/electric electrode={name=bottom,potential=10}]
+   (0,0)--(1,0);
+ \path[femm/electric electrode={name=top,potential=0}]
+   (0,1)--(1,1);
+ \path[femm/electric scene={course,name=axial-electric}];
+\endtikzpicture
+\tikzpicture[femm/view 3d={scene=axial-electric,
+ visibility=vector,hidden=dashed,axes=box,tick step=1,
+ coordinate scale=1.5,
+ xmin=-1,xmax=1,ymin=-1,ymax=1,zmin=0,zmax=1}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{axial-electric}
+\endgroup
+\end{document}

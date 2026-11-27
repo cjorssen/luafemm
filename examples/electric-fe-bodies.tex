@@ -1,0 +1,60 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{pgfplots}
+\usetikzlibrary{femm,backgrounds}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    problem type=axisymmetric,xmin=0,xmax=2.4,ymin=-2.4,ymax=2.4,
+    outer boundary=insulated,
+    mesh size=.16,name=charged sphere FE},scale=.85]
+  \draw[femm charged body,femm/electric region={volume charge density=1e-7}]
+    (0,-1) arc[start angle=-90,end angle=90,radius=1]--cycle;
+  \draw[thick,femm/electric electrode={name=shell,potential=0,
+      interior=dielectric}]
+    (0,-2) arc[start angle=-90,end angle=90,radius=2]--cycle;
+  \path[femm/electric seeds={samples=17}]
+    (0,-.7) arc[start angle=-90,end angle=90,radius=.7];
+  \pic {femm electric field};
+  \pic[femm/electric={levels={.02,.05,.1,.2,.3}}] {femm equipotentials};
+  \draw[gray,densely dashed] (0,-2.2)--(0,2.2);
+  \path[femm/electric profile={name=charged sphere radial,samples=121}]
+    (0,0)--(1.9,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    problem type=axisymmetric,xmin=0,xmax=2.4,ymin=-2.4,ymax=2.4,
+    outer boundary=insulated,
+    mesh size=.16,name=charged shell FE},scale=.85]
+  \draw[femm charged surface,
+    femm/electric charge layer={surface charge density=1e-9}]
+    (0,-1) arc[start angle=-90,end angle=90,radius=1]--cycle;
+  \draw[thick,femm/electric electrode={potential=0,interior=dielectric}]
+    (0,-2) arc[start angle=-90,end angle=90,radius=2]--cycle;
+  \path[femm/electric seeds={samples=17}]
+    (0,-1.15) arc[start angle=-90,end angle=90,radius=1.15];
+  \pic {femm electric field};
+  \pic[femm/electric={levels={.02,.05,.1,.2,.4}}] {femm equipotentials};
+  \draw[gray,densely dashed] (0,-2.2)--(0,2.2);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    problem type=axisymmetric,xmax=3,ymin=-3,ymax=3,
+    mesh size=.22,name=finite charged cylinder},scale=.7]
+  \draw[gray] (0,-1) rectangle (.7,1);
+  \draw[femm charged surface,
+    femm/electric charge layer={surface charge density=1e-9}]
+    (.7,-1)--(.7,1);
+  \path[femm/electric seeds={samples=15}] (.8,-1.4)--(.8,1.4);
+  \pic {femm electric field};
+  \pic[femm/electric={level count=8}] {femm equipotentials};
+  \draw[gray,densely dotted] (0,-3) rectangle (3,3);
+  \draw[->] (0,-3)--(0,3.3) node[above] {$z$};
+  \draw[->] (0,0)--(3.3,0) node[right] {$r$};
+\end{tikzpicture}
+
+\end{document}

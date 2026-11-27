@@ -33,27 +33,38 @@ For this generic package, the Base Interpreters include LuaTeX/LuaHBTeX with
 plain TeX, LaTeX or ConTeXt MkIV, and the Lua interpreter for the Lua modules.
 Development tools additionally use Python 3 and Make.
 
-## FEMM catalogue: separate upstream terms
+## FEMM 5 magnetic and dielectric catalogues: MIT terms
 
-The following are upstream data, notices or data derivatives:
+The bundled catalogue is pinned to femm-qt revision
+`31ee4bf6a8cae1a1860c108e7934ab3403bfd6e3`. Its material-library notice
+explicitly licenses the collection, curve fits and data organisation under MIT.
+The full permission notice is retained with these separately licensed files:
 
-- `data/femm/matlib.dat`: unchanged FEMM material library.
-- `data/femm/LICENSE.txt`: unchanged upstream distribution terms and notices.
-- `tex/luatex/luafemm/lua/luafemm-materials-data.lua`: generated transcription.
-- `docs/materials-catalog.md` and the manual's material appendix: generated index.
+- `data/femm5/matlib.dat`: unchanged upstream magnetic library (282 records).
+- `data/femm5/statlib.dat`: unchanged upstream electrostatic library (95 records).
+- `tex/lua/luafemm-dielectrics-data.lua`: generated dielectric transcription.
+- `doc/dielectrics-table.tex`: generated dielectric table.
+- `data/femm5/LICENSE.txt`: unchanged MIT notice.
+- `data/femm5/UPSTREAM.md`: unchanged upstream explanation of material provenance.
+- `tex/lua/luafemm-materials-data.lua`: generated transcription.
+- `doc/materials-catalog.md` and the manual appendix: generated index.
 
-These retain their upstream FEMM terms, including the **Aladdin Free Public
-License**; they are not relicensed as LPPL. Keep the upstream notice and
-provenance with both source and TDS distributions. See `data/femm/README.md`
-for the exact source revision and regeneration procedure.
+These data are an MIT-licensed aggregation with the LPPL Work. See
+[data provenance](data/femm5/README.md) for pinned sources and checksums.
+FEMM 5 solver code is separately GPL-3.0-or-later and is not bundled. Upstream
+provenance papers have their own terms and are not included.
 
-Publication on CTAN is planned, not yet completed. The current archives include
-these separately licensed data and must not be described as entirely LPPL.
-Their redistribution status must be settled or explicitly declared before
-submission; an LPPL notice on the original code does not settle it. CTAN asks
-uploaders to identify the licences of their material; see its
-[upload guidance](https://ctan.org/upload/) and
-[licence catalogue](https://ctan.org/license).
+FEMM 4 uses the Aladdin Free Public License, with restrictions including paid
+redistribution. No separate permissive grant was found for its old material
+library. That library and its generated derivatives are therefore excluded from
+the curated GitHub, CTAN and TDS distributions. The optional `material edition=femm4`
+reader accepts a user-supplied, explicitly identified legacy file; it neither
+relicenses nor distributes that file. Published archives contain only the FEMM 5
+catalogue. This policy concerns the distributed collection and notices, not an
+assertion of copyright over physical facts.
+
+Publication on CTAN is planned, not yet completed. The distribution declares
+LPPL 1.3c or later for the original Work and MIT for the bundled catalogue.
 
 ## Technical provenance and build dependencies
 
@@ -63,6 +74,19 @@ C/C++ source or binary from those projects is bundled into the runtime.
 This describes the technical approach, not a legal determination that a
 language translation removes upstream rights. The mesher has the limitations
 stated in the manual and does not claim full Triangle quality guarantees.
+
+The native air-gap module independently constructs Hermite interpolation and
+a rectangular energy factorisation; it contains no native expanded matrix
+tables. Local validation extracts upstream arithmetic into private build-only
+oracles, excluded from the public archives. The native cubic and quintic bases
+are identified separately in the interface and manual.
+
+The effective round-wire, square-array and copper-clad aluminium models follow David Meeker's mathematical skin/proximity
+formulation and fitted coefficients, audited against FEMM/xfemm `GetFillFactor`
+([model description](https://www.femm.info/doku/doku.php?id=proximityloss)).
+The Lua module evaluates those equations independently; no native implementation
+is distributed. The nonlinear fundamental module projects H(B) and does not
+claim equivalence to FEMM's B(H)-based effective curve construction.
 
 The manual uses PGF documentation macros supplied by the user's TeX installation.
 Its presentation follows tikz-ext; its original prose and examples are written

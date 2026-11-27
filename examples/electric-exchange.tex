@@ -1,0 +1,58 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+ xmin=0,xmax=2,ymin=0,ymax=1,outer boundary=insulated,
+ mesh size=.35,name=exchange cell},scale=2]
+ \draw[very thick,femm/electric electrode={name=left,potential=10}]
+   (0,0)--(0,1);
+ \draw[very thick,femm/electric electrode={name=right,potential=0}]
+   (2,0)--(2,1);
+ \draw[orange!80!black,thick,
+   femm/electric electrode={name=screen,condition=charge}]
+   (1,.25)--(1,.75);
+ \pic {femm electric field};\pic {femm equipotentials};
+\end{tikzpicture}
+\femmelectricexport[model=exchange cell,
+ file=\jobname-electric.fee,edition=femm5]
+\femmelectricexport[model=exchange cell,
+ file=\jobname-electric.res,format=res,edition=femm5]
+
+
+
+\begin{tikzpicture}[femm/electrostatic={
+ file=\jobname-electric.res,file edition=femm5},scale=2]
+ \pic {femm electric geometry};
+ \pic {femm electric field};
+ \path[femm/electric profile={name=restored potential,samples=41}]
+   (.05,.5)--(1.95,.5);
+\end{tikzpicture}
+
+
+
+\begin{tikzpicture}
+ \begin{axis}[width=7cm,height=4.5cm,
+   xlabel={$x$ (cm)},ylabel={$V$ (V)},grid=major,
+   xmin=0,xmax=2,ymin=0,ymax=10]
+  \femmelectricplot[profile=restored potential,
+    component=V,abscissa=x,plot options={blue,thick,mark=none}]
+ \end{axis}
+\end{tikzpicture}
+
+
+
+\begin{tikzpicture}[femm/electrostatic={
+ file=\jobname-electric.fee,file edition=femm5,
+ import mesh size=.0025,import curve tolerance=.00001},scale=2]
+ \pic {femm electric geometry};
+ \pic[femm/electric={level count=8}] {femm equipotentials};
+\end{tikzpicture}
+
+\end{document}

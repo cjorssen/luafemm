@@ -1,0 +1,19 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\tikzpicture[femm/arrow length=2mm,femm/arrow width=1mm,
+ femm/arrow spacing=9mm]
+ \foreach \mode/\x in {bend/0,adaptive/3,tangent/6} {
+  \scope[xshift=\x cm,femm/arrow mode=\mode]
+   \draw[blue!65!black,femm oriented field] (0,0) circle[radius=.6];
+   \draw[blue!65!black,femm oriented field]
+     (-.7,-1.5) .. controls (-.7,.3) and (.7,-3.3) .. (.7,-1.5);
+   \node[below] at (0,-2) {\tt\mode};
+  \endscope
+ }
+\endtikzpicture
+\end{document}

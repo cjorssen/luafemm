@@ -1,0 +1,62 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Optional IEC adapter. Native to-path construction and symbol hooks stay intact.
+% An explicit declare mode forwards typed options to the core declaration API.
+\pgfkeys{/femm/ee/.is family,/femm/ee,
+  mode/.initial=view,mode/.is choice,
+  mode/view/.code={\pgfkeyssetvalue{/femm/ee/mode}{view}},
+  mode/declare/.code={\pgfkeyssetvalue{/femm/ee/mode}{declare}},
+  model/.initial=,circuit/.initial=,element/.initial=,result/.initial=,
+  circuit options/.initial=,element options/.initial=,show/.initial=name,
+  values/.initial=input,values/.is choice,
+  values/input/.code={\pgfkeyssetvalue{/femm/ee/values}{input}},
+  values/solution/.code={\pgfkeyssetvalue{/femm/ee/values}{solution}},
+  representation/.initial=amplitude,representation/.is choice,
+  representation/amplitude/.code={\pgfkeyssetvalue{/femm/ee/representation}{amplitude}},
+  representation/rms/.code={\pgfkeyssetvalue{/femm/ee/representation}{rms}},
+  representation/real/.code={\pgfkeyssetvalue{/femm/ee/representation}{real}},
+  representation/imaginary/.code={\pgfkeyssetvalue{/femm/ee/representation}{imaginary}},
+  representation/phase/.code={\pgfkeyssetvalue{/femm/ee/representation}{phase}},
+  reference/.initial=forward,reference/.is choice,
+  reference/forward/.code={\pgfkeyssetvalue{/femm/ee/reference}{forward}},
+  reference/reverse/.code={\pgfkeyssetvalue{/femm/ee/reference}{reverse}}}
+\def\luafemm@eevalue#1{\pgfkeysvalueof{/femm/ee/#1}}
+\def\luafemm@eeoptions{%
+  model='\luaescapestring{\luafemm@eevalue{model}}',
+  circuit='\luaescapestring{\luafemm@eevalue{circuit}}',
+  element='\luaescapestring{\luafemm@eevalue{element}}',
+  result='\luaescapestring{\luafemm@eevalue{result}}',
+  show='\luaescapestring{\luafemm@eevalue{show}}',
+  values='\luaescapestring{\luafemm@eevalue{values}}',
+  representation='\luaescapestring{\luafemm@eevalue{representation}}',
+  reference='\luaescapestring{\luafemm@eevalue{reference}}'}
+\tikzset{femm/ee/.code={%
+  \pgfqkeys{/femm/ee}{#1}%
+  \edef\luafemm@eemode{\luafemm@eevalue{mode}}\def\luafemm@eedeclare{declare}%
+  \ifx\luafemm@eemode\luafemm@eedeclare
+    \edef\luafemm@eeelement{\luafemm@eevalue{element}}%
+    \ifx\luafemm@eeelement\pgfutil@empty
+      \edef\luafemm@eenext{\noexpand\femmcircuit[name={\luafemm@eevalue{circuit}},\luafemm@eevalue{circuit options}]}%
+    \else
+      \edef\luafemm@eenext{\noexpand\femmelement[name={\luafemm@eevalue{element}},\luafemm@eevalue{element options}]}%
+    \fi
+    \luafemm@eenext
+  \fi
+  % Native IEC labels are placed after the symbol node's option group. Freeze
+  % the passive label now, so another symbol cannot change its binding later.
+  \directlua{token.set_macro('luafemm@eetext',require('luafemm-ee').label({\luafemm@eeoptions}))}%
+  % A token register protects the contents in edef in all formats; ConTeXt
+  % gives the control sequence named unexpanded a different meaning.
+  \pgfutil@toks@\expandafter{\luafemm@eetext}%
+  \edef\luafemm@eenext{\noexpand\pgfkeysalso{info={\the\pgfutil@toks@}}}%
+  \luafemm@eenext},
+  femm/ee/.default={},
+  femm/ee view/.code={\pgfqkeys{/femm/ee}{mode=view,#1}},
+  femm ee wire/.style={semithick},
+  pics/femm ee circuit/.style={code={%
+    \scope[circuit ee IEC,x=1cm,y=1cm]
+      \directlua{tex.sprint(require('luafemm-ee').picture({\luafemm@eeoptions}))}%
+    \endscope}}}

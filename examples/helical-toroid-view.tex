@@ -1,0 +1,35 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={seeds={1.6/0/0;1.6/0/.22},
+ step=.14,maximum length=11,geometry samples=32}]
+ \femmbiotsource[kind=toroid,winding=helix,current=2,
+  major radius=1.6,radius=.5,turns=10]
+ \femmbiotscene[name=helical-ring]
+\endtikzpicture
+\tikzset{ring view/.style={femm/view 3d={scene=helical-ring,
+ visibility=vector,hidden=dashed,mark spacing=2,
+ xmin=-2.3,xmax=2.3,ymin=-2.3,ymax=2.3,zmin=-1,zmax=1,
+ elevation=35,coordinate scale=.65}}}
+\tikzpicture[ring view]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[ring view,femm/view 3d={azimuth=135}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[ring view,femm/view 3d={conductors=tube,
+ tube radius=schematic,tube size=.035,tube sides=6,
+ visibility budget=5000000}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{helical-ring}
+\endgroup
+\end{document}

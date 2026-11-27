@@ -1,0 +1,59 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzset{femm/materials/linear core/.style={mu r=1000},
+  femm/materials/conducting armature/.style={mu r=500,conductivity=1000000},
+  femm/materials/ideal winding/.style={mu r=1}}
+\pgfkeys{/femm/measure/armature load/.style={quantity=force,selection=ac-armature}}
+\begin{document}
+\centering
+\begin{tikzpicture}[scale=.65,femm/problem={frequency=50,
+    xmin=-70,xmax=70,ymin=-60,ymax=75,mesh size=4,depth=10},
+    femm/cache={file=\jobname,mode=auto}]
+  \node[femm/u electromagnet={width=80,height=60,leg thickness=15,
+    gap=2,armature thickness=15,ampere turns=1000,gap mesh size=.6,
+    core material=linear core,armature material=conducting armature,
+    coil material=ideal winding},anchor=core center] (M) {};
+  \femmselect[name=ac-armature,material=conducting armature]
+  \draw[teal!65!black,densely dashed,
+    femm/profile={name=armature-contour}]
+    (-44,31) rectangle (44,50);
+  \femmmeasure[armature load,name=ac-pull]
+  \femmmeasure[armature load,name=ac-contour,
+    method=maxwell,profile=armature-contour]
+  \begin{scope}
+    \clip (-53,-37) rectangle (53,57);
+    \pic[femm/phase=0,femm/lines=17] {femm field};
+  \end{scope}
+  \pic[femm/force={result=ac-pull,length=18,label=none}] {femm force};
+  \node[above,font=\small] at (0,54) {Conducting armature};
+  \node[font=\small] at (0,-44) {$50\,\mathrm{Hz}$; $1000$ peak ampere-turns};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=12cm,height=6cm,grid=major,no markers,
+    xlabel={Drive phase $\theta=\omega t$ (degrees)},ylabel={$F_y$ (N)},
+    xmin=0,xmax=360,xtick={0,90,180,270,360},
+    legend style={at={(.5,-.27)},anchor=north,legend columns=3}]
+    \femmforceplot[result=ac-pull,plot options={blue!70!black,thick}]
+    \addlegendentry{Weighted stress}
+    \femmforceplot[result=ac-contour,
+      plot options={teal!70!black,densely dashed,thick}]
+    \addlegendentry{Air contour}
+    \addplot[orange!85!black,dashdotted,domain=0:360]
+      {\femmresult{ac-pull}{Fy_mean}};
+    \addlegendentry{Mean force}
+  \end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small The arrow shows the mean force direction; its length is illustrative.
+The field lines show the phase-zero field. Linear material laws isolate the
+harmonic response; these constants do not describe a particular steel grade.
+\end{document}

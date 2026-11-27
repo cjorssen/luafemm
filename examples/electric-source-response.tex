@@ -1,0 +1,58 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\tikzset{neutral metal/.style={fill=gray!20,thick,
+    femm/electric electrode={name=screen,condition=charge}},
+  source port/.style={very thick,blue!60!black}}
+\begin{tikzpicture}[femm/electrostatic={model=source correction,
+    xmin=-1.5,xmax=1.5,ymin=-1,ymax=1,outer boundary=insulated,
+    mesh size=.15,name=source ports},scale=1.8]
+  \draw[source port,femm/electric electrode={name=left,potential=2}]
+    (-1.5,-1)--(-1.5,1);
+  \draw[source port,femm/electric electrode={name=right,potential=0}]
+    (1.5,-1)--(1.5,1);
+  \filldraw[neutral metal] (.15,-.5) rectangle (.4,.5);
+  \filldraw[fill=blue!8,draw=blue!40,femm/electric region={
+      relative permittivity x=2,relative permittivity y=5,
+      material angle=30}] (.7,-.6) rectangle (1.15,.6);
+  \node[femm/electric source={charge per length=1e-10},fill=red!15]
+    at (-.65,0) {$+$};
+  \pic[femm/electric={lines per charge=16,step=.04}]
+    {femm electric field};
+  \pic[femm/electric={levels={.5,1,2,3}}] {femm equipotentials};
+  \node[above] at (-1.5,1) {$2$ V};
+  \node[above] at (1.5,1) {$0$ V};
+  \node[above,fill=white,inner sep=1pt] at (.275,.5) {$Q_s=0$};
+  \node[below,fill=white,inner sep=1pt] at (.925,-.6) {$\epsilon_1=2,\ \epsilon_2=5$};
+\end{tikzpicture}
+
+$V_s=\femmelectricvalue[model=source ports,electrode=screen,
+    quantity=voltage]$ V.
+
+
+\femmelectricmatrix[name=source capacitance,model=source ports,
+    electrodes={left,right},normalization=per length]
+$q_L^{(0)}/L=\femmelectricmatrixvalue[matrix=source capacitance,
+    row=left,quantity=offset charge]$ C/m,
+\quad
+$q_R^{(0)}/L=\femmelectricmatrixvalue[matrix=source capacitance,
+    row=right,quantity=offset charge]$ C/m.
+
+\begin{tikzpicture}
+  \begin{axis}[width=8cm,height=4.5cm,ybar,
+      xtick={1,2},xticklabels={Left port,Right port},
+      ylabel={$C_{iL}/L$ (F/m)},ymajorgrids,
+      enlarge x limits=.6,bar width=16pt]
+    \femmelectricmatrixplot[matrix=source capacitance,column=left,
+      plot options={fill=blue!25,draw=blue!60!black}]
+  \end{axis}
+\end{tikzpicture}
+
+\end{document}

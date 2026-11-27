@@ -1,0 +1,38 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=145mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\begin{document}
+\begin{tikzpicture}[femm/problem={xmin=0,xmax=20,ymin=0,ymax=12,
+    mesh size=.8,depth=5,frequency=200},
+    femm/pair={first=left,second=right,shift x=20},
+    femm/cache={file=\jobname-cell,mode=auto},scale=2.5]
+  \fill[orange!12,femm/region={material=copper}] (0,0) rectangle (20,12);
+  \path[femm/frontier={name=left,type=periodic}] (0,0)--(0,12);
+  \path[femm/frontier={name=right,type=periodic}] (20,0)--(20,12);
+  \path[femm/frontier={name=drive,value=.0001}] (0,12)--(20,12);
+  \pic[femm/lines=13,femm/arrows=false,femm/field style={blue!65!black}] {femm field};
+  \draw[teal,thick,dashed] (0,0)--(0,12) (20,0)--(20,12);
+  \draw[black!70] (0,0)--(20,0) (0,12)--(20,12);
+  \draw[orange!80!black,densely dotted,thick,
+    femm/profile={name=cell-cut,samples=121}] (10,.1)--(10,11.9);
+  \node[font=\small,anchor=south] at (10,12.5) {Periodic conducting cell};
+\end{tikzpicture}\hspace{4mm}%
+\begin{tikzpicture}
+\begin{axis}[width=6.3cm,height=5.3cm,font=\small,xmin=0,xmax=12,grid=major,
+    xlabel={$y$ (mm)},ylabel={$|\widehat B_x|$ (mT)},
+    y filter/.expression={1000*y},scaled y ticks=false]
+  \femmplot[profile=cell-cut,component=Bx,abscissa=y,representation=amplitude,
+    plot options={blue!65!black,thick,mark=none}]
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Copper, $200\,\mathrm{Hz}$; top potential $10^{-4}\,\mathrm{Wb/m}$,
+bottom potential zero. Dashed edges identify equal complex potentials.
+\end{document}

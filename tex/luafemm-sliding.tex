@@ -1,0 +1,57 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic moving-band templates. All numerical expressions are evaluated by PGF,
+% then passed as escaped strings; Lua never evaluates user-supplied source text.
+\pgfkeys{/femm/problem/sliding band/.initial=,
+  /femm/problem/rotor angle/.initial=0,
+  /femm/problem/rotor offset x/.initial=0,
+  /femm/problem/rotor offset y/.initial=0,
+  /femm/sliding band/.is family,/femm/sliding band,
+  name/.initial=,model/.initial=,
+  inner radius/.initial=0,outer radius/.initial=0,
+  center x/.initial=0,center y/.initial=0,
+  segments/.initial=96,layers/.initial=2,modes/.initial=0,
+  sectors/.initial=1,start angle/.initial=0,periodicity/.initial=periodic,
+  periodicity/.is choice,
+  periodicity/periodic/.code={\pgfkeyssetvalue{/femm/sliding band/periodicity}{periodic}},
+  periodicity/antiperiodic/.code={\pgfkeyssetvalue{/femm/sliding band/periodicity}{antiperiodic}},
+  method/.is choice,
+  method/p1/.code={\pgfkeyssetvalue{/femm/sliding band/method}{p1}},
+  method/analytical/.code={\pgfkeyssetvalue{/femm/sliding band/method}{analytical}},
+  method/femm4/.code={\pgfkeyssetvalue{/femm/sliding band/method}{femm4}},
+  method/femm5/.code={\pgfkeyssetvalue{/femm/sliding band/method}{femm5}},
+  method/.initial=p1}
+\tikzset{femm/sliding band/.code={%
+  \tikzset{execute at end picture={%
+    \femmslidingband[#1,model=\luafemm@picturemodel]}}}}
+\protected\def\femmslidingband{%
+  \pgfutil@ifnextchar[{\luafemm@slidingband}{\luafemm@slidingband[]}}
+\def\luafemm@slidingband[#1]{%
+  \begingroup
+    \pgfqkeys{/femm/sliding band}{name=,model=,inner radius=0,outer radius=0,
+      center x=0,center y=0,segments=96,layers=2,method=p1,modes=0,sectors=1,start angle=0,periodicity=periodic,#1}%
+    \luafemm@staticnumber{/femm/sliding band/inner radius}\luafemm@bandinner
+    \luafemm@staticnumber{/femm/sliding band/outer radius}\luafemm@bandouter
+    \luafemm@staticnumber{/femm/sliding band/center x}\luafemm@bandx
+    \luafemm@staticnumber{/femm/sliding band/center y}\luafemm@bandy
+    \luafemm@staticnumber{/femm/sliding band/segments}\luafemm@bandsegments
+    \luafemm@staticnumber{/femm/sliding band/layers}\luafemm@bandlayers
+    \luafemm@staticnumber{/femm/sliding band/modes}\luafemm@bandmodes
+    \luafemm@staticnumber{/femm/sliding band/sectors}\luafemm@bandsectors
+    \luafemm@staticnumber{/femm/sliding band/start angle}\luafemm@bandstart
+    \directlua{luafemm.tex.sliding_band(
+      '\luaescapestring{\pgfkeysvalueof{/femm/sliding band/name}}',
+      '\luaescapestring{\pgfkeysvalueof{/femm/sliding band/model}}',{
+      method='\luaescapestring{\pgfkeysvalueof{/femm/sliding band/method}}',
+      periodicity='\luaescapestring{\pgfkeysvalueof{/femm/sliding band/periodicity}}',
+      sectors='\luaescapestring{\luafemm@bandsectors}',start_angle='\luaescapestring{\luafemm@bandstart}',
+      modes='\luaescapestring{\luafemm@bandmodes}',
+      inner_radius='\luaescapestring{\luafemm@bandinner}',
+      outer_radius='\luaescapestring{\luafemm@bandouter}',
+      center_x='\luaescapestring{\luafemm@bandx}',center_y='\luaescapestring{\luafemm@bandy}',
+      segments='\luaescapestring{\luafemm@bandsegments}',layers='\luaescapestring{\luafemm@bandlayers}'})}%
+  \endgroup}
+\endinput

@@ -1,0 +1,35 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Imports occur in the begin-picture hook; saves occur exactly at invocation.
+% Unit overrides are meaningful for FEMM conversion, but not for owned native
+% records. Track them separately without changing the FEMM import contract.
+\def\luafemm@nativeunitexplicit{}
+\pgfkeys{/femm/electrostatic/length unit/m/.append code={\def\luafemm@nativeunitexplicit{1}},
+ /femm/electrostatic/length unit/cm/.append code={\def\luafemm@nativeunitexplicit{1}},
+ /femm/electrostatic/length unit/mm/.append code={\def\luafemm@nativeunitexplicit{1}},
+ /femm/electrostatic/length unit/um/.append code={\def\luafemm@nativeunitexplicit{1}}}
+\pgfkeys{/femm/problem/native file/.initial={},
+ /femm/electrostatic/native file/.initial={},
+ /femm/save/.is family,/femm/save,
+ file/.initial={},model/.initial={},physics/.initial=magnetism,
+ physics/.is choice,
+ physics/magnetism/.code={\pgfkeyssetvalue{/femm/save/physics}{magnetism}},
+ physics/electrostatics/.code={\pgfkeyssetvalue{/femm/save/physics}{electrostatics}},
+ kind/.initial=problem,kind/.is choice,
+ kind/problem/.code={\pgfkeyssetvalue{/femm/save/kind}{problem}},
+ kind/answer/.code={\pgfkeyssetvalue{/femm/save/kind}{answer}}}
+\protected\def\femmsave{\pgfutil@ifnextchar[{\luafemm@save}{\luafemm@save[]}}
+\def\luafemm@save[#1]{\begingroup
+ \pgfqkeys{/femm/save}{#1}%
+ \directlua{luafemm.tex.native_save('\luafemm@electricid',{
+   biot_id='\luafemm@biotid',
+   file='\luaescapestring{\pgfkeysvalueof{/femm/save/file}}',
+   model='\luaescapestring{\pgfkeysvalueof{/femm/save/model}}',
+   physics='\luaescapestring{\pgfkeysvalueof{/femm/save/physics}}',
+   kind='\luaescapestring{\pgfkeysvalueof{/femm/save/kind}}'})}%
+ \endgroup}
+\tikzset{femm/save/.code={\femmsave[#1]}}
+\endinput

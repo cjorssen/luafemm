@@ -1,0 +1,105 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm,backgrounds}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\usetikzlibrary{backgrounds}
+\begin{tikzpicture}[femm/electrostatic={xmin=-2,xmax=2,ymin=-2,ymax=2}]
+  \node[femm/point charge={charge=1e-9},fill=red!15] at (0,0) {$+$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={600,900,1800}}] {femm equipotentials};
+    \pic {femm electric field};
+  \end{scope}
+\end{tikzpicture}
+
+\par\medskip
+\tikzset{
+  positive charge/.style={femm/point charge={charge=1e-9},fill=red!15},
+  negative charge/.style={femm/point charge={charge=-1e-9},fill=blue!15}}
+\begin{tikzpicture}[femm/electrostatic={name=lesson dipole}]
+  \node[positive charge] (positive) at (-1,0) {$+$};
+  \node[negative charge] (negative) at (1,0) {$-$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={-900,-450,0,450,900}}]
+      {femm equipotentials};
+    \pic[femm/electric={lines per charge=12}] {femm electric field};
+  \end{scope}
+  \draw[thick,densely dotted,
+    femm/electric profile={name=above dipole,samples=161}]
+    (-2,1)--(2,1) node[right] {$\mathcal C$};
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+    xlabel={$x$ (cm)},ylabel={$V$ (V)}]
+    \femmelectricplot[profile=above dipole,component=V,abscissa=x,
+      plot options={blue!70!black,thick}]
+  \end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+  \begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+    xlabel={$x$ (cm)},ylabel={Electric field (V/m)},
+    legend style={at={(.5,1.03)},anchor=south,legend columns=3}]
+    \femmelectricplot[profile=above dipole,component=Ex,abscissa=x,
+      plot options={blue!70!black,thick}]
+    \addlegendentry{$E_x$}
+    \femmelectricplot[profile=above dipole,component=Ey,abscissa=x,
+      plot options={red!70!black,dashed,thick}]
+    \addlegendentry{$E_y$}
+    \femmelectricplot[profile=above dipole,component=E,abscissa=x,
+      plot options={black,densely dotted,thick}]
+    \addlegendentry{$|\mathbf E|$}
+  \end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={snapshot=lesson dipole}]
+  \node[circle,draw,fill=red!15] at (-1,0) {$+$};
+  \node[circle,draw,fill=blue!15] at (1,0) {$-$};
+  \pic[femm/electric={vector spacing=.4,vector length=.22}]
+    {femm electric vectors};
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={snapshot=lesson dipole}]
+  \node[circle,draw,fill=red!15] at (-1,0) {$+$};
+  \node[circle,draw,fill=blue!15] at (1,0) {$-$};
+  \draw[gray,densely dotted,femm/electric seeds={samples=9}]
+    (0,.2)--(0,1.8);
+  \pic[femm/electric={step=.05,tolerance=.00001}] {femm electric field};
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={xmin=-2.5,xmax=2.5},scale=.9]
+  \foreach \x/\y in {-1/-1,1/1}
+    \node[positive charge] at (\x,\y) {$+$};
+  \foreach \x/\y in {-1/1,1/-1}
+    \node[negative charge] at (\x,\y) {$-$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={-700,-300,300,700}}] {femm equipotentials};
+    \pic[femm/electric={lines per charge=12}] {femm electric field};
+  \end{scope}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={relative permittivity=2,
+    xmin=-3,xmax=3,ymin=-2,ymax=2}]
+  \node[femm/point charge={charge=2e-9},fill=red!15] at (-1.4,-.4) {$2q$};
+  \node[femm/point charge={charge=-1e-9},fill=blue!15] at (.9,.7) {$-q$};
+  \node[femm/point charge={charge=-.5e-9},fill=blue!10] at (.6,-1) {$-q/2$};
+  \begin{scope}[on background layer]
+    \pic[femm/electric={levels={-300,0,300,600,900}}] {femm equipotentials};
+    \pic[femm/electric={lines per charge=20}] {femm electric field};
+  \end{scope}
+\end{tikzpicture}
+\end{document}

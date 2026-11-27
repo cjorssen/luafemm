@@ -1,0 +1,52 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+\documentclass{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={geometry samples=16,
+ seeds={0/.3/0;0/-.3/0},step=.15,maximum length=6}]
+ \femmbiotsource[kind=solenoid,winding=helix,closure=axis,
+  current=2,radius=.8,length=2,turns=2,wire radius=.06]
+ \femmbiotscene[name=solid-coil]
+\endtikzpicture
+\tikzpicture[femm/view 3d={scene=solid-coil,
+ visibility=vector,conductors=tube,tube sides=6,
+ coordinate scale=.9,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-2,zmax=2}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[femm/view 3d={scene=solid-coil,
+ visibility=vector,conductors=tube,tube sides=6,
+ show return=false,show leads=false,tube color=blue!65,
+ coordinate scale=.9,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-2,zmax=2}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{solid-coil}
+\endgroup
+
+\clearpage
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={geometry samples=16}]
+ \femmbiotsource[kind=loop,current=1,radius=.8]
+ \femmbiotscene[name=tinted-loop,field=false]
+\endtikzpicture
+\femmviewplane[scene=tinted-loop,plane=xy,origin=0/0/.5,
+ umin=-1,umax=1,vmin=-1,vmax=1,
+ occlusion=translucent,opacity=.22,style={fill=blue!50}]
+\tikzpicture[femm/view 3d={scene=tinted-loop,
+ visibility=vector,conductors=tube,tube radius=schematic,
+ tube size=.05,tube sides=8,azimuth=0,elevation=90,
+ axes=none,xmin=-1.2,xmax=1.2,ymin=-1.2,ymax=1.2,
+ zmin=-1,zmax=1,coordinate scale=1.5}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{tinted-loop}
+\endgroup
+\end{document}

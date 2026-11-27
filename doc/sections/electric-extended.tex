@@ -1,0 +1,323 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Extended electrostatic models and measurements}
+\label{sec:electric-extended}
+
+These facilities extend |model=finite elements| in both planar and
+axisymmetric geometry. They also apply to |model=source correction| within
+the source guards and interaction-energy conventions of
+Section~\ref{sec:electric-hybrid}. Ordinary field-energy quantities do not
+extend to ideal singular sources. Declare the domain, dielectric regions, electrodes
+and exterior conditions first. Rendering a field, capturing a profile,
+measuring a force or calculating a capacitance matrix solves and freezes the
+physical model. A mesh pic already freezes its geometry. Afterwards only
+views, measurements and drawing styles may change. A named matrix or force
+owns its data: reusing a picture name does not alter a previous measurement.
+
+\subsection{Equipotential conductors with prescribed charge}
+\begin{key}{/femm/electric electrode/condition=\meta{voltage or charge} (initially voltage)}
+Path-local physical choice. |voltage| requires |potential| in volts.
+|charge| introduces one unknown equipotential and imposes its total free
+charge. Do not also supply |potential|. At least one prescribed potential or
+a positive mixed boundary coefficient must supply a reference, unless an
+antiperiodic constraint removes the constant mode. A neutral conductor alone
+does not supply an absolute reference.
+\end{key}
+\begin{key}{/femm/electric electrode/charge=\meta{number} (initially empty)}
+Total signed charge in coulombs, only for |condition=charge|. Empty means zero:
+a neutral floating conductor. In a planar model this is the charge over the
+specified |depth|, not C/m. In axisymmetry it is the charge of the complete
+revolved body. For a prescribed voltage, even an explicit zero charge is
+rejected as a second physical condition.
+\end{key}
+\begin{key}{/femm/electric electrode/name=\meta{text} (initially empty)}
+An empty name receives an automatically generated name. Several paths with the
+same explicit name form one conductor, including separated pieces connected
+by an ideal wire outside the section. Their condition and prescribed value
+must agree. The charge applies once to the whole named conductor; it is not
+repeated for each piece. The |interior| setting remains local to each path.
+Distinct named electrodes may not touch. A charge-controlled electrode may
+not touch a voltage boundary, including the default grounded box; use an
+explicit insulating side where appropriate. |outer boundary| is reserved.
+\end{key}
+The usual electrode |voltage| result now returns the solved potential of a
+charge-controlled conductor. Its |charge| result is the variational reaction,
+which can be compared with the prescribed total charge. Charges are obtained
+from the assembled equations, not from a smoothed boundary field.
+
+\subsection{A Maxwell capacitance matrix}
+\begin{command}{\femmelectricmatrix\oarg{options}}
+Capture a matrix after all physical declarations.
+Its key family is |/femm/electric matrix|. For the selected voltage electrodes,
+\[
+ Q_i=q_i^{(0)}+\sum_j C_{ij}V_j.
+\]
+The offset includes volume/surface sources, specified floating charges and
+unselected electrode voltages. Each matrix column uses a unit voltage and
+zero independent sources on the same owned mesh. Floating conductors are
+eliminated with zero incremental charge. The result is a Maxwell matrix:
+off-diagonal entries can be negative. It is not a table of positive two-terminal
+capacitances, nor does its computation add a circuit equation to the model.
+\end{command}
+\begin{key}{/femm/electric matrix/name=\meta{text} (initially empty)}
+Required nonempty document-lifetime result name. Successful reuse replaces
+that named matrix atomically. A failed computation does not replace it.
+\end{key}
+\begin{key}{/femm/electric matrix/model=\meta{snapshot} (initially empty)}
+Empty selects the current electric picture. Otherwise use a previously named
+electric snapshot, including outside a picture. The source state is unchanged.
+\end{key}
+\begin{key}{/femm/electric matrix/electrodes=\meta{comma-separated names} (initially empty)}
+Empty selects all voltage-controlled named electrodes in declaration order.
+An explicit list fixes the row/column order. Quote the list with braces.
+Unknown, duplicate or charge-controlled ports are errors. Unselected voltage
+electrodes remain fixed in the offset and are grounded in unit-column solves.
+\end{key}
+\begin{key}{/femm/electric matrix/normalization=\meta{total or per length} (initially total)}
+|total| gives coefficients in farads and offsets in coulombs. |per length|
+gives F/m and C/m for a planar model. It is rejected in axisymmetry. Reciprocity
+is checked in the numerical validation; discretization and algebraic tolerance
+still limit accuracy. A matrix can be singular when its electrodes share a
+free common-mode voltage, even though each unit experiment has a reference.
+\end{key}
+\begin{command}{\femmelectricmatrixvalue\oarg{options}}
+Typeset one matrix entry or source offset with the following keys.
+\end{command}
+\begin{key}{/femm/electric matrix value/matrix=\meta{name} (initially empty)}
+Required captured matrix name; no current-picture dependency.
+\end{key}
+\begin{key}{/femm/electric matrix value/row=\meta{electrode} (initially empty)}
+Required receiving electrode name, selected in the captured matrix.
+\end{key}
+\begin{key}{/femm/electric matrix value/column=\meta{electrode} (initially empty)}
+Excited electrode name; required for a capacitance entry, ignored for an offset.
+\end{key}
+\begin{key}{/femm/electric matrix value/quantity=\meta{capacitance or offset charge} (initially capacitance)}
+Choose $C_{ij}$ or $q_i^{(0)}$. Units follow the captured normalization.
+\end{key}
+\begin{key}{/femm/electric matrix value/number format=\meta{PGF number options} (initially sci,precision=3)}
+Formatting only, using native |\pgfmathprintnumber| options.
+\end{key}
+\begin{command}{\femmelectricmatrixplot\oarg{options}}
+Inside a PGFPlots axis, plot a matrix column against integer row numbers
+$1,\ldots,n$. Supply electrode tick labels and units through ordinary axis
+keys. The coefficient values retain the captured SI normalization.
+\end{command}
+\begin{key}{/femm/electric matrix plot/matrix=\meta{name} (initially empty)}
+Required matrix name. Each plot reads the owned result without another solve.
+\end{key}
+\begin{key}{/femm/electric matrix plot/column=\meta{electrode} (initially empty)}
+Required column electrode name.
+\end{key}
+\begin{key}{/femm/electric matrix plot/plot options=\meta{PGFPlots options} (initially empty)}
+Passed to |\addplot+|. Use normal axis styles for bars, colours, markers and legends.
+The worked example in Section~\ref{sec:tutorial-electric-floating} shows all
+three commands with a neutral intermediate screen.
+\end{key}
+
+\subsection{Positive symmetric dielectric tensors}
+In a finite-element calculation, the constitutive law is
+$\mathbf D=\epsilon_0\boldsymbol\epsilon_r\mathbf E$ with
+\[
+ \boldsymbol\epsilon_r=R(\theta)
+ \begin{pmatrix}\epsilon_x&0\\0&\epsilon_y\end{pmatrix}R(\theta)^T,
+ \qquad \epsilon_x>0,\quad\epsilon_y>0.
+\]
+The solver uses this tensor in stiffness, displacement and
+$\tfrac12\mathbf E\mathbin\cdot\mathbf D$ energy. Field-line pics follow
+$\mathbf E$, which need not be parallel to $\mathbf D$.
+\begin{key}{/femm/electrostatic/relative permittivity x=\meta{positive number} (initially empty)}
+Picture-local first principal relative permittivity, dimensionless.
+Empty uses the scalar |relative permittivity| or selected material value.
+\end{key}
+\begin{key}{/femm/electrostatic/relative permittivity y=\meta{positive number} (initially empty)}
+Second principal value with the same default rule. These are principal values
+before rotation, not the diagonal entries after rotation.
+\end{key}
+\begin{key}{/femm/electrostatic/material angle=\meta{degrees} (initially empty)}
+Counterclockwise orientation of the first principal axis relative to physical
+$x$; empty means zero. TikZ drawing transformations do not rotate this
+constitutive input. Analytical models still require an isotropic medium.
+\end{key}
+\begin{key}{/femm/electric region/relative permittivity x=\meta{positive number} (initially empty)}
+Path-local first principal value. A region with no constitutive input inherits
+the complete background tensor. When specifying principal values or an angle,
+missing principal values inherit the background principal values.
+\end{key}
+\begin{key}{/femm/electric region/relative permittivity y=\meta{positive number} (initially empty)}
+Path-local second principal value, with the same inheritance rule.
+\end{key}
+\begin{key}{/femm/electric region/material angle=\meta{degrees} (initially empty)}
+Path-local orientation. A constitutive override starts at angle zero unless
+an explicit angle follows. A scalar |relative permittivity| assignment resets
+both principal overrides and the angle. A catalogue selection resets both
+principal values and sets angle zero; subsequent keys override them in order.
+In axisymmetry $(x,y)=(r,z)$. A tensor touching the regular axis must have zero
+$r$--$z$ coupling; an incompatible rotated tensor is rejected. This is a
+meridional tensor model, not general three-dimensional anisotropy.
+\end{key}
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=0,ymax=1,outer boundary=insulated,
+    relative permittivity x=2,relative permittivity y=4,
+    material angle=45,mesh size=.15},scale=1.8]
+  \draw[thick,femm/electric electrode={potential=10}] (0,0)--(0,1);
+  \draw[thick,femm/electric electrode={potential=0}] (2,0)--(2,1);
+  \pic {femm electric field};\pic {femm equipotentials};
+  \node[below] at (1,0) {$\theta=45^\circ$};
+\end{tikzpicture}
+\end{codeexample}
+The insulating horizontal sides impose $D_y=0$, not $E_y=0$. Thus this example
+has a genuinely two-dimensional field near the electrode corners.
+
+\subsection{Mixed and translated periodic boundaries}
+\begin{key}{/femm/electric boundary/condition=\meta{insulated, voltage, displacement, mixed, periodic or antiperiodic} (initially insulated)}
+The additional choices apply to physical paths on the rectangular exterior.
+For |mixed| the convention is $\mathbf D\cdot\mathbf n=cV+g$, with outward
+normal. This adds $\int cN_iN_j$ to stiffness and $-\int gN_i$ to the load.
+The regular axis continues to accept only |insulated|. Mixed or periodic paths
+may not overlap an electrode edge.
+\end{key}
+\begin{key}{/femm/electric boundary/coefficient=\meta{nonnegative number} (initially 0)}
+$c$ in F/m$^2$, for |condition=mixed|. A positive value supplies a potential
+reference; zero reduces to prescribed displacement. Negative coefficients
+are rejected to preserve the positive variational problem.
+\end{key}
+\begin{key}{/femm/electric boundary/normal displacement=\meta{number} (initially empty)}
+For |displacement| this is the required outward $D_n$ in C/m$^2$.
+For |mixed| it is $g$ in C/m$^2$, default zero. A nonzero mixed term therefore
+need not mean a nonzero outward flux: the $cV$ term must also be included.
+\end{key}
+\begin{key}{/femm/electric boundary/pair=\meta{text} (initially empty)}
+Required for |periodic| or |antiperiodic|. Exactly two straight, open paths
+must share the name and condition, lie on opposite box sides, and have
+identical oriented vectors. Both paths therefore run in the same drawing
+direction. They impose respectively $V_2=V_1$ or $V_2=-V_1$; the natural
+normal displacement has the corresponding opposite outward sign.
+
+Boundary subdivisions are synchronized before assembly. Incompatible corner
+voltages and incomplete pairs fail explicitly. Very aggressive refinement
+which does not synchronize within twelve mesh passes also fails; simplify the
+boundary refinement in that case. A purely periodic insulated cell still
+needs a reference. Antiperiodicity removes the constant mode. In axisymmetry
+only axial translations are accepted, since radial translations change the
+integration measure. Rotational, curved and sliding periodic interfaces are
+not part of this electric boundary contract.
+\end{key}
+\begin{key}{/femm/electric value/quantity=\meta{boundary energy, total energy or periodic flux}}
+Additional global quantities, alongside the existing choices (whose default
+remains |charge|). |boundary energy| is $\tfrac12\int cV^2\,\mathrm dS$ in J;
+|total energy| adds it to the dielectric field energy. |periodic flux| is the
+outward displacement flux in C represented by reactions on paired nodes
+without an electrode owner. The global |charge balance| includes this flux;
+antiperiodic cells need not have zero ordinary outward flux. All three results
+include planar depth or the full revolution. They are not field-energy
+per-length aliases.
+\end{key}
+
+\Needspace{11cm}
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=0,ymax=1,outer boundary=insulated,
+    mesh size=.2},scale=1.8]
+  \draw[thick,femm/electric electrode={potential=10}] (0,0)--(0,1);
+  \draw[dashed,femm/electric boundary={condition=mixed,
+      coefficient=8.8541878128e-10}] (2,0)--(2,1);
+  \path[femm/electric boundary={condition=periodic,pair=cell}]
+    (0,0)--(2,0);
+  \path[femm/electric boundary={condition=periodic,pair=cell}]
+    (0,1)--(2,1);
+  \pic {femm electric field};\pic {femm equipotentials};
+\end{tikzpicture}
+\end{codeexample}
+The right side is a capacitive Robin termination, not a grounded electrode.
+The top and bottom represent translated copies of the same cell.
+
+\subsection{Forces and torque from a Maxwell contour}
+\begin{key}{/tikz/femm/electric force=\meta{options}}
+Measurement on one simple closed path, after all physical declarations.
+The contour must stay in one homogeneous, isotropic, source-free dielectric,
+and must not touch or cross an electrode, charged sheet or material interface.
+Its interior may enclose those bodies. Both orientations give the outward
+traction. Ordinary TikZ drawing options control whether/how the contour is shown.
+The force is $\oint[\epsilon\mathbf E\mathbf E^T-
+\tfrac12\epsilon E^2I]\mathbf n\,\mathrm dS$.
+\end{key}
+\begin{key}{/femm/electric force/name=\meta{text} (initially empty)}
+Required document-lifetime result name; successful reuse replaces the result.
+\end{key}
+\begin{key}{/femm/electric force/origin x=\meta{number} (initially 0)}
+Planar torque origin in physical model coordinates and the declared length unit.
+This does not translate the contour or change its force.
+\end{key}
+\begin{key}{/femm/electric force/origin y=\meta{number} (initially 0)}
+Second torque-origin coordinate. Origins are irrelevant to the axisymmetric
+axial-force result; no meridional ``radial resultant'' is offered as a 3D force.
+\end{key}
+\begin{key}{/femm/electric force/curve tolerance=\meta{positive number} (initially .001)}
+Flattening tolerance in model units, distinct from mesh size. Integration splits
+each straight piece at triangle faces and uses raw element fields. An axis
+closure has zero revolved area and contributes no traction. The model's
+|boundary snap tolerance| also preserves this closure after TikZ coordinate
+rounding and transformations.
+\end{key}
+\begin{command}{\femmelectricforcevalue\oarg{options}}
+Typeset a previously captured force or torque; no solve or current picture is needed.
+\end{command}
+\begin{key}{/femm/electric force value/force=\meta{name} (initially empty)}
+Required captured force name.
+\end{key}
+\begin{key}{/femm/electric force value/quantity=\meta{Fx, Fy, Fz, torque, Fx per length, Fy per length or torque per length} (initially Fy)}
+Planar total |Fx|, |Fy| in N and |torque| in N\,m include depth; their per-length
+variants use N/m and N. Positive torque is counterclockwise about the specified
+origin. Axisymmetry offers only |Fz| in N for the full revolution. Unavailable
+quantities are rejected; explicitly select |Fz| for an axisymmetric result.
+\end{key}
+\begin{key}{/femm/electric force value/number format=\meta{PGF number options} (initially sci,precision=3)}
+Native number formatting, independent of physical accuracy.
+\end{key}
+
+\Needspace{13cm}
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=0,ymax=1,outer boundary=insulated,
+    mesh size=.05,name=force cell},scale=2.2]
+  \draw[thick,femm/electric electrode={potential=100}] (0,0)--(0,1);
+  \draw[thick,femm/electric electrode={potential=0}] (2,0)--(2,1);
+  \draw[red,very thick,femm/electric charge layer={
+      surface charge density=2e-8}] (1,.3)--(1,.7);
+  \pic {femm electric field};
+  \draw[green!40!black,dashed,femm/electric force={name=sheet force}]
+    (.6,.1) rectangle (1.4,.9);
+\end{tikzpicture}
+\qquad
+$F_x=\femmelectricforcevalue[force=sheet force,quantity=Fx]$ N.
+\end{codeexample}
+With the default centimetre unit and one-centimetre depth, the imposed uniform
+bias is $5000$ V/m and the sheet charge is $8\times10^{-13}$ C. Symmetry cancels
+the sheet's net self-force, giving $F_x=4\times10^{-9}$ N in the continuum.
+Compare refinements and move the contour away from the sheet ends: raw P1
+stress integrals need not converge monotonically on a fixed contour. A small
+linear residual or charge-balance error is not a force-accuracy certificate.
+This method does not model electrostriction or stress inside an anisotropic body.
+
+\subsection{Native FEMM point properties versus Coulomb nodes}
+The FEMM~4 and FEMM~5 electrostatic point-property parameter |qp| is a line
+charge density in C/m. In planar geometry it represents a line perpendicular
+to the section; in axisymmetry a node at radius $r>0$ represents a ring with
+total charge $2\pi r\,q_p$. In the audited native implementation the radial
+weight vanishes at $r=0$; it does not create an isolated Coulomb charge there.
+A zero |qp| selects prescribed point potential rather than a removable zero
+source. Such nodal point constraints and singular loads require their own
+mesh-limit interpretation.
+
+Consequently |femm/point charge| remains a three-dimensional Coulomb source
+for the analytical provider, and is rejected by the FE provider. No silent
+conversion is made. To describe a finite charged body use volume charge or a
+charged interface; to describe a finite conductor use an electrode. Native
+|.fee|/|.res| interchange and native point properties are handled by the separate
+file adapter in Section~\ref{sec:electric-exchange}.

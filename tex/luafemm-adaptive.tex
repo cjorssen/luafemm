@@ -1,0 +1,17 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\pgfkeys{/femm/adapt/.is family,/femm/adapt,
+ passes/.initial=3,fraction/.initial=.5,tolerance/.initial=.05,maximum nodes/.initial=100000}
+\protected\def\femmadapt{\pgfutil@ifnextchar[{\luafemm@adapt}{\luafemm@adapt[]}}
+\def\luafemm@adapt[#1]{\begingroup\pgfqkeys{/femm/adapt}{#1}%
+ \directlua{require('luafemm-adaptive').run(luafemm.current,{
+ passes='\luaescapestring{\pgfkeysvalueof{/femm/adapt/passes}}',
+ fraction='\luaescapestring{\pgfkeysvalueof{/femm/adapt/fraction}}',
+ tolerance='\luaescapestring{\pgfkeysvalueof{/femm/adapt/tolerance}}',
+ max_nodes='\luaescapestring{\pgfkeysvalueof{/femm/adapt/maximum nodes}}'})}%
+ \endgroup}
+\tikzset{femm/adapt/.code={\femmadapt[#1]}}
+\endinput

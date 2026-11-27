@@ -1,0 +1,413 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Transient fields and controlled motion}
+\label{sec:time}
+
+A harmonic field describes one frequency after transients have disappeared.
+A time calculation instead starts with a specified field and advances it through
+successive instants. An impressed current can change at each step; conducting
+regions oppose the change through induced currents. The previous potential is
+part of the calculation, not merely a convenient initial guess for Newton.
+
+The supported time formulation uses real planar or axisymmetric potentials,
+reversible linear or nonlinear magnetic materials, permanent magnets, resolved
+conductors and current-fed series windings. Set |depth| for a planar time model.
+Full-circle P1 bands additionally permit prescribed motion and partitioned
+single-axis rotational dynamics. External electrical networks, solid winding
+terminals, ideal circuits, axial H diffusion, native/Fourier moving gaps and
+history-dependent hysteresis are outside this time formulation. Harmonic loss
+angles, effective wires and conducting homogenised sheets cannot supply a
+time-domain material law. Resolve the conducting geometry instead.
+
+\subsection{A conductor when a current is switched on}
+Start with a coarse spatial mesh and a moderate number of time steps. Establish
+the geometry, signs and characteristic time scale first. Then refine both the
+mesh and the time step; one cannot compensate for the other.
+
+The circular conductor below is initially unmagnetised. The two stranded source
+regions turn on at the first positive time. They retain their impressed current
+density without resolved eddy currents. The central conductor uses
+|current constraint=zero|: its axial electric field adjusts so that its total
+section current is zero. Declare disconnected isolated conductors as separate
+regions if each needs its own zero-current constraint.
+
+\luafemmexamplebegin{transient-shield}
+\begin{codeexample}[width=0pt]
+\tikzset{femm/materials/shield metal/.style={mu r=1,conductivity=5.8e7}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-9,xmax=9,ymin=-7,ymax=7,mesh size=1,depth=10},
+  femm/state={name=shield,initial=zero},scale=2]
+  \filldraw[fill=orange!15,
+    femm/region={material=shield metal,current constraint=zero}]
+    (0,0) circle[radius=3];
+  \filldraw[fill=red!15,
+    femm/region={material=copper,conductor=stranded,current density=1e7}]
+    (-6,-3) rectangle (-5,3);
+  \filldraw[fill=blue!15,
+    femm/region={material=copper,conductor=stranded,current density=-1e7}]
+    (5,-3) rectangle (6,3);
+  \node[above] at (0,3) {Initially unmagnetised conductor};
+\end{tikzpicture}
+\end{codeexample}
+
+The order is deliberate: declare materials and regions, then capture the initial
+state at the end of the picture. |initial=zero| requires an unsolved model and
+homogeneous prescribed-potential boundaries. It sets the initial potential to
+zero; it does not assert static equilibrium with the declared sources. Use
+|initial=equilibrium|, the default, to solve a static initial condition instead.
+Do not request a field solve before capturing a zero initial condition.
+
+Each new picture below takes one step from the named state. At its end,
+|femm/state| replaces that name with the newly converged snapshot. Previously
+derived models, plots and profiles keep their own data. The displayed times are
+0.2 and 2.4 milliseconds; the intervening steps still perform their solves.
+The red symbols show induced currents normal to the drawing plane.
+
+\begin{codeexample}[width=0pt]
+\def\TimeResults{}
+\foreach \Step in {1,...,12}{%
+  \begin{tikzpicture}[
+    femm/problem={previous state=shield,time step=.0002},
+    femm/state={name=shield},scale=2]
+    \femmselect[name=shield-body,material=shield metal]
+    \femmmeasure[name=shield-\Step,quantity=integrals,selection=shield-body]
+    \ifnum\Step=1
+      \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+      \pic[femm/currents={material=shield metal,spacing=.8,
+        reference current=1e7}] {femm eddy currents};
+      \node[above] at (0,7) {$t=0.2\,\mathrm{ms}$};
+    \fi
+    \ifnum\Step=12
+      \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+      \node[above] at (0,7) {$t=2.4\,\mathrm{ms}$};
+    \fi
+  \end{tikzpicture}%
+  \xdef\TimeResults{\TimeResults,shield-\Step}%
+}
+\end{codeexample}
+
+The result names form an ordinary PGFPlots data source. No plot is a second
+simulation: each loss value belongs to the field that was just solved.
+The selection restricts this curve to the shield, excluding winding heating.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+\begin{axis}[width=10cm,height=5.5cm,grid=major,
+  xlabel={Time (ms)},ylabel={Shield Joule loss (W)},ymin=0,
+  x filter/.expression={1000*x}]
+  \femmresultplot[results=\TimeResults,component=joule_loss,abscissa=time,
+    plot options={teal!70!black,thick,mark=*}]
+\end{axis}
+\end{tikzpicture}
+\end{codeexample}
+
+\begin{codeexample}[width=0pt]
+\femmstate[name=shield-saved,file=\jobname-shield.lft]
+\femmrestorestate[name=shield-restart,file=\jobname-shield.lft]
+\end{codeexample}
+\luafemmexampleend{transient-shield}
+
+\subsection{State ownership and the order of operations}
+\label{sec:time-keys}
+\begin{key}{/tikz/femm/state=\meta{options}}
+Capture the originating picture's model at its end, using |/femm/state| keys.
+It remains bound to that picture even if a nested picture changes the current
+model. Set |name| explicitly. Normal PGF styles may supply shared capture options.
+\end{key}
+\begin{command}{\femmstate\opt{\oarg{options}}}
+Capture the current or named model immediately. A static model is solved on
+demand; a time model must converge before its new state is registered. Options
+belong to |/femm/state|. Reusing a state name replaces its owned snapshot.
+\end{command}
+\begin{key}{/femm/state/name=\meta{name} (initially empty)}
+Required document-wide state identifier. A derived step copies its previous
+potential and declarations; replacing this name never changes that step.
+\end{key}
+\begin{key}{/femm/state/model=\meta{name} (initially empty)}
+Optional previously named problem. Empty selects the current model. The picture
+key supplies its own model automatically. This key applies to capture only.
+\end{key}
+\begin{key}{/femm/state/initial=\meta{choice} (initially equilibrium)}
+|equilibrium| solves an unsolved static initial problem. |zero| creates a zero
+potential in an unsolved problem with homogeneous Dirichlet data. Existing
+solved time fields are captured without changing their history; |zero| cannot
+reset them. A frozen/incremental response cannot become a time state or vice versa.
+\end{key}
+\begin{key}{/femm/state/time=\meta{seconds} (initially empty)}
+Initial absolute time, finite and nonnegative; empty means zero for an initial
+state and the computed time for a solved step. A capture cannot relabel a solved
+step's clock. Native answer import has its own clock key below.
+\end{key}
+\begin{key}{/femm/state/file=\meta{filename} (initially empty)}
+Optionally write the captured state as passive data, conventionally with an
+|.lft| extension. Relative names use the TeX output directory. The record owns
+geometry, mesh, material/source data, present and previous potentials, clock and
+optional motion template. It contains no executable Lua or TeX. Replacement is
+atomic, and an incompatible version or damaged checksum is an error.
+An |.lfc| cache accelerates an already declared calculation; an |.lft| file
+supplies the state needed to restart one. Keep the source document as well.
+\end{key}
+\begin{command}{\femmrestorestate\opt{\oarg{options}}}
+Read a saved state with |name| and |file| from |/femm/state|. No solve or time step
+is performed. Only these two keys apply. A failed read leaves the existing named
+state intact. Derive a step with |previous state| or display it with |state|.
+\end{command}
+\begin{key}{/femm/problem/state=\meta{name} (initially empty)}
+Display or measure a saved snapshot without advancing time. The snapshot owns
+its physical and numerical settings. Use ordinary TikZ transformations and
+drawing styles for presentation. Excitation and motion overrides are errors.
+\end{key}
+\begin{key}{/femm/problem/previous state=\meta{name} (initially empty)}
+Construct a new time step from this state. It is mutually exclusive with |state|,
+|operating point|, |sliding band| and file import. The inherited geometry, material
+laws and spatial mesh cannot be redeclared. Existing numerical solver-policy
+keys may override the linear solver for the new step.
+\end{key}
+\begin{key}{/femm/problem/time step=\meta{seconds} (initially 0)}
+Required positive finite step size with |previous state|. The new clock is
+$t_{n+1}=t_n+\Delta t$. All impressed currents and boundary data belong to this
+new time. A nonzero value without |previous state| is an error. The method is
+backward Euler, first order in time; refine the step to assess numerical damping.
+\end{key}
+\begin{key}{/femm/problem/source scale=\meta{number} (initially empty)}
+Multiply the initial state's non-circuit region current densities by this real,
+dimensionless factor. Empty retains the preceding factor (initially one).
+It does not scale magnetisation or named circuit currents. For winding currents,
+reuse |/femm/problem/circuit currents={name=value,...}|, in amperes. Unmentioned
+circuits retain their previous currents. Phase keys do not apply to time states.
+\end{key}
+\begin{key}{/femm/problem/boundary scale=\meta{number} (initially empty)}
+Scale initial affine boundary loads and potentials, retaining Robin coefficients
+and geometry. Empty retains the preceding factor (initially one). A scale of
+zero homogenises these data; it does not change the boundary type. Automatic
+static gauges are unsupported in time diffusion: provide an explicit potential
+reference. The ordinary homogeneous exterior Dirichlet default meets this rule.
+The circular open multipole approximation is also excluded: its static audit
+does not account for induced return currents. Use a finite exterior domain and
+check sensitivity to its extent. Explicit Robin data remain mathematical
+boundary conditions, without an inferred open-exterior interpretation.
+\end{key}
+
+Spatial profiles retain the instantaneous |B|, |H|, |Az| and current components
+of their source step. |J| and |Jeddy| use A/m$^2$; time profiles require
+|representation=snapshot| and |phase=0|. The existing eddy-current pic draws
+instantaneous normal symbols or axisymmetric loops; its harmonic phase setting
+has no effect on a time snapshot. Planar B lines remain contours of $A_z$;
+axisymmetric lines remain contours of full flux.
+
+Regional measurements add |time| and |time_step| in seconds and |joule_loss| in
+watts. This loss is instantaneous $\int J^2/\sigma\,dV$, over the selected model
+volume, with winding fill included; it is not a harmonic cycle average.
+|current| includes induced current. Maxwell stress and conductor Lorentz
+measurements use the instantaneous field/current. Circuit measurements add
+|induced_voltage| and use $V=RI+(\lambda_{n+1}-\lambda_n)/\Delta t$ when resistance
+and closed-winding linkage are available. A user-specified winding length may
+include end turns outside the field volume; its terminal resistance loss then
+differs from the model-volume integral. No transient secant inductance is reported.
+
+\subsection{Prescribed rotation and mechanical response}
+\label{sec:time-motion}
+\begin{key}{/femm/state/sliding band=\meta{name} (initially empty)}
+Attach the original full-circle P1 template to an initial positioned model.
+Its provenance must match the model's band. This stores the reference geometry
+and material-node identities needed for later motion. A position alone does not
+contain enough information to infer an arbitrary new motion template.
+\end{key}
+\begin{key}{/femm/state/speed=\meta{number} (initially empty)}
+Initial angular speed in radians per second; empty means zero. Requires a motion
+template and applies to an initial state only. Positive speed is counterclockwise.
+\end{key}
+\begin{key}{/femm/problem/motion=\meta{choice} (initially fixed)}
+|fixed| holds geometry and sets the retained mechanical speed to zero.
+|prescribed| uses |rotor angle| (degrees) and |rotor offset x/y| (model units) at
+the new time; their ordinary initial values are zero. Supply unwrapped angles
+when the derived speed matters. |dynamic| advances one rotational mechanical
+degree of freedom; offsets remain fixed and position overrides are errors.
+Moving steps require the initial state's attached P1 template. Only the
+nonconducting air band is retriangulated. Conducting bulk elements retain node
+identities, so their previous potential follows the material.
+\end{key}
+\begin{key}{/femm/problem/inertia=\meta{number} (initially 0)}
+Required positive moment of inertia in kg\,m$^2$ for |motion=dynamic|. There is no
+guessed physical inertia. It refers to the rotation axis through the band's
+possibly displaced rotor centre. Use a PGF problem style to share it over steps.
+\end{key}
+\begin{key}{/femm/problem/load torque=\meta{number} (initially 0)}
+Signed external opposing torque in N\,m. A positive value subtracts from the
+electromagnetic torque, irrespective of the current speed sign. This is not an
+automatic dry-friction law. Requires |motion=dynamic|.
+\end{key}
+\begin{key}{/femm/problem/damping=\meta{number} (initially 0)}
+Nonnegative viscous coefficient in N\,m\,s per radian; its torque is $-c\omega$.
+Requires |motion=dynamic|. No other mechanical load is inferred.
+\end{key}
+
+Here a reluctance rotor accelerates under magnetic torque. Its magnetic material
+is nonconducting in this example, so the motion-induced terminal linkage and
+mechanical response can be inspected separately from eddy-current braking.
+Adding a resolved rotor conductivity activates the material time derivative.
+
+\luafemmexamplebegin{transient-motion}
+\begin{codeexample}[width=0pt]
+\tikzset{femm/materials/rotor iron/.style={mu r=200}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-8,xmax=8,ymin=-8,ymax=8,mesh size=1,depth=10},
+  femm/sliding band={name=time-band,inner radius=3,outer radius=4,
+    segments=48,layers=1},scale=2]
+  \filldraw[fill=gray!20,femm/region={material=rotor iron}]
+    (0,0) ellipse[x radius=2.6,y radius=1.2];
+  \draw[femm/region={material=copper,conductor=stranded,current density=5e7}]
+    (-6,-3) rectangle (-5,3);
+  \draw[femm/region={material=copper,conductor=stranded,current density=-5e7}]
+    (5,-3) rectangle (6,3);
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/problem={sliding band=time-band,rotor angle=25},
+  femm/state={name=rotor-time,sliding band=time-band,speed=0},scale=2]
+  \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+  \node[above] at (0,8) {$t=0$};
+\end{tikzpicture}
+\end{codeexample}
+
+\begin{codeexample}[width=0pt]
+\def\MotionResults{}
+\foreach \Step in {1,...,20}{%
+  \begin{tikzpicture}[
+    femm/problem={previous state=rotor-time,time step=.001,
+      motion=dynamic,inertia=1e-8,damping=1e-7},
+    femm/state={name=rotor-time},scale=2]
+    \femmmeasure[name=motion-\Step,quantity=force,method=band]
+    \ifnum\Step=20
+      \pic {femm geometry}; \pic[femm/lines=13] {femm field};
+      \node[above] at (0,8) {$t=20\,\mathrm{ms}$};
+    \fi
+  \end{tikzpicture}%
+  \xdef\MotionResults{\MotionResults,motion-\Step}%
+}
+\end{codeexample}
+
+The saved measurements expose |angle| in degrees and |speed| in radians per
+second. A time-history plot uses the existing result-plot interface.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+\begin{axis}[width=8cm,height=5cm,grid=major,
+  xlabel={Time (ms)},ylabel={Rotor angle (degrees)},
+  x filter/.expression={1000*x}]
+  \femmresultplot[results=\MotionResults,abscissa=time,component=angle,
+    plot options={blue!65!black,thick,mark=*}]
+\end{axis}
+\end{tikzpicture}
+\femmstate[name=rotor-saved,file=\jobname-rotor.lft]
+\end{codeexample}
+\luafemmexampleend{transient-motion}
+
+At each step the previous field supplies the band torque $T_n$. The partitioned
+mechanical update is
+\[
+ \omega_{n+1}=\frac{I\omega_n+\Delta t(T_n-T_{\rm load})}{I+c\Delta t},
+ \qquad \theta_{n+1}=\theta_n+\Delta t\,\omega_{n+1},
+\]
+where the second equation uses radians. The magnetic field is then solved on
+the new position. This is a staggered first-order coupling, not a monolithic
+implicit dynamics solve. Halve the step and compare both angle and torque;
+backward-Euler diffusion stability does not certify a chosen mechanical step.
+For imposed motion, compare the same physical positions at the same times.
+
+\subsection{Time snapshots and FEMM 5}
+\label{sec:time-exchange}
+\begin{key}{/femm/import/time=\meta{seconds} (initially empty)}
+Required absolute time for a supported transient |format=ans| import. It must be
+finite and at least the file's positive |[DeltaT]|. Native answers store the step
+size and previous potential but no absolute clock. This key is invalid for an
+ordinary static/harmonic answer. The previous time is |time-DeltaT|.
+\end{key}
+
+The native exchange subset covers fixed planar real time snapshots, with no
+AGE blocks or isolated-conductor voltage constraints. Current-fed stranded
+windings and unconstrained resolved conductors are supported. Export preserves
+the actual P1 mesh and both nodal potentials. These are FEMM 5 time records;
+FEMM 4 does not supply the corresponding transient interpretation.
+
+The following compact interchange check removes an impressed source from a
+conducting square. The conductor has zero imposed longitudinal electric field,
+not a prescribed zero total current. The two field pictures use the exported
+and reimported snapshots, respectively.
+
+\luafemmexamplebegin{transient-exchange}
+\begin{codeexample}[width=0pt]
+\tikzset{femm/materials/exchange metal/.style={mu r=2,conductivity=5e6}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-3,xmax=3,ymin=-3,ymax=3,mesh size=.6,depth=10},
+  femm/state={name=exchange-initial}]
+  \draw[femm/region={material=exchange metal,current density=1e7}]
+    (-2,-2) rectangle (2,2);
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/problem={previous state=exchange-initial,time step=.001,source scale=0},
+  scale=4]
+  \pic {femm geometry}; \pic[femm/lines=9] {femm field};
+  \femmexport[format=ans,file=\jobname-time.ans]
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/import={file=\jobname-time.ans,time=.001},scale=4]
+  \pic {femm geometry}; \pic[femm/lines=9] {femm field};
+  \femmstate[name=imported-time,file=\jobname-imported.lft]
+\end{tikzpicture}
+\end{codeexample}
+\luafemmexampleend{transient-exchange}
+
+Import reads passive answer data only. A transient answer owns |DeltaT| and its
+previous potential; a sibling solver-control |.tmp| is ignored and never executed.
+Ordinary FEM/ANS imports and every export retain their companion-file guards.
+Import does not launch a native solver or take another step. Capturing the
+imported result as a time state permits continuation on its retained mesh.
+The native format does not recover the original TikZ source, motion template or
+initial source-scaling baseline. Use |.lft| for that full restart contract.
+Time problems cannot be exported as an ordinary |.fem| without losing their
+history; such an export is rejected. Native control-file generation, transient
+AGE exchange and axisymmetric transient ANS conversion are separate limitations.
+
+\subsection{Discrete equations and verification}
+For a planar scalar potential, $\mathbf B=(\partial_y A,-\partial_x A)$.
+The weak magnetic equation uses the existing nonlinear constitutive law and
+adds the consistent P1 conductivity mass matrix:
+\[
+ \int_\Omega \mathbf H(\mathbf B_{n+1})\cdot\operatorname{curl}v\,dS
+ +\int_\Omega\sigma\frac{A_{n+1}-A_n}{\Delta t}v\,dS
+ =\int_\Omega(J_s+\sigma e_z)v\,dS+\hbox{boundary terms}.
+\]
+An unconstrained solid has $e_z=0$. For an isolated planar region, the uniform
+$e_z$ enforces zero integrated current; eliminating it gives a symmetric Schur
+complement. Each such region is limited to 2048 participating nodes. Stranded
+source regions have no resolved conductivity mass. Axisymmetric assembly uses
+the existing radial quadrature, azimuthal potential and full-revolution measures;
+isolated planar-section constraints do not apply to naturally closed azimuthal rings.
+
+In a moving planar bulk, the difference follows the same material nodes. It
+therefore discretises the material derivative and includes the longitudinal
+motional $\mathbf v\times\mathbf B$ contribution. No interpolation of history
+through a newly generated conducting mesh is performed. A band collision or
+quality failure rejects the step before a state is registered.
+
+For a fixed, source-free, linear model with homogeneous boundaries, the discrete
+identity is
+\[
+ W_{n+1}-W_n+\Delta t\,P_{\rm Joule}
+ +\tfrac12(A_{n+1}-A_n)^\mathsf{T}K(A_{n+1}-A_n)=0,
+\]
+with $K$ in physical energy units. The last term is backward-Euler numerical
+dissipation. Reversible nonlinear laws give the corresponding convex-energy
+inequality. Driven or moving models also exchange source or mechanical work;
+do not apply the source-free identity to them unchanged.
+
+Validation includes an analytical diffusion mode, this discrete identity,
+axisymmetric/nonlinear dissipation, isolated-current conservation, exact restart
+continuation and rotational damping. A time-step refinement gives the expected
+first-order trend. Independent FEMM 5 solves on the same mesh agree within
+$2.4\times10^{-12}$ relative nodal error for the tested linear steps. Same-mesh
+agreement checks implementation; spatial and temporal convergence still need
+separate studies for the intended geometry and observables.

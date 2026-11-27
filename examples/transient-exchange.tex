@@ -1,0 +1,28 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=150mm,border=3mm]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{femm}
+\begin{document}
+\tikzset{femm/materials/exchange metal/.style={mu r=2,conductivity=5e6}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-3,xmax=3,ymin=-3,ymax=3,mesh size=.6,depth=10},
+  femm/state={name=exchange-initial}]
+  \draw[femm/region={material=exchange metal,current density=1e7}]
+    (-2,-2) rectangle (2,2);
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/problem={previous state=exchange-initial,time step=.001,source scale=0},
+  scale=4]
+  \pic {femm geometry}; \pic[femm/lines=9] {femm field};
+  \femmexport[format=ans,file=\jobname-time.ans]
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/import={file=\jobname-time.ans,time=.001},scale=4]
+  \pic {femm geometry}; \pic[femm/lines=9] {femm field};
+  \femmstate[name=imported-time,file=\jobname-imported.lft]
+\end{tikzpicture}
+\end{document}

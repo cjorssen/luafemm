@@ -1,0 +1,50 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% PGFPlots owns the colour interpolation and colour-bar layout. Physics remains
+% in Lua; styles and the enclosing picture's canvas frame remain native TikZ.
+\pgfkeys{/femm/visual/.is family,/femm/visual,
+ component/.initial=B,values/.initial=raw,values/.is choice,
+ values/raw/.code={\pgfkeyssetvalue{/femm/visual/values}{raw}},
+ values/recovered/.code={\pgfkeyssetvalue{/femm/visual/values}{recovered}},
+ representation/.initial=snapshot,phase/.initial=0,
+ name/.initial=last,colormap/.initial=viridis,minimum/.initial=auto,maximum/.initial=auto,
+ spacing/.initial=auto,length/.initial=auto,scale/.initial=1,
+ mode/.initial=normalized,mode/.is choice,
+ mode/normalized/.code={\pgfkeyssetvalue{/femm/visual/mode}{normalized}},
+ mode/scaled/.code={\pgfkeyssetvalue{/femm/visual/mode}{scaled}}}
+\tikzset{femm/visual/.code={\pgfqkeys{/femm/visual}{#1}},
+ femm scalar cell/.style={draw=none},
+ femm vector/.style={-{Stealth[length=3pt]},black!75,line width=.3pt},
+ pics/femm scalar map/.style={code={\begingroup\pgftransformreset
+   \ifdefined\pgfplotscolormapaccess\else\pgferror{luafemm: load PGFPlots for scalar maps}\fi
+   \luafemm@visual{false}\endgroup}},
+ pics/femm vectors/.style={code={\begingroup\pgftransformreset
+   \luafemm@visual{true}\endgroup}}}
+\def\luafemm@visual#1{\directlua{luafemm.tex.visual({
+ component='\luaescapestring{\pgfkeysvalueof{/femm/visual/component}}',
+ values='\luaescapestring{\pgfkeysvalueof{/femm/visual/values}}',
+ representation='\luaescapestring{\pgfkeysvalueof{/femm/visual/representation}}',
+ phase='\luaescapestring{\pgfkeysvalueof{/femm/visual/phase}}',
+ name='\luaescapestring{\pgfkeysvalueof{/femm/visual/name}}',
+ colormap='\luaescapestring{\pgfkeysvalueof{/femm/visual/colormap}}',
+ minimum='\luaescapestring{\pgfkeysvalueof{/femm/visual/minimum}}',
+ maximum='\luaescapestring{\pgfkeysvalueof{/femm/visual/maximum}}',
+ spacing='\luaescapestring{\pgfkeysvalueof{/femm/visual/spacing}}',
+ length='\luaescapestring{\pgfkeysvalueof{/femm/visual/length}}',
+ scale='\luaescapestring{\pgfkeysvalueof{/femm/visual/scale}}',
+ mode='\luaescapestring{\pgfkeysvalueof{/femm/visual/mode}}'},#1)}}
+\pgfkeys{/femm/colorbar/.is family,/femm/colorbar,
+ name/.initial=last,height/.initial=4cm,axis options/.code={\pgfkeys{/femm/colorbar/settings/.style={#1}}},settings/.style={}}
+\protected\def\femmcolorbar{\pgfutil@ifnextchar[{\luafemm@colorbar}{\luafemm@colorbar[]}}
+\def\luafemm@colorbar[#1]{\begingroup\pgfqkeys{/femm/colorbar}{#1}%
+ \directlua{luafemm.tex.colorbar('\luaescapestring{\pgfkeysvalueof{/femm/colorbar/name}}')}%
+ \axis[hide axis,scale only axis,width=0pt,height=\pgfkeysvalueof{/femm/colorbar/height},
+   xmin=0,xmax=1,ymin=0,ymax=1,colormap name=\luafemm@mapcolor,
+   point meta min=\luafemm@mapmin,point meta max=\luafemm@mapmax,colorbar,
+   colorbar style={ylabel={\luafemm@mapunit}},
+   /femm/colorbar/settings]%
+ \endaxis\endgroup}
+\endinput

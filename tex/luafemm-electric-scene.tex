@@ -1,0 +1,46 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Electric capture has its own physical controls; cameras use /femm/view 3d.
+\pgfkeys{/femm/electric scene/.is family,/femm/electric scene,
+ geometry samples/.initial=96,
+ name/.initial={},model/.initial={},seeds/.initial={},offset/.initial=0,
+ zmin/.initial=-3,zmax/.initial=3}
+\pgfkeys{/femm/electric scene/mode/.initial={slice},/femm/electric scene/mode/.is choice}
+\pgfkeys{/femm/electric scene/mode/slice/.code={\pgfkeyssetvalue{/femm/electric scene/mode}{slice}}}
+\pgfkeys{/femm/electric scene/mode/spatial/.code={\pgfkeyssetvalue{/femm/electric scene/mode}{spatial}}}
+\pgfkeys{/femm/electric scene/plane/.initial={xy},/femm/electric scene/plane/.is choice}
+\pgfkeys{/femm/electric scene/plane/xy/.code={\pgfkeyssetvalue{/femm/electric scene/plane}{xy}}}
+\pgfkeys{/femm/electric scene/plane/xz/.code={\pgfkeyssetvalue{/femm/electric scene/plane}{xz}}}
+\pgfkeys{/femm/electric scene/plane/yz/.code={\pgfkeyssetvalue{/femm/electric scene/plane}{yz}}}
+\pgfkeys{/femm/electric scene/geometry/.initial={true},/femm/electric scene/geometry/.is choice}
+\pgfkeys{/femm/electric scene/geometry/true/.code={\pgfkeyssetvalue{/femm/electric scene/geometry}{true}}}
+\pgfkeys{/femm/electric scene/geometry/false/.code={\pgfkeyssetvalue{/femm/electric scene/geometry}{false}}}
+\pgfkeys{/femm/electric scene/field/.initial={true},/femm/electric scene/field/.is choice}
+\pgfkeys{/femm/electric scene/field/true/.code={\pgfkeyssetvalue{/femm/electric scene/field}{true}}}
+\pgfkeys{/femm/electric scene/field/false/.code={\pgfkeyssetvalue{/femm/electric scene/field}{false}}}
+\pgfkeys{/femm/electric scene/equipotentials/.initial={true},/femm/electric scene/equipotentials/.is choice}
+\pgfkeys{/femm/electric scene/equipotentials/true/.code={\pgfkeyssetvalue{/femm/electric scene/equipotentials}{true}}}
+\pgfkeys{/femm/electric scene/equipotentials/false/.code={\pgfkeyssetvalue{/femm/electric scene/equipotentials}{false}}}
+\pgfkeys{/femm/electric scene/vectors/.initial={false},/femm/electric scene/vectors/.is choice}
+\pgfkeys{/femm/electric scene/vectors/true/.code={\pgfkeyssetvalue{/femm/electric scene/vectors}{true}}}
+\pgfkeys{/femm/electric scene/vectors/false/.code={\pgfkeyssetvalue{/femm/electric scene/vectors}{false}}}
+\protected\def\femmelectricscene{\pgfutil@ifnextchar[{\luafemm@electricscene}{\luafemm@electricscene[]}}
+\def\luafemm@electricscene[#1]{\begingroup\pgfqkeys{/femm/electric scene}{#1}%
+ \directlua{require('luafemm-electric-tex').scene('\luafemm@electricid',{
+ geometry_samples='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/geometry samples}}',
+ name='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/name}}',
+ model='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/model}}',
+ mode='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/mode}}',
+ plane='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/plane}}',
+ offset='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/offset}}',
+ zmin='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/zmin}}',
+ zmax='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/zmax}}',
+ seeds='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/seeds}}',
+ geometry='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/geometry}}',
+ field='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/field}}',
+ equipotentials='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/equipotentials}}',
+ vectors='\luaescapestring{\pgfkeysvalueof{/femm/electric scene/vectors}}'},{\luafemm@electricviewoptions})}\endgroup}
+\tikzset{femm/electric scene/.code={\femmelectricscene[#1]}}

@@ -1,0 +1,1092 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Reusable three-dimensional scenes}
+\label{sec:view-3d}
+
+A spatial field can be calculated once and shown from several directions.
+The scene interface captures owned three-dimensional paths, then draws them
+with an orthographic camera, axes and finite reference planes. It uses ordinary
+TikZ strokes, nodes and styles; a PGFPlots axis is not required.
+
+The default layered renderer controls drawing order explicitly. It does not calculate
+hidden surfaces: a plane drawn last covers or tints earlier objects even when
+its physical position is behind them. This convention is useful for explanatory
+figures, but it must not be interpreted as a geometric visibility calculation.
+Select |visibility=vector| for geometric line, plane and tube visibility described below.
+
+\subsection{An open helix, one calculation and two cameras}
+Declare all current sources first, capture a named scene, add annotations, then
+render it as often as needed. The two pictures below use exactly the same
+sampled conductor and integrated field lines. Only their cameras and axes differ.
+The open helix uses |closure=contribution|: its return is absent from both the
+geometry and the field calculation. Its current is one contribution to a
+complete circuit, not a claim that an isolated open wire is a steady circuit.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={seeds={0/.3/0;0/-.3/0},
+ step=.15,maximum length=8}]
+ \femmbiotsource[kind=solenoid,winding=helix,
+  closure=contribution,current=2,radius=.8,length=2,turns=4]
+ \femmbiotscene[name=course-coil]
+\endtikzpicture
+\femmviewplane[scene=course-coil,plane=xy,
+ umin=-1.2,umax=1.2,vmin=-1.2,vmax=1.2,
+ grid=major,step=.4,label={$z=0$}]
+\tikzpicture[femm/view 3d={scene=course-coil,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2,
+ coordinate scale=.7}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[femm/view 3d={scene=course-coil,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2,
+ coordinate scale=.7,axes=box,azimuth=25,elevation=20}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{course-coil}
+\endgroup
+\end{codeexample}
+
+The triad is an orientation symbol below the projected view rectangle. It has no
+graduations or physical length scale. The box instead has physical coordinate
+values and units. Its vertical axis lies on the left silhouette and its horizontal axes use the lower projected edges; axis edges
+point toward increasing coordinates. An axis viewed exactly end-on has no
+projected arrow and is omitted. Its omission is a projection effect, not a
+missing physical coordinate.
+
+\subsection{An oblique reference plane and scoped styles}
+A custom plane is the finite parallelogram
+$\boldsymbol o+a\boldsymbol u+b\boldsymbol v$, with $a$ and $b$ between the
+specified bounds. The basis vectors are dimensionless and need not be unit
+length or orthogonal. Their parameters and the origin use the model length
+unit. Grid lines are uniformly spaced in these parameters. Labels are ordinary
+TeX math/text, retained until drawing; referenced macros must still be defined.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={seeds={.3/0/0;-.3/0/0},
+ step=.15,maximum length=8}]
+ \femmbiotsource[current=2]
+ \femmbiotscene[name=oblique-loop]
+\endtikzpicture
+\femmviewplane[scene=oblique-loop,plane=custom,
+ origin=0/0/-.4,u=1/0/0,v=0/1/.5,
+ umin=-1.3,umax=1.3,vmin=-1.3,vmax=1.3,
+ grid=both,step=.5,subdivisions=2,label={$P$},
+ style={fill=green!30,draw=green!40!black}]
+\tikzpicture[femm/view 3d={scene=oblique-loop,
+ axes=origin,ticks=none,coordinate scale=.8,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2},
+ femm 3d field/.append style={red!60!blue},
+ femm 3d axis label/.append style={text=black!65}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{oblique-loop}
+\endgroup
+\end{codeexample}
+
+Planes are annotations: they do not declare a material, boundary condition or
+sampling surface, and they do not constrain field lines. The source provider's
+|femm/biot view| keys still select physical trace bounds, seeds and sampling.
+Plane styles are stored with the declaration; global |femm 3d| styles are
+resolved in the drawing scope. Ordinary TikZ scaling, shifts and rotations act
+on the projected drawing, not on the physical source data.
+
+\subsection{Layers are an explicit drawing convention}
+Smaller layer numbers are drawn first. Equal numbers preserve insertion order.
+The defaults draw planes, field lines, conductors, vectors and axes in that
+order in |visibility=layers|. The following deliberately changes only that convention, keeping the
+same plane and conductor positions. Neither picture claims hidden-surface
+removal. Transparent fills use normal PGF opacity and order-dependent composition.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot]
+ \femmbiotsource[current=1]
+ \femmbiotscene[name=layer-demo,field=false]
+\endtikzpicture
+\femmviewplane[scene=layer-demo,plane=xz,
+ umin=-1.4,umax=1.4,vmin=-.8,vmax=.8,
+ layer=15,style={fill=blue!15,fill opacity=.7}]
+\tikzpicture[femm/view 3d={scene=layer-demo,axes=none,
+ xmin=-1.5,xmax=1.5,ymin=-1.2,ymax=1.2,zmin=-.9,zmax=.9,
+ coordinate scale=.8,azimuth=-30,elevation=20}]
+ \pic {femm view 3d};
+ \node[below=3mm] at (current bounding box.south) {Conductor above plane};
+\endtikzpicture
+\quad
+\tikzpicture[femm/view 3d={scene=layer-demo,axes=none,
+ xmin=-1.5,xmax=1.5,ymin=-1.2,ymax=1.2,zmin=-.9,zmax=.9,
+ coordinate scale=.8,azimuth=-30,elevation=20,geometry layer=10}]
+ \pic {femm view 3d};
+ \node[below=3mm] at (current bounding box.south) {Plane above conductor};
+\endtikzpicture
+\femmviewclear{layer-demo}
+\endgroup
+\end{codeexample}
+
+\subsection{Vector visibility: a coil behind a reference plane}
+Select |visibility=vector| to use geometric visibility for sampled lines and
+finite opaque planes. The same stored paths can feed either renderer; changing
+visibility does not evaluate the magnetic field again. Opaque planes split lines
+where their projections enter a polygon and where their depths exchange order.
+The two cameras below reuse one capture. The first shows hidden portions as
+faint dashes; the second omits them.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={seeds={.3/0/0;-.3/0/0},
+ step=.15,maximum length=8}]
+ \femmbiotsource[kind=solenoid,winding=helix,
+  closure=contribution,current=2,radius=.8,length=2,turns=4]
+ \femmbiotscene[name=cutaway-coil]
+\endtikzpicture
+\femmviewplane[scene=cutaway-coil,plane=xz,
+ umin=-1.3,umax=1.3,vmin=-1.3,vmax=1.3,
+ grid=major,step=.5,style={fill=blue!10}]
+\tikzpicture[femm/view 3d={scene=cutaway-coil,
+ visibility=vector,hidden=dashed,mark spacing=1,
+ coordinate scale=.8,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-1.5,zmax=1.5}]
+ \pic {femm view 3d};
+ \pic at (5,0) [femm/view 3d={azimuth=135,hidden=omit}]
+  {femm view 3d};
+\endtikzpicture
+\femmviewclear{cutaway-coil}
+\endgroup
+\end{codeexample}
+
+The plane is a display surface, not metal or a physical boundary. In vector
+mode its default |occlusion=opaque| forces an opaque fill even though the
+layered plane style normally uses a pale transparent fill. Use a light colour
+for a reference surface. |occlusion=none| instead makes a non-occluding background
+annotation: its ordinary transparency is retained, but it is not depth-composited
+with the scene. This choice belongs to the plane declaration, not the camera.
+
+\subsection{Intersecting planes and crossing lines}
+A single depth number for a whole plane cannot determine the order of two
+intersecting planes. The renderer partitions them into polygons with consistent
+front/back relations, paints those polygons, and treats original outlines and
+grid lines separately. Partition edges are not drawn. Both planes below pass
+through the same circular current loop.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot]
+ \femmbiotsource[current=1,radius=1.2]
+ \femmbiotscene[name=intersecting-planes,field=false]
+\endtikzpicture
+\femmviewplane[scene=intersecting-planes,plane=custom,
+ u=1/0/.7,v=0/1/0,umin=-1,umax=1,vmin=-1,vmax=1,
+ grid=major,step=.5,style={fill=blue!15},label={$P$}]
+\femmviewplane[scene=intersecting-planes,plane=custom,
+ u=1/0/-.7,v=0/1/0,umin=-1,umax=1,vmin=-1,vmax=1,
+ grid=major,step=.5,style={fill=green!15},label={$Q$}]
+\tikzpicture[femm/view 3d={scene=intersecting-planes,
+ visibility=vector,hidden=dashed,axes=none,
+ azimuth=-25,elevation=40,coordinate scale=1.2,
+ xmin=-1.5,xmax=1.5,ymin=-1.5,ymax=1.5,zmin=-1,zmax=1},
+ femm 3d hidden/.append style={draw opacity=.45}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{intersecting-planes}
+\endgroup
+\end{codeexample}
+
+Thin curves have no solid cross-section in this renderer. At an isolated
+projected crossing, a short gap in the farther curve makes the depth relation
+legible. The half-gap is a drawing distance, not the physical wire radius. In
+a collinear projected overlap, the farther interval is hidden; an exchange of
+depth splits that interval. Equal-depth curves retain stable drawing order.
+The open wire segments below illustrate this drawing rule only; they would be
+contributions to complete circuits when calculating a steady magnetic field.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot]
+ \femmbiotsource[kind=wire,closure=contribution,current=1,
+  from=-1/0/-1,to=1/0/-1]
+ \femmbiotsource[kind=wire,closure=contribution,current=1,
+  from=0/-1/1,to=0/1/1]
+ \femmbiotscene[name=crossing-wires,field=false]
+\endtikzpicture
+\tikzpicture[femm/view 3d={scene=crossing-wires,
+ visibility=vector,axes=triad,azimuth=0,elevation=90,
+ crossing gap=.1,xmin=-1.2,xmax=1.2,ymin=-1.2,ymax=1.2,
+ zmin=-1.2,zmax=1.2}]
+ \pic {femm view 3d};
+ \pic at (4,0) [femm/view 3d={elevation=-90}]
+  {femm view 3d};
+\endtikzpicture
+\femmviewclear{crossing-wires}
+\endgroup
+\end{codeexample}
+
+\subsection{Marks, tolerances and visibility limits}
+Field marks are located along the full original projected polyline before it
+is split. A single mark uses |mark position| as a fraction of its total screen
+arclength. With positive |mark spacing|, marks start at |mark position| times
+that spacing and repeat at the same interval. Hidden marks are omitted, not
+relocated onto visible fragments. Marks close to a visibility cut are suppressed
+using |mark clearance|. Vector tips remain at their original endpoints when
+visible. Viewport clipping occurs afterwards; it never restarts the mark sequence.
+
+The vector renderer inherits colours, stroke widths and dashes from the ordinary
+scene styles. It clears curve preactions, postactions, path decorations and
+endpoint arrows before drawing fragments, then draws the selected original-curve
+marks with |femm 3d mark|. Whole-curve custom decorations remain available in
+|visibility=layers|; they are not replayed on each vector fragment. Hidden
+strokes use |femm 3d hidden| after the corresponding role style. Marks are
+shown only on visible portions, including when hidden strokes are dashed.
+
+Apply screen transformations to the entire pic or drawing scope. Position
+individual objects with source geometry or plane origin/basis keys. Per-object
+coordinate transformations inside paint styles are not included in visibility
+tests and can invalidate the apparent front/back relations. In vector mode,
+use role and plane styles for paint, typography and arrow appearance.
+
+Visibility uses centre lines, not the exact footprint of wide strokes or arrow
+heads. Choose |crossing gap| and |mark clearance| large enough for the selected
+line width and arrow size. They are measured before ordinary TikZ transforms;
+nonuniform screen scaling can change their apparent sizes. General interleaved transparent solids, perspective and a Z-buffer are not
+implemented by this renderer. Opaque tubes and bounded translucent foreground
+planes are described next.
+
+Surface intersections use a binary space partition; convex projected polygons
+and linear segment depth give hidden intervals analytically. A sweep over
+projected segment bounds finds candidate line crossings. There is no mean-depth
+sorting of whole intersecting objects. |visibility tolerance| is relative to
+the largest coordinate span of the projected scene, with depth expressed in
+drawing centimetres. Within that tolerance, coincident lines remain visible;
+an effectively edge-on plane has no occluding interior. Resolve near-degenerate
+scenes by choosing appropriate geometry and tolerance, not by interpreting
+sub-tolerance gaps as physical features. This is floating-point vector geometry,
+not an exact-predicate or finite-width solid renderer.
+
+The vector renderer paints non-occluding background annotations, partitioned
+opaque faces, hidden strokes, visible strokes and marks, then text/axis overlays.
+Layer numbers control ties and overlay order; they cannot force a geometrically
+hidden line in front of an opaque plane. Labels and axes remain unclipped and
+unoccluded. Explicit work, input-segment and fragment budgets reject excessively
+dense views with an error; there is no silent fallback to layered rendering.
+
+\subsection{Coordinates, clipping and lifetime}
+The shared camera matches the Biot view convention: azimuth zero/elevation zero
+shows $x/z$, and elevation $90$ degrees shows $x/y$. Physical coordinate scales
+are equal before an explicit drawing transform. |coordinate scale| converts one
+model length unit to drawing centimetres; it changes neither samples nor units.
+
+The view bounds define the axes and a projected viewport: project the eight
+corners of the specified box and take their enclosing screen rectangle.
+|clip=true| clips strokes and plane fills to that rectangle. It is \emph{not}
+a three-dimensional box clip; a point outside the box may project inside the
+rectangle. Labels and axes are not clipped, keeping their text legible.
+Changing these bounds never extends or retraces a previously captured field line.
+Infinite-wire drawings are finite segments sampled within the capture bounds.
+
+Scenes are named, process-local copies, like named profiles. Capture freezes the
+source declarations, but adding reference planes does not change the physical
+model. Recapturing the same name replaces the whole scene, including its planes.
+Names survive TeX groups; options and drawing styles retain normal TeX scope.
+Release a scene explicitly when no further views are needed. Scenes are display
+data, not extra |.femx|/|.ansx| solution representations; native model restoration
+and a new capture remain available through the Biot provider.
+
+\subsection{Opaque conductors and a display-only return}
+A thick line in TikZ does not have a spatial silhouette. To see a conductor
+passing in front of one field line and behind another, use |conductors=tube|
+with |visibility=vector|. The tube radius normally comes from the declared
+|wire radius|. Start with modest |geometry samples| and |tube sides| while
+arranging the figure, then refine the display for the final drawing. These
+sampling controls do not change Biot--Savart integration tolerances.
+
+The following circuit includes the axial return in its field calculation.
+The second view hides its two connections and return \emph{only in the drawing}.
+It reuses the same captured field lines, without changing the source model.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={geometry samples=16,
+ seeds={0/.3/0;0/-.3/0},step=.15,maximum length=6}]
+ \femmbiotsource[kind=solenoid,winding=helix,closure=axis,
+  current=2,radius=.8,length=2,turns=2,wire radius=.06]
+ \femmbiotscene[name=solid-coil]
+\endtikzpicture
+\tikzpicture[femm/view 3d={scene=solid-coil,
+ visibility=vector,conductors=tube,tube sides=6,
+ coordinate scale=.9,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-2,zmax=2}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[femm/view 3d={scene=solid-coil,
+ visibility=vector,conductors=tube,tube sides=6,
+ show return=false,show leads=false,tube color=blue!65,
+ coordinate scale=.9,xmin=-1.5,xmax=1.5,
+ ymin=-1.5,ymax=1.5,zmin=-2,zmax=2}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{solid-coil}
+\endgroup
+\end{codeexample}
+
+A filament has no physical radius. To give it a visible illustrative thickness,
+choose |tube radius=schematic,tube size=.04|: the size is a radius in model
+units, not a line width in points. It never changes the magnetic field. Conversely,
+|closure=contribution| changes the physical source by removing the return and
+connections; it is not equivalent to |show return=false,show leads=false|.
+
+\subsection{A bounded transparent foreground}
+A translucent reference plane can tint objects behind it without hiding their
+strokes. Use |occlusion=translucent| and an explicit numerical |opacity|.
+In vector mode the whole plane must lie strictly in front of every displayed
+opaque surface and curve, according to the selected camera. Two such foreground
+planes may intersect: their polygons are partitioned before alpha composition.
+A camera which breaks the foreground condition is rejected. This conservative
+condition avoids claiming a general transparent-solid renderer.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={geometry samples=16}]
+ \femmbiotsource[kind=loop,current=1,radius=.8]
+ \femmbiotscene[name=tinted-loop,field=false]
+\endtikzpicture
+\femmviewplane[scene=tinted-loop,plane=xy,origin=0/0/.5,
+ umin=-1,umax=1,vmin=-1,vmax=1,
+ occlusion=translucent,opacity=.22,style={fill=blue!50}]
+\tikzpicture[femm/view 3d={scene=tinted-loop,
+ visibility=vector,conductors=tube,tube radius=schematic,
+ tube size=.05,tube sides=8,azimuth=0,elevation=90,
+ axes=none,xmin=-1.2,xmax=1.2,ymin=-1.2,ymax=1.2,
+ zmin=-1,zmax=1,coordinate scale=1.5}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{tinted-loop}
+\endgroup
+\end{codeexample}
+
+Translucent foreground planes have no grid or stroked outline; their labels
+remain ordinary overlays. Use |occlusion=none| for an unrestricted pale
+background annotation instead. Neither convention describes a dielectric
+interface or changes the physical field. Scene geometry and visibility are
+independent of the physical provider; the current public capture command uses
+prescribed magnetic currents.
+
+\subsubsection{Tube geometry and limits}
+Cross sections are regular polygons transported along the captured centre line
+with rotation-minimising frames. Residual twist is distributed along a closed
+curve so its first and last rings coincide. Open curves have flat end caps;
+separately captured pieces have separate caps. Side patches are triangulated,
+back faces are culled, and the remaining convex faces use the same spatial
+partitioning and line clipping as opaque planes. Lighting is a fixed display
+cue in camera coordinates, not a physical field or an optical calculation.
+
+The radius should remain small compared with bend radii, turn separation and
+segment lengths. This display mesh is not a solid modeller: it neither detects
+all self-intersections nor computes unions of intersecting conductors. Reversing
+tangents and duplicate samples are rejected. Sharp polygon corners are joined
+by the sampled cross sections; they are not automatically rounded or mitred.
+Hidden-line styling applies to curves, not to hidden tube facets. In layered
+mode the same front-facing facets follow declaration order, which can give
+incorrect overlap; use vector mode for geometric visibility. Polygon partitioning
+can produce many more PDF paths than the initial mesh. Explicit face, work and
+fragment budgets stop excessive cases without silently lowering detail.
+
+\subsubsection{Conductor and part-display keys}
+The following keys are scoped to the view, so multiple pics can display the
+same captured scene differently. They apply to both rendering modes.
+\begin{key}{/femm/view 3d/conductors=line\textbar tube (initially \texttt{line})}
+Draw source centre lines or a faceted opaque tube. Only captured geometry is
+changed; field samples and stored source declarations are untouched.
+\end{key}
+\begin{key}{/femm/view 3d/tube radius=physical\textbar schematic (initially \texttt{physical})}
+In tube mode, use each source's physical wire radius, or the view's tube size.
+A zero physical radius is rejected: explicitly request a schematic tube for
+a filament. The latter has no physical volume-current interpretation.
+\end{key}
+\begin{key}{/femm/view 3d/tube size=\meta{radius} (initially \texttt{.04})}
+Positive radius in scene/model length units; used only by schematic tubes.
+Coordinate scale and whole-picture TikZ transforms subsequently scale the drawing.
+\end{key}
+\begin{key}{/femm/view 3d/tube sides=\meta{integer} (initially \texttt{8})}
+Between 4 and 32 sides per cross section. Longitudinal detail comes from the
+capture's geometry samples. Increase both only when their visible faceting matters.
+\end{key}
+\begin{key}{/femm/view 3d/tube budget=\meta{integer} (initially \texttt{8000})}
+From 100 to 20\,000 initial faces across displayed tubes, checked before allocating
+rings. Each path is conservatively budgeted as two triangles per side and
+longitudinal segment, plus two caps, including closed paths. Vector partitioning
+has the separate fragment and work budgets described below.
+\end{key}
+\begin{key}{/femm/view 3d/tube color=\meta{colour} (initially \texttt{orange!70!black})}
+PGF colour expression. Camera-relative facet lighting mixes it with black;
+the tube style is applied afterward and may override the fill. Opaque vector
+facets force full opacity and no outline after the style.
+\end{key}
+\begin{key}{/femm/view 3d/show geometry=true\textbar false (initially \texttt{true})}
+Display captured source geometry. False suppresses all winding, lead and return
+parts; true still respects the individual part switches. It cannot restore
+geometry omitted at capture.
+\end{key}
+\begin{key}{/femm/view 3d/show field=true\textbar false (initially \texttt{true})}
+Display captured field lines and their marks; does not recalculate them.
+\end{key}
+\begin{key}{/femm/view 3d/show vectors=true\textbar false (initially \texttt{true})}
+Display captured field arrows independently of field lines.
+\end{key}
+\begin{key}{/femm/view 3d/show planes=true\textbar false (initially \texttt{true})}
+Display reference planes, their grids and labels. False also removes their
+occlusion; axes are controlled independently by the axes key.
+\end{key}
+\begin{key}{/femm/view 3d/show winding=true\textbar false (initially \texttt{true})}
+Display the main current path: wire, loop, planar turns or helical winding.
+This is the default part for generic geometric paths.
+\end{key}
+\begin{key}{/femm/view 3d/show leads=true\textbar false (initially \texttt{true})}
+Display the two radial connections of an axial-return solenoid helix.
+Other source kinds currently have no separately identified leads.
+\end{key}
+\begin{key}{/femm/view 3d/show return=true\textbar false (initially \texttt{true})}
+Display the axial return of a solenoid with axis closure. False removes its
+drawing and its occlusion, but retains its magnetic contribution. It has no
+effect on a source whose return was never declared.
+\end{key}
+\begin{key}{/femm/view plane/opacity=\meta{fraction} (initially \texttt{.25})}
+Finite fraction in $(0,1]$, used by translucent foreground fills in vector
+mode. Overrides fill opacity in their style. Other planes and layered views
+retain their existing style-opacity rules.
+\end{key}
+\begin{key}{/tikz/femm 3d tube}
+Initially draw=none. Applied to every tube facet after its computed fill colour.
+Override or append ordinary paint options; per-facet transformations, arbitrary
+decorations and opacity cannot be used to redefine the visibility geometry.
+\end{key}
+
+\subsection{Commands and key families}
+All numeric scene controls accept finite literals. Evaluate expressions with
+PGF first when necessary. Missing names and unsupported choices fail explicitly.
+Only orthographic projection is provided; visibility can use layers or the bounded vector renderer.
+
+\begin{command}{\femmbiotscene\oarg{options}}
+Capture the current Biot model, or a named model, with keys under
+|/femm/biot scene|. Uses the current |/femm/biot view| tracing/sampling settings;
+its camera settings are irrelevant at capture. All selected paths are evaluated
+and copied before the named scene is replaced. At most 20\,000 paths and
+2\,000\,000 retained points are accepted.
+\end{command}
+\begin{command}{\femmviewplane\oarg{options}}
+Append a finite plane to an existing scene using |/femm/view plane|.
+At most 32 planes are accepted; each grid is limited to 2\,000 lines.
+\end{command}
+\begin{command}{\femmviewclear\marg{name}}
+Release a named scene. Subsequent uses of that name fail until a new capture.
+\end{command}
+\begin{key}{/tikz/femm/biot scene=\meta{options}}
+TikZ-key spelling of |\femmbiotscene|. Use on a path after source declarations,
+not in the picture options before the physical model has been initialized.
+\end{key}
+\begin{key}{/tikz/femm/view plane=\meta{options}}
+TikZ-key spelling of |\femmviewplane|, for an already captured scene.
+\end{key}
+\begin{key}{/tikz/femm/view 3d=\meta{options}}
+Set shared drawing keys in a picture, scope or pic. Draw the scene with
+|\pic {femm view 3d};|; this pic resolves the current view keys and styles.
+It never calls the magnetic field evaluator or tracer.
+\end{key}
+\begin{key}{/tikz/pics/femm view 3d}
+The scene-rendering pic. Its ordinary placement and transform are drawing-only.
+\end{key}
+
+\subsubsection{Biot Scene keys}
+\begin{key}{/femm/biot scene/name=\meta{value} (initially empty)}
+Required scene identifier: letters, digits, colon, underscore or hyphen, starting with a letter or digit. Existing data at this name are replaced only after capture succeeds.
+\end{key}
+\begin{key}{/femm/biot scene/model=\meta{value} (initially empty)}
+Empty selects the current Biot picture; otherwise select a previously named Biot model. No coordinate transform is taken from the picture used later for drawing.
+\end{key}
+\begin{key}{/femm/biot scene/geometry=true\textbar false (initially \texttt{true})}
+Capture sampled source centre lines with physical radius and part metadata. Views can subsequently display lines or tubes; neither display changes the volume-current model.
+\end{key}
+\begin{key}{/femm/biot scene/field=true\textbar false (initially \texttt{true})}
+Capture true three-dimensional field lines using the current trace controls. Disabling this skips field-line integration.
+\end{key}
+\begin{key}{/femm/biot scene/vectors=true\textbar false (initially \texttt{false})}
+Capture vectors on the coordinate slice selected by the Biot view controls. Disabling this skips vector sampling.
+\end{key}
+
+\subsubsection{View 3D keys}
+\begin{key}{/femm/view 3d/scene=\meta{value} (initially empty)}
+Required name of an already captured scene.
+\end{key}
+\begin{key}{/femm/view 3d/azimuth=\meta{value} (initially \texttt{-45})}
+Camera angle in degrees, matching the Biot view convention. Applied only at rendering.
+\end{key}
+\begin{key}{/femm/view 3d/elevation=\meta{value} (initially \texttt{25})}
+Camera elevation in degrees. Applied only at rendering.
+\end{key}
+\begin{key}{/femm/view 3d/projection=orthographic (initially \texttt{orthographic})}
+Only orthographic projection is implemented. Other choices fail explicitly.
+\end{key}
+\begin{key}{/femm/view 3d/visibility=layers\textbar vector (initially \texttt{layers})}
+Choose explicit drawing layers, or geometric visibility for sampled lines and opaque planar surfaces. Vector rendering partitions intersecting surfaces and clips hidden intervals; it is not a depth buffer or a solid-conductor renderer.
+\end{key}
+\begin{key}{/femm/view 3d/coordinate scale=\meta{value} (initially \texttt{1})}
+Positive drawing centimetres per model length unit before ordinary TikZ transforms. Axis values retain model units. Reduce this factor if projected coordinates exceed the supported TeX range (400 cm in either screen coordinate).
+\end{key}
+\begin{key}{/femm/view 3d/axes=none\textbar triad\textbar origin\textbar box (initially \texttt{triad})}
+No axes, an ungraduated orientation symbol, physical axes through origin, or a graduated box. Only box/origin use tick controls and units.
+\end{key}
+\begin{key}{/femm/view 3d/origin=\meta{value} (initially \texttt{0/0/0})}
+Physical triple x/y/z in model units for origin axes; it must lie within the view bounds. Box axes choose their display corner automatically; the triad has no physical origin.
+\end{key}
+\begin{key}{/femm/view 3d/xmin=\meta{value} (initially \texttt{-3})}
+Physical lower x bound in model units for axes and the projected viewport. Each upper bound must exceed its lower bound; this does not change captured trace endpoints.
+\end{key}
+\begin{key}{/femm/view 3d/xmax=\meta{value} (initially \texttt{3})}
+Physical upper x bound in model units for axes and the projected viewport. Each upper bound must exceed its lower bound; this does not change captured trace endpoints.
+\end{key}
+\begin{key}{/femm/view 3d/ymin=\meta{value} (initially \texttt{-3})}
+Physical lower y bound in model units for axes and the projected viewport. Each upper bound must exceed its lower bound; this does not change captured trace endpoints.
+\end{key}
+\begin{key}{/femm/view 3d/ymax=\meta{value} (initially \texttt{3})}
+Physical upper y bound in model units for axes and the projected viewport. Each upper bound must exceed its lower bound; this does not change captured trace endpoints.
+\end{key}
+\begin{key}{/femm/view 3d/zmin=\meta{value} (initially \texttt{-3})}
+Physical lower z bound in model units for axes and the projected viewport. Each upper bound must exceed its lower bound; this does not change captured trace endpoints.
+\end{key}
+\begin{key}{/femm/view 3d/zmax=\meta{value} (initially \texttt{3})}
+Physical upper z bound in model units for axes and the projected viewport. Each upper bound must exceed its lower bound; this does not change captured trace endpoints.
+\end{key}
+\begin{key}{/femm/view 3d/clip=true\textbar false (initially \texttt{true})}
+Clip scene strokes and plane fills to the projected viewport rectangle. Text labels and axes remain unclipped. No physical tracing bounds or 3D volume clipping are changed.
+\end{key}
+\begin{key}{/femm/view 3d/triad size=\meta{value} (initially \texttt{.65})}
+Positive length in drawing centimetres before TikZ transforms. Projected unit directions are foreshortened by the camera; this symbol is not a physical ruler.
+\end{key}
+\begin{key}{/femm/view 3d/triad margin=\meta{value} (initially \texttt{.45})}
+Nonnegative gap parameter in drawing centimetres below the viewport. The triad remains outside the clipped scene.
+\end{key}
+\begin{key}{/femm/view 3d/ticks=none\textbar major (initially \texttt{major})}
+No ticks or major ticks on origin/box axes. Triad and none ignore this setting.
+\end{key}
+\begin{key}{/femm/view 3d/tick step=\meta{value} (initially \texttt{1})}
+Positive interval in model units, shared by the three axes. At most 200 intervals per axis when ticks are enabled.
+\end{key}
+\begin{key}{/femm/view 3d/tick size=\meta{value} (initially \texttt{.04})}
+Nonnegative tick half-length in drawing centimetres.
+\end{key}
+\begin{key}{/femm/view 3d/tick labels=true\textbar false (initially \texttt{true})}
+Show numerical major-tick values using PGF number formatting. The axis intersection value is omitted to reduce collisions.
+\end{key}
+\begin{key}{/femm/view 3d/label distance=\meta{value} (initially \texttt{.16})}
+Nonnegative offset in drawing centimetres for axis names and numerical tick labels. Box tick labels point outward; horizontal box axis names use three times this offset at the edge midpoint.
+\end{key}
+\begin{key}{/femm/view 3d/axis units=true\textbar false (initially \texttt{true})}
+Append the captured model length-unit abbreviation to origin/box axis names. Disable for fully customized labels. Triad labels never append units.
+\end{key}
+\begin{key}{/femm/view 3d/x label=\meta{value} (initially $x$)}
+TeX text/math for the x axis. Retained unexpanded until drawing; ordinary label styles remain scoped.
+\end{key}
+\begin{key}{/femm/view 3d/y label=\meta{value} (initially $y$)}
+TeX text/math for the y axis. Retained unexpanded until drawing; ordinary label styles remain scoped.
+\end{key}
+\begin{key}{/femm/view 3d/z label=\meta{value} (initially $z$)}
+TeX text/math for the z axis. Retained unexpanded until drawing; ordinary label styles remain scoped.
+\end{key}
+\begin{key}{/femm/view 3d/geometry layer=\meta{value} (initially \texttt{20})}
+Integer drawing priority from -1000 to 1000 for geometry primitives. Smaller numbers draw first; equal priorities retain insertion order.
+\end{key}
+\begin{key}{/femm/view 3d/field layer=\meta{value} (initially \texttt{10})}
+Integer drawing priority from -1000 to 1000 for field primitives. Smaller numbers draw first; equal priorities retain insertion order.
+\end{key}
+\begin{key}{/femm/view 3d/vector layer=\meta{value} (initially \texttt{30})}
+Integer drawing priority from -1000 to 1000 for vector primitives. Smaller numbers draw first; equal priorities retain insertion order.
+\end{key}
+\begin{key}{/femm/view 3d/axes layer=\meta{value} (initially \texttt{40})}
+Integer drawing priority from -1000 to 1000 for axes primitives. Smaller numbers draw first; equal priorities retain insertion order.
+\end{key}
+
+\subsubsection{Vector visibility keys}
+These keys retain normal TeX scope and affect only |visibility=vector|.
+\begin{key}{/femm/view 3d/hidden=omit\textbar dashed (initially \texttt{omit})}
+Vector mode only: omit hidden curve portions, or draw them with the role style followed by |femm 3d hidden|. Hidden portions have no marks.
+\end{key}
+\begin{key}{/femm/view 3d/visibility tolerance=\meta{fraction} (initially \texttt{1e-8})}
+Positive relative geometric tolerance, at most $10^{-3}$. Scaled by the largest projected coordinate/depth span; depth uses drawing centimetres. Controls coincident-depth and edge-on decisions, not physical field accuracy.
+\end{key}
+\begin{key}{/femm/view 3d/visibility budget=\meta{integer} (initially \texttt{1000000})}
+Vector work limit, from 100 to 10\,000\,000 geometric and mark-generation operations. Exceeding it raises an error. Dense projected scenes can require much more work than their sparse spatial geometry suggests.
+\end{key}
+\begin{key}{/femm/view 3d/fragment budget=\meta{integer} (initially \texttt{50000})}
+Vector limit on input segments, generated surface partitions and output primitives, each checked separately. Integer from 100 to 1\,000\,000. Increase only after reviewing scene complexity and memory cost.
+\end{key}
+\begin{key}{/femm/view 3d/crossing gap=\meta{length} (initially \texttt{.06})}
+Nonnegative half-gap along the farther original curve at a projected line crossing, in drawing centimetres. Positive values also enable collinear-overlap handling. Zero disables line--line occlusion; line--plane visibility remains active. This is a schematic display distance, never a wire radius.
+\end{key}
+\begin{key}{/femm/view 3d/field marks=true\textbar false (initially \texttt{true})}
+Enable original-curve field arrows in vector mode. Does not control vector endpoint tips or decorations in layered mode.
+\end{key}
+\begin{key}{/femm/view 3d/mark position=\meta{fraction} (initially \texttt{.55})}
+Value from 0 to 1. With zero spacing, fraction of full projected field-line arclength. With positive spacing, fractional offset within the first spacing interval. Mark locations are fixed before visibility cuts.
+\end{key}
+\begin{key}{/femm/view 3d/mark spacing=\meta{length} (initially \texttt{0})}
+Nonnegative drawing-centimetre interval between field marks in vector mode. Zero requests one mark; positive values repeat marks. Positions use the full projected polyline before viewport clipping.
+\end{key}
+\begin{key}{/femm/view 3d/mark clearance=\meta{length} (initially \texttt{.16})}
+Nonnegative drawing-centimetre exclusion distance on either side of a hidden interval. Suppresses field marks and vector tips near visibility cuts. Adjust for custom arrow sizes; hidden marks are not shifted.
+\end{key}
+
+\subsubsection{View Plane keys}
+\begin{key}{/femm/view plane/scene=\meta{value} (initially empty)}
+Required existing scene name. The plane becomes part of that scene until replacement or release.
+\end{key}
+\begin{key}{/femm/view plane/occlusion=opaque\textbar none\textbar translucent (initially \texttt{opaque})}
+In vector mode, an opaque plane participates in depth tests and surface
+partitioning; fill and opacity are forced on after its style. A none plane is a
+non-occluding background annotation with ordinary transparency. Layered mode
+ignores this key. Translucent planes require grid=none and must lie wholly
+in front of opaque surfaces and curves in vector mode; their intersections
+are partitioned for alpha composition, without outlines. No choice changes the physical model.
+\end{key}
+\begin{key}{/femm/view plane/plane=xy\textbar xz\textbar yz\textbar custom (initially \texttt{xy})}
+Choose a coordinate plane through origin, or a custom two-vector basis. The origin key supplies translation in all modes.
+\end{key}
+\begin{key}{/femm/view plane/origin=\meta{value} (initially \texttt{0/0/0})}
+Triple x/y/z in physical model units. Zero means a coordinate plane through the physical origin.
+\end{key}
+\begin{key}{/femm/view plane/u=\meta{value} (initially \texttt{1/0/0})}
+Dimensionless three-component first basis vector, used only for custom planes.
+\end{key}
+\begin{key}{/femm/view plane/v=\meta{value} (initially \texttt{0/1/0})}
+Dimensionless second basis vector for custom planes. Both basis vectors must be nonzero and linearly independent; nearly parallel bases are rejected.
+\end{key}
+\begin{key}{/femm/view plane/umin=\meta{value} (initially \texttt{-2})}
+Finite lower bound for the u parameter, in model units. Upper must exceed lower; a custom basis may scale or shear the physical extent.
+\end{key}
+\begin{key}{/femm/view plane/umax=\meta{value} (initially \texttt{2})}
+Finite upper bound for the u parameter, in model units. Upper must exceed lower; a custom basis may scale or shear the physical extent.
+\end{key}
+\begin{key}{/femm/view plane/vmin=\meta{value} (initially \texttt{-2})}
+Finite lower bound for the v parameter, in model units. Upper must exceed lower; a custom basis may scale or shear the physical extent.
+\end{key}
+\begin{key}{/femm/view plane/vmax=\meta{value} (initially \texttt{2})}
+Finite upper bound for the v parameter, in model units. Upper must exceed lower; a custom basis may scale or shear the physical extent.
+\end{key}
+\begin{key}{/femm/view plane/grid=none\textbar major\textbar both (initially \texttt{none})}
+No grid, major grid, or major and minor grid lines. The grid has the plane layer and does not sample the field.
+\end{key}
+\begin{key}{/femm/view plane/step=\meta{value} (initially \texttt{1})}
+Positive major-grid interval in the a/b plane parameters, in model units. Major lines occur at integer multiples of this interval.
+\end{key}
+\begin{key}{/femm/view plane/subdivisions=\meta{value} (initially \texttt{5})}
+Integer from 2 to 10, used only by the both-grid mode. Minor lines subdivide each major interval.
+\end{key}
+\begin{key}{/femm/view plane/layer=\meta{value} (initially \texttt{0})}
+Integer drawing priority from -1000 to 1000. The fill, grid and label share this priority. Later equal-priority planes are drawn later.
+\end{key}
+\begin{key}{/femm/view plane/label=\meta{value} (initially empty)}
+Ordinary TeX text/math at the maximum-a, maximum-b corner. Empty suppresses the label. Text is unclipped; use the plane-label style to change placement.
+\end{key}
+\begin{key}{/femm/view plane/style=\meta{value} (initially empty)}
+Ordinary TikZ options appended after the global plane style. Use fill opacity and draw opacity separately when appropriate.
+\end{key}
+\begin{key}{/femm/view plane/grid style=\meta{value} (initially empty)}
+Ordinary TikZ options appended to both major and minor grid styles for this plane.
+\end{key}
+
+\subsection{Drawing styles}
+Use |.append style| to preserve default arrows and decorations. Styles are
+resolved when drawing, so one stored scene can have several presentations.
+Numerical view keys configure layout; ordinary TikZ options configure appearance.
+\begin{key}{/tikz/femm 3d geometry}
+Source centre lines; inherits femm biot conductor. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d field}
+Captured field lines; inherits femm biot field and its orientation marks. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d vector}
+Captured field arrows; inherits femm biot vector. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d axis}
+Thin dark-grey axes with small arrowheads. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d x axis}
+Additional x-axis options, initially empty. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d y axis}
+Additional y-axis options, initially empty. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d z axis}
+Additional z-axis options, initially empty. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d box}
+Thin pale-grey box edges. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d tick}
+Short dark-grey tick strokes. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d axis label}
+Axis text with small inner separation; placement anchor follows the projected direction. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d tick label}
+Compact numerical tick labels, scaled to 0.7. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d plane}
+Pale blue fill with fill opacity 0.12 and a thin blue outline. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d grid}
+Thin light-grey major grid lines. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d minor grid}
+Thinner, paler minor grid lines. Override with ordinary TikZ style handlers.
+\end{key}
+\begin{key}{/tikz/femm 3d plane label}
+Plane-corner text, initially anchored south west with a small gap. Override with ordinary TikZ style handlers.
+\end{key}
+
+\begin{key}{/tikz/femm 3d hidden}
+Style appended to hidden strokes in vector mode with |hidden=dashed|.
+Initially |densely dashed,draw opacity=.3|. Override dash pattern, colour or
+opacity with ordinary scoped styles; it does not change visibility tests.
+\end{key}
+\begin{key}{/tikz/femm 3d mark}
+Style appended to visible original-curve marks and vector endpoint tips in
+vector mode, after role paint and removal of fragment decorations. Initially
+|solid,draw opacity=1|, after the shared curved-arrow tip setup.
+The default tip is |Stealth| with length |1.3mm|. Adapt |mark clearance| when
+changing the tip size. Layered decorations are independent of this style.
+\end{key}
+
+\subsection{Arrows that follow tight curves, in two and three dimensions}
+\label{sec:curved-arrows}
+A long, rigid arrowhead on a short tangent can visibly leave a curved field
+line. Field marks now use a short local cubic support and native PGF arrow
+heads. The default |bend| mode bends the head along that support; |adaptive|
+keeps the head rigid and reduces it when necessary. The following deliberately
+large heads make the difference visible. These are display curves, not a
+calculated magnetic model.
+\begin{codeexample}[width=0pt]
+\tikzpicture[femm/arrow length=2mm,femm/arrow width=1mm,
+ femm/arrow spacing=9mm]
+ \foreach \mode/\x in {bend/0,adaptive/3,tangent/6} {
+  \scope[xshift=\x cm,femm/arrow mode=\mode]
+   \draw[blue!65!black,femm oriented field]
+     (0,0) circle[radius=.6];
+   \draw[blue!65!black,femm oriented field]
+     (-.7,-1.5) .. controls (-.7,.3) and (.7,-3.3) .. (.7,-1.5);
+   \node[below] at (0,-2) {\tt\mode};
+  \endscope
+ }
+\endtikzpicture
+\end{codeexample}
+
+\begin{key}{/tikz/femm/arrow mode=\meta{bend, adaptive, tangent} (initially bend)}
+A scoped drawing choice shared by magnetic, ideal-circuit, eddy-current,
+electric and prescribed-current field lines. |bend| uses PGF's native bending
+module on the local cubic support. |adaptive| uses a rigid, tangent-aligned
+head and bounds its departure from the captured curve by reducing its size.
+|tangent| keeps the requested size where space permits and omits the fit test;
+it is useful for comparison, but a long head can leave a tight curve.
+No mode changes field samples or the integrated line. Unrelated TikZ arrows
+retain their own settings. Straight vector arrows keep their endpoint semantics.
+\end{key}
+\begin{key}{/tikz/femm/arrow tip=\meta{PGF arrow name} (initially Stealth)}
+Selects a native |arrows.meta| tip, for example |Latex|. Use a tip that supports
+PGF's |length| and |width| keys. The existing |femm/arrow length| and
+|femm/arrow width| set the requested physical dimensions. The fit scales both
+by the same factor. Custom tips retain their native PGF behaviour.
+\end{key}
+\begin{key}{/tikz/femm/arrow fit tolerance=\meta{dimension} (initially .02mm)}
+Positive drawing tolerance for the sampled discrepancy between the local cubic
+support and the captured polyline. In |adaptive| mode it also bounds the sampled
+departure from the tangent over the head's length. This is a display fit check,
+not a certified bound between every pair of samples or a solver tolerance.
+Ordinary 2D paths are fitted in canvas coordinates after their transformations.
+A 3D scene is fitted after camera projection and |coordinate scale|, before any
+outer TikZ canvas transformation. Prefer |coordinate scale| to outer anisotropic
+scaling when this tolerance must have its stated on-page meaning.
+\end{key}
+\begin{key}{/tikz/femm/arrow minimum scale=\meta{number} (initially .25)}
+Allowed range $0<s\leq1$. A head is omitted if no acceptable support fits with
+at least this fraction of the requested size. Supports also stop at visibility
+cuts: a mark is never reintroduced on each fragment. The requested positions
+stay on the original projected arclength. To retain more small arrows use,
+for example, |femm/arrow minimum scale=.15|; to avoid small arrowheads increase
+this value. The 2D marking interval remains |femm/arrow spacing|, while spatial
+vector visibility uses |/femm/view 3d/mark spacing| and |mark clearance|.
+\end{key}
+
+\Needspace{45\baselineskip}
+\subsection{A helical toroid from opposite directions}
+The conductor below is one continuous toroidal helix. The three views share the
+same current model and traced lines. Dashed hidden portions explain the winding;
+they do not denote a smaller current or weaker field. Arrowheads follow the
+visible field line curvature and keep their original positions under cuts.
+The third view adds opaque faceted tubes with an explicitly schematic radius;
+it keeps the filament field unchanged. Its larger visibility budget accommodates
+the additional display faces. Begin with centre lines for fast editing.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/biot,
+ femm/biot view={seeds={1.6/0/0;1.6/0/.22},
+ step=.14,maximum length=11,geometry samples=32}]
+ \femmbiotsource[kind=toroid,winding=helix,current=2,
+  major radius=1.6,radius=.5,turns=10]
+ \femmbiotscene[name=helical-ring]
+\endtikzpicture
+\tikzset{ring view/.style={femm/view 3d={scene=helical-ring,
+ visibility=vector,hidden=dashed,mark spacing=2,
+ xmin=-2.3,xmax=2.3,ymin=-2.3,ymax=2.3,zmin=-1,zmax=1,
+ elevation=35,coordinate scale=.65}}}
+\tikzpicture[ring view]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[ring view,femm/view 3d={azimuth=135}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[ring view,femm/view 3d={conductors=tube,
+ tube radius=schematic,tube size=.035,tube sides=6,
+ visibility budget=5000000}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{helical-ring}
+\endgroup
+\end{codeexample}
+
+\subsection{Electric sections and genuinely spatial electric lines}
+\label{sec:electric-scenes}
+The same camera, reference planes, clipping and visibility work with electric
+scenes. Declare the electric model and all its sources first. Capture the desired
+lines, source boundaries and equipotential contours with |\femmelectricscene|.
+Then draw and restyle the owned scene, even outside its original picture.
+A new view never recalculates the electric field. Release scenes that are no
+longer needed with |\femmviewclear|.
+
+Two capture modes answer different questions. |mode=slice| places the existing
+2D section into space: its coordinates become the two coordinates of the chosen
+plane. This is useful for arranging sections in a course figure. |mode=spatial|
+integrates the actual three-component electric field. Its equipotentials are
+still contours on the selected plane, not entire equipotential surfaces.
+Changing the plane in spatial mode changes where the potential is sampled;
+it does not rotate the sources or constrain field lines to that plane.
+
+Here the sources are genuine point charges in the original $z=0$ plane. The
+left picture is the familiar section. On the right, field lines leave that
+plane; the orange curves remain contours of $V(x,y,0)$. Red wireframe circles
+mark exclusion balls around the point singularities, not charged solid spheres.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[scale=.7,femm/electrostatic={length unit=cm},
+ femm/electric={lines per charge=6,contour resolution=40,
+ levels={-500,-200,0,200,500},max length=12}]
+ \node[femm/point charge={charge=1e-9}] at (-.8,0) {$+$};
+ \node[femm/point charge={charge=-1e-9}] at (.8,0) {$-$};
+ \pic {femm electric field};
+ \pic {femm equipotentials};
+ \femmelectricscene[name=electric-dipole,mode=spatial]
+ \node[below] at (0,-2.2) {Section $z=0$};
+\endtikzpicture
+\quad
+\tikzpicture[femm/view 3d={scene=electric-dipole,
+ visibility=vector,hidden=dashed,coordinate scale=.8,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2,
+ azimuth=-35,elevation=30}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{electric-dipole}
+\endgroup
+\end{codeexample}
+
+The next model is a uniformly charged sphere, not a collection of point charges.
+On the left its original section is embedded in the $xz$ plane. On the right
+radial lines are integrated in space and the potential is sampled at $z=.4\,\mathrm m$.
+The three red great circles describe the sphere; they are a wireframe annotation
+and do not make the sphere opaque. A change of camera preserves both calculations.
+\begin{codeexample}[width=0pt]
+\begingroup
+\tikzpicture[femm/electrostatic={model=charged sphere,
+ length unit=m,radius=.7,volume charge density=1e-9},
+ femm/electric={lines per charge=8,levels={10,15,20},
+ contour resolution=40,xmin=-2,xmax=2,ymin=-2,ymax=2}]
+ \femmelectricscene[name=sphere-section,mode=slice,plane=xz]
+ \femmelectricscene[name=sphere-space,mode=spatial,
+  plane=xy,offset=.4,zmin=-2,zmax=2]
+\endtikzpicture
+\tikzset{sphere view/.style={femm/view 3d={
+ visibility=vector,hidden=dashed,coordinate scale=.8,
+ xmin=-2,xmax=2,ymin=-2,ymax=2,zmin=-2,zmax=2}}}
+\tikzpicture[sphere view,femm/view 3d={scene=sphere-section}]
+ \pic {femm view 3d};
+\endtikzpicture
+\quad
+\tikzpicture[sphere view,femm/view 3d={scene=sphere-space}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{sphere-section}\femmviewclear{sphere-space}
+\endgroup
+\end{codeexample}
+
+\Needspace{42\baselineskip}
+For an axisymmetric finite-element result, the original horizontal coordinate
+is $r$ and the original vertical coordinate is $z$. The next example revolves
+that solution into world coordinates. The two prescribed potentials give
+$E_z=1000\,\mathrm{V/m}$ in this centimetre-sized cylinder. The orange lines
+sample the meridian plane $y=0$. Explicit seeds include negative world $x$ and
+$y$, although the original mesh uses only $r\geq0$. The capture style can be
+reused for another electric model with the same window.
+\begin{codeexample}[width=0pt]
+\begingroup
+\pgfkeys{/femm/electric scene/course/.style={mode=spatial,
+ plane=xz,offset=0,zmin=0,zmax=1,
+ seeds={.5/0/.5,0/.5/.5,-.5/0/.5,0/-.5/.5}}}
+\tikzpicture[femm/electrostatic={model=finite elements,
+ problem type=axisymmetric,length unit=cm,
+ xmin=0,xmax=1,ymin=0,ymax=1,
+ outer boundary=insulated,mesh size=.3},
+ femm/electric={xmin=-1,xmax=1,ymin=-1,ymax=1,
+ levels={2,5,8},contour resolution=32}]
+ \path[femm/electric electrode={name=bottom,potential=10}]
+   (0,0)--(1,0);
+ \path[femm/electric electrode={name=top,potential=0}]
+   (0,1)--(1,1);
+ \path[femm/electric scene={course,name=axial-electric}];
+\endtikzpicture
+\tikzpicture[femm/view 3d={scene=axial-electric,
+ visibility=vector,hidden=dashed,axes=box,tick step=1,
+ coordinate scale=1.5,
+ xmin=-1,xmax=1,ymin=-1,ymax=1,zmin=0,zmax=1}]
+ \pic {femm view 3d};
+\endtikzpicture
+\femmviewclear{axial-electric}
+\endgroup
+\end{codeexample}
+
+\begin{command}{\femmelectricscene\opt{\oarg{options}}}
+Captures an owned scene. Its option family is |/femm/electric scene|.
+Supply a |name|; use |model| to select an already
+named electric snapshot, or leave it empty to use the current electric picture.
+The command freezes the selected model, so declare sources and boundaries
+before capturing. Capturing an existing name replaces its paths and reference planes.
+\end{command}
+\begin{key}{/tikz/femm/electric scene=\marg{options}}
+Immediate key form of |\femmelectricscene|, suitable for a path or scope after
+physical declarations, for example
+|\path[femm/electric scene={name=section,field=false}];|.
+It is not an end-of-picture hook: using it in a picture's initial options
+would precede source declarations. In the capture family,
+|course/.style={mode=spatial}| can collect reusable options.
+\end{key}
+\begin{key}{/femm/electric scene/name=\meta{identifier} (initially empty)}
+Required registry identifier, shared with magnetic scenes. ASCII letters,
+digits, colons, underscores and hyphens are accepted, with an alphanumeric first
+character. Scene geometry owns its point arrays; it survives the model's TeX group.
+\end{key}
+\begin{key}{/femm/electric scene/model=\meta{identifier} (initially empty)}
+An electric snapshot saved with |/femm/electrostatic/name|. Empty selects the
+current picture. Capture controls are local to the command; named results persist
+until explicitly cleared. The scene stores geometry, not a live model reference.
+\end{key}
+\begin{key}{/femm/electric scene/mode=\meta{slice, spatial} (initially slice)}
+|slice| uses the existing 2D line, contour and vector providers, including the
+finite-element and source-correction contour algorithms. |spatial| evaluates
+Coulomb sources at $(x,y,z)$, lifts spherical analytical models radially,
+extrudes planar finite-element models and infinite-cylinder models, and revolves
+axisymmetric finite-element models. For axisymmetric results the original
+$(r,z)$ field becomes $(E_r x/r,E_r y/r,E_z)$; at $r=0$ its regular radial
+component is zero. This uses the original physical symmetry and is not a general
+3D finite-element solve. Planar anisotropic models retain their stated in-plane
+tensor and $E_z=0$.
+\end{key}
+\begin{key}{/femm/electric scene/plane=\meta{xy, xz, yz} (initially xy)}
+Selects the embedding plane in slice mode and the world-coordinate contour plane
+in spatial mode. The ordered pairs are $(x,y)$, $(x,z)$ and $(y,z)$ respectively.
+The existing |/femm/electric/xmin|, |xmax|, |ymin| and |ymax| bound the two contour
+coordinates in that order. In spatial mode those same controls also bound the
+$x$ and $y$ coordinates of the trace box. Select an explicit compatible window
+when the contour plane differs from |xy|.
+\end{key}
+\begin{key}{/femm/electric scene/offset=\meta{number} (initially 0)}
+Coordinate perpendicular to the selected plane, in model length units. In slice
+mode this only places a drawing; it does not calculate a new physical section.
+In spatial mode it selects where to evaluate $V$. Source geometry and spatial
+field lines keep their original world coordinates.
+\end{key}
+\begin{key}{/femm/electric scene/zmin=\meta{number} (initially -3)}
+\end{key}
+\begin{key}{/femm/electric scene/zmax=\meta{number} (initially 3)}
+Strictly ordered spatial trace bounds in model length units. The pair also
+limits the wireframe depiction of an infinite cylinder; it never makes that
+physical model finite. Rendering bounds remain independent under
+|/femm/view 3d|. The renderer clips the captured curves to its own box.
+\end{key}
+\begin{key}{/femm/electric scene/seeds=\meta{list} (initially empty)}
+Supply spatial seeds as comma-separated |x/y/z| triples.\par
+For example, |seeds={.4/0/.5,0/.4/.5}| selects two starting points.
+There may be 1 to 500 seeds, each inside the trace box.
+Slice mode uses the two-component |/femm/electric/seeds| list, then a seed
+path captured in the current picture, then automatic seeds. Named model
+snapshots do not retain that picture-local seed path.
+Without explicit spatial seeds, point charges use a deterministic approximately
+uniform distribution around source exclusions, selected by the existing
+|/femm/electric/seed sign| control (positive sources if available by default); radial classical
+models use a distribution around their inner boundary. The number per source
+is |/femm/electric/lines per charge|. Planar capacitors and finite-element models
+require explicit spatial seeds. Automatic seeds are drawing choices, not a
+flux-weighted discretization. Traces follow the signed field; negative charges
+receive inward-oriented lines. Set explicit seeds when a particular symmetry
+or plane is to be emphasized.
+\end{key}
+\begin{key}{/femm/electric scene/geometry samples=\meta{integer} (initially 96)}
+Segments per circular source wireframe, from 8 to 1000. This controls source
+annotation resolution only, independently of the potential grid or trace step.
+\end{key}
+\begin{key}{/femm/electric scene/geometry=\meta{true, false} (initially true)}
+\end{key}
+\begin{key}{/femm/electric scene/field=\meta{true, false} (initially true)}
+\end{key}
+\begin{key}{/femm/electric scene/equipotentials=\meta{true, false} (initially true)}
+\end{key}
+\begin{key}{/femm/electric scene/vectors=\meta{true, false} (initially false)}
+Select the evaluated primitive families. |geometry| captures source boundaries
+as wireframes; point-source circles are exclusion masks. Planar finite-element
+geometry is shown at $z=0$; axisymmetric geometry uses four meridians. Plate
+models show their reference section. These curves are annotations, not opaque
+solid bodies. |field| captures oriented electric lines, |equipotentials| captures
+unarrowed constant-$V$ contours, and |vectors| captures arrows at spatial seeds
+or on the usual slice grid. All use the existing |/femm/electric| tracing,
+contouring and vector controls. Spatial tracing uses adaptive RK4 step doubling,
+with at most 100000 steps per branch and 500 seeds. Spatial contours use a
+triangulated sampling grid; increase |contour resolution| to check convergence,
+especially near dielectric interfaces. They do not inherit the exact element
+contour geometry available in slice mode.
+\end{key}
+\begin{key}{/femm/view 3d/show source=\meta{true, false} (initially true)}
+\end{key}
+\begin{key}{/femm/view 3d/show equipotential=\meta{true, false} (initially true)}
+Hide already captured families without calculating again. Field and vector
+visibility use the existing |show field| and |show vectors| controls. Electric
+source wireframes are independent of |show geometry| and |conductors=tube|.
+\end{key}
+\begin{key}{/femm/view 3d/source layer=\meta{integer} (initially 20)}
+\end{key}
+\begin{key}{/femm/view 3d/equipotential layer=\meta{integer} (initially 5)}
+Layer order in |visibility=layers|, with integers from $-1000$ to $1000$.
+Geometric visibility uses the same depth rules as magnetic paths and planes.
+\end{key}
+\begin{key}{/tikz/femm 3d source}
+Initially a thin dark red outline. Restyle with |.append style|.
+\end{key}
+\begin{key}{/tikz/femm 3d equipotential}
+Initially a thin orange dashed stroke. It carries no field arrows: a contour
+of scalar potential has no preferred circulation direction. Both styles apply
+at rendering time; no recapture is needed for a colour or line-width change.
+\end{key}
+
+Only the existing providers' physics is extended to space. A wireframe sphere
+is not an opaque triangulated surface. Arbitrary electric isosurfaces, general
+3D dielectric boundaries, and perspective cameras are outside this interface.
+The magnetic and electric adapters share the scene renderer and spatial trace
+integrator; neither changes a stored field because of camera or arrow settings.

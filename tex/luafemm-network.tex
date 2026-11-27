@@ -1,0 +1,47 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Electrical declarations are independent of drawing. Picture options share
+% the existing ordered declaration queue; command arguments have local defaults.
+\pgfkeys{/femm/network/.is family,/femm/network,name/.initial=,ground/.initial=0}
+\pgfkeys{/femm/element/.is family,/femm/element,
+  name/.initial=,kind/.initial=resistor,p/.initial=,n/.initial=,
+  value/.initial=0,phase/.initial=0,circuit/.initial=,
+  kind/.is choice,
+  kind/resistor/.code={\pgfkeyssetvalue{/femm/element/kind}{resistor}},
+  kind/inductor/.code={\pgfkeyssetvalue{/femm/element/kind}{inductor}},
+  kind/capacitor/.code={\pgfkeyssetvalue{/femm/element/kind}{capacitor}},
+  kind/current source/.code={\pgfkeyssetvalue{/femm/element/kind}{current source}},
+  kind/voltage source/.code={\pgfkeyssetvalue{/femm/element/kind}{voltage source}},
+  kind/winding/.code={\pgfkeyssetvalue{/femm/element/kind}{winding}}}
+\tikzset{femm/network/.code={%
+  \ifluafemm@modelstarted\femmnetwork[#1]\else
+    \expandafter\def\expandafter\luafemm@pendingboundaries\expandafter{%
+      \luafemm@pendingboundaries\femmnetwork[#1]}\fi},
+  femm/element/.code={%
+  \ifluafemm@modelstarted\femmelement[#1]\else
+    \expandafter\def\expandafter\luafemm@pendingboundaries\expandafter{%
+      \luafemm@pendingboundaries\femmelement[#1]}\fi}}
+\protected\def\femmnetwork{\pgfutil@ifnextchar[{\luafemm@network}{\luafemm@network[]}}
+\def\luafemm@network[#1]{\begingroup
+  \pgfqkeys{/femm/network}{name=,ground=0,#1}%
+  \directlua{require('luafemm-network').declare(luafemm.current,{
+    name='\luaescapestring{\pgfkeysvalueof{/femm/network/name}}',
+    ground='\luaescapestring{\pgfkeysvalueof{/femm/network/ground}}'})}%
+  \endgroup}
+\protected\def\femmelement{\pgfutil@ifnextchar[{\luafemm@element}{\luafemm@element[]}}
+\def\luafemm@element[#1]{\begingroup
+  \pgfqkeys{/femm/element}{name=,kind=resistor,p=,n=,value=0,phase=0,circuit=,#1}%
+  \luafemm@staticnumber{/femm/element/value}\luafemm@evalue
+  \luafemm@staticnumber{/femm/element/phase}\luafemm@ephase
+  \directlua{require('luafemm-network').element(luafemm.current,{
+    name='\luaescapestring{\pgfkeysvalueof{/femm/element/name}}',
+    kind='\luaescapestring{\pgfkeysvalueof{/femm/element/kind}}',
+    p='\luaescapestring{\pgfkeysvalueof{/femm/element/p}}',
+    n='\luaescapestring{\pgfkeysvalueof{/femm/element/n}}',
+    circuit='\luaescapestring{\pgfkeysvalueof{/femm/element/circuit}}',
+    value=luafemm.tex.number('\luafemm@evalue','element value'),
+    phase=luafemm.tex.number('\luafemm@ephase','element phase')})}%
+  \endgroup}

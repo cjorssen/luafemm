@@ -1,0 +1,78 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tikzset{femm/materials/wire/.style={conductivity=58000000,
+  wire model=round,wire diameter=.4},femm/arrow spacing=10mm}
+% Drawing overlays do not add a second physical region to imported models.
+\newcommand\PaintConductors{%
+  \fill[orange!25] (-4.7,-2) rectangle (-3.3,2)
+    (3.3,-2) rectangle (4.7,2);
+  \fill[orange!12] (-.7,-2) .. controls (1,-1) and (1,1) .. (-.7,2) -- cycle;}
+\begin{document}
+\centering
+% The three pictures refer to the same computational geometry.
+\begin{tikzpicture}[scale=2.8,
+  femm/problem={frequency=10000,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.4},
+  femm/circuit={name=drive,current=2,phase=35},
+  femm/export={format=fem,file=\jobname-problem.fem},
+  femm/export={format=ans,file=\jobname-solution.ans}]
+  \path[femm/region={material=wire,circuit=drive,turns=20}]
+    (3.3,-2) rectangle (4.7,2);
+  \path[femm/region={material=wire,circuit=drive,turns=-20}]
+    (-4.7,-2) rectangle (-3.3,2);
+  \path[femm/region={material=copper,mesh size=.25}]
+    (-.7,-2) .. controls (1,-1) and (1,1) .. (-.7,2) -- cycle;
+  \path[femm/profile={name=original,samples=101}] (-6,0)--(6,0);
+  \PaintConductors
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/phase=35] {femm field};
+  \node[above,font=\small] at (0,6) {TikZ, $\omega t=35^\circ$};
+\end{tikzpicture}\hfill
+\begin{tikzpicture}[scale=2.8,
+  femm/import={file=\jobname-solution.ans}]
+  % An answer import restores the existing mesh; no solve is requested.
+  \path[femm/profile={name=restored,samples=101}] (-6,0)--(6,0);
+  \PaintConductors
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/phase=35] {femm field};
+  \node[above,font=\small] at (0,6) {Restored ANS};
+\end{tikzpicture}\hfill
+\begin{tikzpicture}[scale=2.8,
+  femm/import={file=\jobname-problem.fem,format=fem},
+  femm/problem={mesh size=.35}]
+  \path[femm/profile={name=remeshed,samples=101}] (-6,0)--(6,0);
+  \PaintConductors
+  \pic {femm geometry};
+  \pic[femm/lines=13,femm/phase=35] {femm field};
+  \node[above,font=\small] at (0,6) {FEM, new Lua mesh};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=12.5cm,height=6cm,grid=major,
+  xlabel={$x$ (mm)},ylabel={Imaginary $B_y$ (mT)},
+  y filter/.expression={1000*y},scaled y ticks=false,
+  legend style={at={(.5,1.02)},anchor=south,legend columns=3}]
+  \femmplot[profile=original,abscissa=x,component=By,representation=imaginary,
+    plot options={blue!70!black,thick,mark=none}]
+  \addlegendentry{Original}
+  \femmplot[profile=restored,abscissa=x,component=By,representation=imaginary,
+    plot options={orange!80!black,only marks,mark=o,mark repeat=8}]
+  \addlegendentry{ANS}
+  \femmplot[profile=remeshed,abscissa=x,component=By,representation=imaginary,
+    plot options={black,dashed,mark=none}]
+  \addlegendentry{FEM}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip\small
+A round-wire winding and a curved solid copper screen at 10 kHz, 2 A peak.
+The ANS points coincide with the original complex field. The FEM curve uses
+new triangles; its differences show mesh sensitivity, not a phase conversion.
+\end{document}

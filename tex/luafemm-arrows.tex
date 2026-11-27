@@ -1,0 +1,55 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+
+% Shared display-only marks. Explicit modes avoid changing unrelated TikZ arrows.
+\usepgfmodule{bending}
+\tikzset{femm/arrow mode/.initial=bend,femm/arrow mode/.is choice,
+ femm/arrow mode/adaptive/.code={\pgfkeyssetvalue{/tikz/femm/arrow mode}{adaptive}},
+ femm/arrow mode/bend/.code={\pgfkeyssetvalue{/tikz/femm/arrow mode}{bend}},
+ femm/arrow mode/tangent/.code={\pgfkeyssetvalue{/tikz/femm/arrow mode}{tangent}},
+ femm/arrow tip/.initial=Stealth,
+ femm/arrow fit tolerance/.initial=.02mm,
+ femm/arrow minimum scale/.initial=.25,
+ luafemm@curve marks/.code={\tikz@addmode{\luafemm@curvemarks}},
+ luafemm@curve tip/.code={\luafemm@arrowtipsetup{#1}%
+   \edef\luafemm@settip{\noexpand\tikzset{arrows={-{\luafemm@tip}}}}\luafemm@settip}}
+
+\def\luafemm@fieldmarks#1#2{\ifluafemm@arrows
+ \def\luafemm@markposition{#1}\def\luafemm@markspacing{#2}%
+ \tikzset{postaction={luafemm@curve marks}}\fi}
+\def\luafemm@arrowdimensions{%
+ \pgfmathsetlengthmacro\luafemm@arrowlength{\pgfkeysvalueof{/tikz/femm/arrow length}}%
+ \pgfmathsetlengthmacro\luafemm@arrowwidth{\pgfkeysvalueof{/tikz/femm/arrow width}}%
+ \pgfmathsetlengthmacro\luafemm@arrowtolerance{\pgfkeysvalueof{/tikz/femm/arrow fit tolerance}}}
+\def\luafemm@arrowtipsetup#1{%
+ \luafemm@arrowdimensions
+ \pgfmathsetlengthmacro\luafemm@scaledlength{#1*\luafemm@arrowlength}%
+ \pgfmathsetlengthmacro\luafemm@scaledwidth{#1*\luafemm@arrowwidth}%
+ \edef\luafemm@mode{\pgfkeysvalueof{/tikz/femm/arrow mode}}\def\luafemm@bend{bend}%
+ \ifx\luafemm@mode\luafemm@bend\def\luafemm@bendoption{bend}%
+ \else\def\luafemm@bendoption{flex=0}\fi
+ \edef\luafemm@tip{\pgfkeysvalueof{/tikz/femm/arrow tip}[
+  length=\luafemm@scaledlength,width=\luafemm@scaledwidth,\luafemm@bendoption]}}
+\def\luafemm@curvemarks{\begingroup
+ \pgfsyssoftpath@getcurrentpath\luafemm@arrowpath
+ \pgfprocessround{\luafemm@arrowpath}{\luafemm@arrowpath}%
+ \luafemm@arrowdimensions
+ \pgfmathsetlengthmacro\luafemm@arrowspacing{\luafemm@markspacing}%
+ \pgfinterruptpath\pgfscope\pgftransformreset
+ \directlua{local function dim(s) return tonumber((s:gsub('pt',''))) end
+ tex.sprint(require('luafemm-arrows').tex(token.get_macro('luafemm@arrowpath'),{
+ length=dim('\luafemm@arrowlength'),tolerance=dim('\luafemm@arrowtolerance'),
+ minimum='\luaescapestring{\pgfkeysvalueof{/tikz/femm/arrow minimum scale}}',
+ mode='\luaescapestring{\pgfkeysvalueof{/tikz/femm/arrow mode}}',
+ position='\luafemm@markposition',spacing=dim('\luafemm@arrowspacing')}))}%
+ \endpgfscope\endpgfinterruptpath\endgroup}
+% Native PGF arrows follow a local cubic carrier, never a newly traced field.
+\def\luafemm@curvearrow#1#2#3#4#5#6#7#8#9{\pgfscope
+ \luafemm@arrowtipsetup{#1}\pgfsetarrowsstart{}%
+ \expandafter\pgfsetarrowsend\expandafter{\luafemm@tip}%
+ \pgfpathmoveto{\pgfqpoint{#2pt}{#3pt}}%
+ \pgfpathcurveto{\pgfqpoint{#4pt}{#5pt}}{\pgfqpoint{#6pt}{#7pt}}{\pgfqpoint{#8pt}{#9pt}}%
+ \pgfusepath{stroke}\endpgfscope}

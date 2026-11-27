@@ -1,0 +1,95 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Generic study adapters. PGF parses lists/expressions; Lua receives only escaped
+% names and finite numeric values. Named results have document lifetime.
+\pgfkeys{/femm/angle study/.is family,/femm/angle study,
+  name/.initial=,template/.initial=,angles/.initial={0,15,...,90},
+  circuit/.initial=,cache mode/.initial=auto,cache prefix/.initial=,
+  quantity/.initial=force,quantity/.is choice,
+  quantity/force/.code={\def\luafemm@studyquantity{force}},
+  quantity/circuit/.code={\def\luafemm@studyquantity{circuit}},
+  quantity/integrals/.code={\def\luafemm@studyquantity{integrals}}}
+% Cache choices stay in the study family so user .style keys compose normally.
+\pgfkeys{/femm/angle study/cache mode/.is choice,
+ /femm/angle study/cache mode/auto/.code={\pgfkeyssetvalue{/femm/angle study/cache mode}{auto}},
+ /femm/angle study/cache mode/off/.code={\pgfkeyssetvalue{/femm/angle study/cache mode}{off}},
+ /femm/angle study/cache mode/refresh/.code={\pgfkeyssetvalue{/femm/angle study/cache mode}{refresh}},
+ /femm/angle study/cache mode/frozen/.code={\pgfkeyssetvalue{/femm/angle study/cache mode}{frozen}}}
+\protected\def\femmanglestudy{\pgfutil@ifnextchar[{\luafemm@anglestudy}{\luafemm@anglestudy[]}}
+\def\luafemm@anglestudy[#1]{%
+  \begingroup
+  \pgfqkeys{/femm/angle study}{name=,template=,angles={0,15,...,90},
+    quantity=force,circuit=,cache prefix=,cache mode=auto,#1}%
+  \directlua{luafemm.tex.study_list={}}%
+  \edef\luafemm@studylist{\pgfkeysvalueof{/femm/angle study/angles}}%
+  \foreach\luafemm@studyitem in \luafemm@studylist{%
+    \pgfkeys{/pgf/fpu=true}%
+    \pgfmathparse{\luafemm@studyitem}%
+    \pgfmathfloattofixed{\pgfmathresult}%
+    \directlua{table.insert(luafemm.tex.study_list,
+      luafemm.tex.number('\luaescapestring{\pgfmathresult}','study angle'))}}%
+  \directlua{require('luafemm-studies').angles(assert(
+    luafemm.tex.sliding_bands and luafemm.tex.sliding_bands[
+      '\luaescapestring{\pgfkeysvalueof{/femm/angle study/template}}'],
+      'luafemm: unknown sliding template'),{
+    name='\luaescapestring{\pgfkeysvalueof{/femm/angle study/name}}',
+    angles=luafemm.tex.study_list,quantity='\luaescapestring{\luafemm@studyquantity}',
+    circuit='\luaescapestring{\pgfkeysvalueof{/femm/angle study/circuit}}',
+    cache_mode='\luaescapestring{\pgfkeysvalueof{/femm/angle study/cache mode}}',
+    cache_prefix=luafemm.tex.output_file('\luaescapestring{\pgfkeysvalueof{/femm/angle study/cache prefix}}')})
+    luafemm.tex.study_list=nil}%
+  \endgroup}
+\pgfkeys{/femm/response matrix/.is family,/femm/response matrix,
+  name/.initial=,operating point/.initial=,circuits/.initial=,
+  frequency/.initial=0,cache mode/.initial=auto,cache prefix/.initial=}
+\pgfkeys{/femm/response matrix/cache mode/.is choice,
+ /femm/response matrix/cache mode/auto/.code={\pgfkeyssetvalue{/femm/response matrix/cache mode}{auto}},
+ /femm/response matrix/cache mode/off/.code={\pgfkeyssetvalue{/femm/response matrix/cache mode}{off}},
+ /femm/response matrix/cache mode/refresh/.code={\pgfkeyssetvalue{/femm/response matrix/cache mode}{refresh}},
+ /femm/response matrix/cache mode/frozen/.code={\pgfkeyssetvalue{/femm/response matrix/cache mode}{frozen}}}
+\protected\def\femmresponsematrix{\pgfutil@ifnextchar[{\luafemm@responsematrix}{\luafemm@responsematrix[]}}
+\def\luafemm@responsematrix[#1]{%
+  \begingroup
+  \pgfqkeys{/femm/response matrix}{name=,operating point=,circuits=,frequency=0,cache prefix=,cache mode=auto,#1}%
+  \luafemm@staticnumber{/femm/response matrix/frequency}\luafemm@studyfrequency
+  \directlua{luafemm.tex.study_list={}}%
+  \edef\luafemm@studylist{\pgfkeysvalueof{/femm/response matrix/circuits}}%
+  \foreach\luafemm@studyitem in \luafemm@studylist{%
+    \directlua{table.insert(luafemm.tex.study_list,'\luaescapestring{\luafemm@studyitem}')}}%
+  \directlua{require('luafemm-studies').matrix(assert(
+    luafemm.tex.operating_points and luafemm.tex.operating_points[
+      '\luaescapestring{\pgfkeysvalueof{/femm/response matrix/operating point}}'],
+      'luafemm: unknown operating point'),{
+    name='\luaescapestring{\pgfkeysvalueof{/femm/response matrix/name}}',
+    circuits=luafemm.tex.study_list,
+    frequency=luafemm.tex.number('\luaescapestring{\luafemm@studyfrequency}','frequency'),
+    cache_mode='\luaescapestring{\pgfkeysvalueof{/femm/response matrix/cache mode}}',
+    cache_prefix=luafemm.tex.output_file('\luaescapestring{\pgfkeysvalueof{/femm/response matrix/cache prefix}}')})
+    luafemm.tex.study_list=nil}%
+  \endgroup}
+\def\femmstudyvalue#1#2#3{\directlua{tex.sprint(tostring(
+  require('luafemm-studies').value('\luaescapestring{#1}',
+  luafemm.tex.number('\luaescapestring{#2}','study index'),'\luaescapestring{#3}')))}}
+\def\femmmatrixentry#1#2#3#4{\directlua{tex.sprint(tostring(
+  require('luafemm-studies').entry('\luaescapestring{#1}','\luaescapestring{#2}',
+    '\luaescapestring{#3}','\luaescapestring{#4}')))}}
+\pgfkeys{/femm/study plot/.is family,/femm/study plot,
+  study/.initial=,component/.initial=torque,plot options/.initial={}}
+\protected\def\femmstudyplot{\pgfutil@ifnextchar[{\luafemm@studyplot}{\luafemm@studyplot[]}}
+\def\luafemm@studyplot[#1]{%
+  \ifdefined\addplot
+    \begingroup
+    \pgfqkeys{/femm/study plot}{study=,component=torque,plot options={},#1}%
+    \pgfkeysgetvalue{/femm/study plot/plot options}\luafemm@plotoptions
+    \luafemm@plottoks=\expandafter{\luafemm@plotoptions}%
+    \edef\luafemm@plotcommand{\endgroup
+      \noexpand\addplot+[\the\luafemm@plottoks] coordinates {\directlua{tex.sprint(
+        require('luafemm-studies').coordinates(
+        '\luaescapestring{\pgfkeysvalueof{/femm/study plot/study}}',
+        '\luaescapestring{\pgfkeysvalueof{/femm/study plot/component}}'))}};}%
+    \luafemm@plotcommand
+  \else\errmessage{luafemm: femmstudyplot requires a PGFPlots axis}\fi}
+\endinput

@@ -1,0 +1,413 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Numerical method, verification and limits}
+\label{sec:numerics}
+The transverse axial-H diffusion formulation and its Bessel benchmarks are
+detailed in Section~\ref{sec:currents}; it uses a different scalar unknown
+from the vector-potential formulations below.
+
+\subsection{Planar finite elements}
+The domain is invariant along $z$. In SI units,
+$\mathbf A=A_z\mathbf e_z$ and
+$\mathbf B=(\partial_y A_z,-\partial_x A_z)$.
+For test functions $v$ vanishing on the Dirichlet boundary, the weak problem is
+\[
+ \int_\Omega \nu\nabla A_z\cdot\nabla v+\int_{\Gamma_w}(cA_z+g)v
+ =\int_\Omega J_zv+
+  \int_\Omega H_c\mathbf m\cdot(\partial_yv,-\partial_xv).
+\]
+Here $\Gamma_w$ contains Neumann and Robin sides, with $c=0$ for Neumann.
+The boundary tangent is counterclockwise; $H_t=cA_z+g$. On an edge of
+length $\ell$, the boundary mass matrix is
+$\ell\bigl(\begin{smallmatrix}2&1\\1&2\end{smallmatrix}\bigr)/6$.
+It integrates both $cA_z$ and the affine data $g$ exactly. These terms
+are added to the residual and, for $cA_z$, its tangent. Corner constraints
+and the all-Neumann compatibility check are described in
+Section~\ref{sec:boundaries}.
+The potential uses continuous piecewise-affine functions on triangles.
+Material laws and sources are constant within each element. With basis
+functions $N_i$, the element residual is
+\[
+ R_i=|T|\left[\nu\nabla A_z\cdot\nabla N_i
+ -J_z/3-H_c(m_x\partial_yN_i-m_y\partial_xN_i)\right].
+\]
+The differential tangent follows from the derivative of the selected
+$H(B)$ law: piecewise linear by default, or the FEMM-compatible cubic policy
+described in Section~\ref{sec:interchange}. The code scales the entire system by $\mu_0$ for numerical
+convenience; this does not change the solution. Dirichlet degrees of
+freedom are eliminated. Newton steps use backtracking to decrease the
+residual. Linear systems use conjugate gradients and incomplete Cholesky
+IC(0); an unsuccessful factorisation is restarted with a positive diagonal
+shift of the preconditioner, without changing the system being solved.
+
+The default boundary $A_z=0$ represents a finite truncation of the
+exterior. For physical depth $d$, potential levels separated by $\Delta A_z$
+enclose flux $d\,\Delta A_z$. Equal level spacing therefore represents equal
+flux spacing, not equal geometric separation.
+
+\subsection{Linear algebra, acceptance and recovery}
+\label{sec:linear-acceptance}
+By default, static Newton corrections and auxiliary force-weight potentials use real
+conjugate gradients (CG) with an incomplete Cholesky factor. Harmonic systems
+use restarted GMRES with a complex incomplete LU factor, applied through its
+real block representation. GMRES does not assume complex symmetry. A known
+indefinite constrained operator must not be sent to CG. Gauges and compatible
+sources are handled by the physical model before this algebraic stage.
+
+Each solve validates dimensions, sparse indices and finite coefficients and
+loads. It equilibrates rows and columns symmetrically and normalises the load;
+scaled sums of squares avoid losing a small nonzero source by squaring it.
+An exactly zero load returns the zero solution after structural checks and
+before factorisation. This shortcut does not certify that an arbitrary matrix
+has a unique solution. A singular empty row, a nonfinite quantity or a scaling
+operation that loses a nonzero coefficient raises an error.
+
+Let $Kx=b$ denote the assembled linear system after constraints. Before accepting
+a solution, the solver recomputes $r=b-Kx$ from the original coefficients and
+the returned unknowns in their original units. Neither a shifted factor nor
+an iterative recurrence supplies this final residual. With
+$c(z)=|\mathop{\rm Re}z|+|\mathop{\rm Im}z|$, the two acceptance measures are
+\[
+ \rho=\frac{\|r\|_2}{\|b\|_2},\qquad
+ \eta=\max_i\frac{c(r_i)}{c(b_i)+\bigl(\max_j c(x_j)\bigr)\sum_j c(K_{ij})}.
+\]
+The norm in $\rho$ is the Euclidean norm of the real and imaginary components;
+for real systems these formulas reduce to their real counterparts. A zero
+numerator and denominator contribute zero to $\eta$. Both criteria must pass:
+$\rho\leq\tau$ and $\eta\leq\max(\tau,10^{-14})$.
+This row-scaled normwise diagnostic limits the effect of unequal row scales
+without requiring relative accuracy in an almost-zero solution component. Neither criterion estimates the discretisation error in $\mathbf B$,
+material uncertainty or the error of a force integral.
+
+The iteration also checks the true residual at restarts. CG checks recurrence
+drift periodically and replaces the recurrence only when needed, preserving
+conjugacy otherwise. If conversion back to physical units spoils acceptance,
+the solver continues with the recomputed residual within the same budget.
+GMRES uses two orthogonalisation passes. The automatic limits are 4000 linear
+iterations and a GMRES restart length of 40; exhaustion is an error.
+
+A failed incomplete factor is discarded. At most six attempts use finite,
+scaled diagonal shifts, ending with a row-dominance estimate when appropriate;
+a diagonal preconditioner is the final fallback. Positive Cholesky pivots and
+finite factors are required. \emph{Only the preconditioner is shifted}: the
+physical operator, residual and energy remain unchanged. Recovery can make a
+factor usable but cannot guarantee convergence within the finite budget.
+No numerical factor is reused after a change of operator.
+
+Sorted packed rows are used for iterative products, retaining the original
+mesh order. Algebraic ordering and bounded additional fill have been compared
+on static, harmonic, periodic, moving-band and biased-response problems.
+Their benefit depends on the problem, so automatic solving retains mesh order
+and zero-fill factors. Reverse Cuthill--McKee ordering can be requested explicitly with the keys below;
+additional-fill experiments remain private.
+Validation and the final original-system check add work; a universal speedup
+over less checked iteration is not claimed.
+
+\paragraph{Tolerance is not mesh accuracy.}
+The existing |/femm/problem/tolerance| controls the outer Newton residual for a
+static nonlinear model. The initial residual is bounded below by $10^{-30}$;
+the existing absolute stopping floor is $10^{-25}$ in the assembled,
+$\mu_0$-scaled system. Automatic static inner corrections use $\tau=10^{-9}$,
+independently of that outer target. Harmonic linear solves use the problem's
+|tolerance| (strictly between zero and one) as their linear target; the linear kernel has no absolute
+small-source cutoff. |max iterations| controls Newton corrections, not the
+configurable linear budget. These different meanings matter when interpreting
+|\femmstat{residual}|.
+
+This example changes the outer target through an ordinary reusable TikZ style.
+The field pic triggers the solve after the geometry has been declared. Its
+reported residual is the nonlinear residual; decreasing it does not refine
+the displayed coarse mesh. Compare fields on finer meshes separately.
+
+\noindent\begin{minipage}{\linewidth}
+\begin{codeexample}[width=0pt]
+\tikzset{draft magnetic solve/.style={femm/problem={
+  xmin=-65,xmax=65,ymin=-40,ymax=65,
+  mesh size=8,tolerance=1e-6}}}
+\begin{tikzpicture}[draft magnetic solve,scale=.5]
+  \node[femm/u electromagnet={gap=3,gap mesh size=0}] {};
+  \pic[femm/lines=9] {femm field};
+  \node[below,align=center,font=\small] at (0,-42)
+    {Triangles: \femmstat{triangles}\\
+     Relative Newton residual: \femmstat{residual}};
+\end{tikzpicture}
+\end{codeexample}
+\end{minipage}
+
+Cached results carry the numerical policy revision. Revision 22 invalidates
+older snapshots instead of presenting an unchecked legacy result as newly
+verified. A failed solve is not saved as a converged solution. CPU statistics
+restored from a cache describe its original calculation, not the loading cost.
+
+\subsection{Choosing and inspecting a linear solve}
+\label{sec:linear-controls}
+The defaults need no additional keys. The following controls belong to
+|/femm/problem| and are read when the picture creates its model, before paths
+are captured. They compose with |.style| and |.append style|, obey TeX grouping,
+and use the last explicit assignment. An imported FEM problem accepts explicit
+numerical overrides. A saved operating point or sliding template inherits its
+numerical settings; explicitly supplied numerical keys override that copy without
+changing the retained source. Passive ANS answers have no local solver history
+and reject numerical overrides. These controls do not change exported geometry,
+FEMM node numbers or file units, and are not encoded as FEMM solver settings.
+
+\begin{key}{/femm/problem/linear solver=\meta{choice} (initially auto)}
+Choose |auto|, |cg| or |gmres|. Automatic selection uses CG for real positive
+static tangents (including the supported lossless fundamental law), and GMRES
+for complex harmonic or transverse axial-H diffusion systems. Explicit |gmres|
+is also allowed for real static systems. Explicit |cg| is rejected for the
+general/complex class, even with zero excitation. Selection follows the operator,
+not merely the frequency. Auxiliary force weights always use their own SPD CG
+solve; they do not become complex when the magnetic model is harmonic.
+\end{key}
+\begin{key}{/femm/problem/preconditioner=\meta{choice} (initially auto)}
+Choose |auto|, |ic0|, |ilu0| or |diagonal|. Automatic selection starts with IC(0)
+for CG and ILU(0) for GMRES. Explicit |ic0| requires CG; explicit |ilu0| requires
+GMRES. Choosing a factor does not implicitly change the solver. Both incomplete
+factors retain the bounded shift/recovery policy described above. |diagonal|
+skips incomplete factorisation. This inexpensive option may need many more
+iterations. Force weights inherit |diagonal| when selected; otherwise they use
+IC(0) with recovery independently of the magnetic factor choice.
+\end{key}
+\begin{key}{/femm/problem/linear tolerance=\meta{number or auto} (initially auto)}
+A dimensionless numeric literal strictly between zero and one, or |auto|.
+The target applies to both original-system acceptance tests above. Automatic
+static Newton corrections use $10^{-9}$; harmonic and axial-H systems use the
+problem's |tolerance|. An explicit value overrides that inner target without
+changing the outer Newton criterion. Circuit-network response columns use the
+stricter $\min(0.01\tau,10^{-12})$ to control cancellation in their coupled
+solution, whose final residual must meet $\tau$. Auxiliary force weights retain
+the measurement's own |tolerance|. Tight algebraic convergence does not certify
+field or force accuracy on a coarse mesh.
+\end{key}
+\begin{key}{/femm/problem/linear max iterations=\meta{integer} (initially 4000)}
+A dimensionless integer literal from 1 to 1000000. Each inner solve has this
+finite iteration budget, including recurrence replacements and GMRES restarts.
+It also applies to force-weight potentials and to each network response column;
+the sum reported for a complete magnetic calculation can exceed this number.
+Exhaustion raises an error. The separate |max iterations| still bounds Newton
+corrections.
+\end{key}
+\begin{key}{/femm/problem/gmres restart=\meta{integer} (initially 40)}
+A dimensionless integer literal from 1 to 4000: the maximum retained GMRES
+Krylov basis length before restarting. Increasing it trades memory for possible
+convergence improvements. It is validated but unused by CG. It never extends
+|linear max iterations|.
+\end{key}
+\begin{key}{/femm/problem/linear ordering=\meta{choice} (initially mesh)}
+Choose |mesh| or |rcm| (reverse Cuthill--McKee). The permutation affects only
+algebraic rows and columns, with the returned solution mapped back to its
+original mesh. It may change fill behaviour and iteration counts, without
+changing the finite-element problem. There is no universal performance gain.
+The automatic default remains mesh order and zero-fill incomplete factors.
+\end{key}
+
+Here a reusable numerical style is extended and then overridden for two solves
+of the same affine-field patch. The exact field is $B_x=0.02$ T,
+$B_y=-0.01$ T. The printed iteration counts expose the computational effect;
+the two fields should agree. This small case is an illustration, not a speed
+benchmark. All six controls are explicit to show their spelling; ordinary
+figures can omit them.
+
+\noindent\begin{minipage}{\linewidth}
+\begin{codeexample}[width=0pt]
+\pgfkeys{/femm/problem/patch solve/.style={
+  linear solver=auto,preconditioner=auto,
+  linear tolerance=1e-9,linear max iterations=1000},
+ /femm/problem/patch solve/.append style={
+  gmres restart=20,linear ordering=mesh}}
+\foreach \method/\factor/\order in
+  {cg/ic0/mesh,gmres/diagonal/rcm}{%
+ \begin{tikzpicture}[
+  femm/problem={xmin=-10,xmax=10,ymin=-10,ymax=10,
+   mesh size=4,patch solve,linear solver=\method,
+   preconditioner=\factor,linear ordering=\order},
+  femm/boundary={x coefficient=.01,y coefficient=.02}]
+  \pic[femm/lines=7] {femm field};
+  \draw[gray] (-10,-10) rectangle (10,10);
+  \node[below,align=center,font=\small] at (0,-11)
+   {\method: \femmstat{linear_iterations} iterations\\
+    $|\mathbf B|=\femmB{0}{0}$ T};
+ \end{tikzpicture}\quad
+}
+\end{codeexample}
+\end{minipage}
+
+\paragraph{Linear statistics.}
+The existing |\femmstat| command accepts the following statistic names for the
+current solved magnetic model. Counts and times sum over its
+inner solves; maxima are indicated explicitly. Force-weight measurements have
+separate solves and do not retroactively change these magnetic statistics.
+An unsolved model or an imported ANS answer has no such local history and raises
+an error. A native zero-Newton solution reports zero linear work. A successful
+zero-load inner solve counts as one solve, with zero iterations and no factor.
+
+\begin{center}\small
+\begin{tabular}{lp{.49\linewidth}}
+\toprule Name & Meaning \\
+\midrule
+|assembly_seconds| & Physical assembly CPU seconds (including static backtracking).\\
+|linear_solves| & Number of inner solves.\\
+|linear_iterations| & Total inner iterations, including GMRES.\\
+|linear_cg_solves|, |linear_gmres_solves| & Solves using each iteration method.\\
+|linear_diagonal_solves| & Solves using a diagonal factor, explicit or fallback.\\
+|linear_restarts| & Iteration restart count.\\
+|linear_retries| & Incomplete-factor retry count.\\
+|linear_nonzeros| & Maximum stored factor nonzeros.\\
+|linear_shift| & Maximum dimensionless equilibrated factor shift.\\
+|linear_residual| & Maximum true relative residual $\rho$.\\
+|linear_backward_error| & Maximum row-scaled backward error $\eta$.\\
+|linear_finalize_seconds| & Sparse preparation CPU seconds.\\
+|linear_factor_seconds| & Factor construction CPU seconds.\\
+|linear_iteration_seconds| & Iteration and acceptance CPU seconds.\\
+\bottomrule
+\end{tabular}
+\end{center}
+These values describe linear subproblems; for voltage-driven networks the final
+coupled acceptance remains a separate check. |residual| keeps its model-specific
+meaning. Numerical options participate in the native solution-cache identity:
+changing any of them invalidates the solution, while permitting compatible mesh
+reuse. Timings restored from cache describe the original calculation, not cache
+loading. Factors themselves are never saved or reused across changed operators.
+
+\subsection{Constrained meshing and predicates}
+The mesher splits crossings, T junctions and collinear overlaps of the
+polygonal constraints. It samples their edges and seeds the interior
+with triangular lattices, using the finest local size where requested.
+Incremental Delaunay insertion is followed by constrained-segment cavity
+retriangulation and Lawson edge flips.
+
+Topological decisions use orientation and incircle predicates. A
+floating-point filter certifies well-separated signs; uncertain cases
+are recomputed using error-free sums/products and floating-point
+expansions in Lua. The result has the exact sign of the determinant of
+the supplied binary coordinates, including exact zero, provided arithmetic
+neither overflows nor underflows. Normalising coordinates before meshing
+keeps the intended working range moderate. This does not make the input
+geometry exact before its TeX rounding, nor make intersection construction
+exact: intersection coordinates still use floating-point arithmetic.
+
+The native staging-mesh audit checks positive areas, rectangular coverage, preservation
+of every constraint and vertex, at most two triangles per edge, exposed
+edges only on the tagged exterior, Euler's relation $V-E+F=1$, and local
+Delaunay legality of every unconstrained flippable edge. Failure stops
+the calculation. The vertex limit is 40000 vertices for Delaunay and
+150000 grid vertices.
+
+Triangle was studied as an algorithmic reference; its source and binary
+are not embedded. This is not a full Triangle port. Optional segment-first
+Delaunay refinement enforces angle and area targets, or raises an error
+when its budget or geometric precision is exhausted (Section~\ref{sec:mesh-quality}).
+There is no specialised acute-corner protection or guaranteed smooth
+transition between mesh sizes. With both quality targets disabled, narrow
+features and acute corners can create badly conditioned triangles.
+
+Conservative spatial queries accelerate segment intersections, vertex-on-segment
+searches, lattice clearance and refinement encroachment tests. They retain the
+final predicates and ascending candidate order; they do not replace geometric
+tests with grid membership. Exhaustive-search comparisons on translated, scaled
+and reversed contours verify identical meshes on the regression corpus.
+Manufactured fields check shared periodic corners and moving-ring references
+after tolerance-based vertex merging. These checks do not prove correctness for
+every geometry or implement specialised corner protection.
+Monitor |min_angle| and perform field-convergence studies; triangle quality
+alone is not a physical error estimate.
+
+\subsection{What is tested}
+The release checks analytic affine fields for Dirichlet, Neumann, Robin
+and mixed sides on both meshers (including nonlinear permanent magnets),
+manufactured Poisson and Robin convergence, all-Neumann compatibility,
+nonlinear saturation, current and magnetisation reversal, an exact
+magnet/air interface patch, and a magnetised disk against the infinite-domain
+solution. Geometry tests cover intersections, shared edges, small gaps,
+concavity, scaling, translation and compound-region fill rules. Circular-shell
+shielding is checked against an analytic cavity field with exact exterior
+Dirichlet data. An independent Python rational oracle
+checks 4530 orientation, incircle and diametral-disk signs; 49 stress
+configurations exercise the base mesher. Quality tests independently check
+angles and areas, scaled and translated inputs, compound cavities, refined
+boundary tags, affine Robin fields, cache reuse and explicit budget failures.
+Python is a development-test dependency only.
+
+All 282 FEMM 5 catalogue records are validated. Profiles are tested for Cartesian
+and local components, arc length, reversed traversal, normal offsets,
+out-of-domain policy and retained model lifetime. The same nonlinear
+scene is compiled under plain LuaTeX, LuaLaTeX and ConTeXt MkIV; computed
+sample values and node counts must agree within $10^{-10}$. Load guards,
+catcode restoration, transformed paths and PGFPlots legends are exercised.
+
+For the original mixed alnico/illustrative-iron U with 1 mm gaps, sample
+results document sensitivity rather than absolute accuracy:
+\begin{center}\small
+\begin{tabular}{rrrrr}
+\toprule Global/gap step (mm) & Domain (mm$^2$) & Nodes & Left $B_y$ (T) & Right $B_y$ (T)\\
+\midrule
+2 / .5 & $200\times185$ & 11376 & .782876 & -.782907\\
+1.5 / .25 & $200\times185$ & 20409 & .777974 & -.778597\\
+2 / .5 & $280\times265$ & 22293 & .775140 & -.775140\\
+\bottomrule
+\end{tabular}\end{center}
+The refinements change the gap field by about 0.6 percent, and the larger
+domain by about one percent. Material-model error is a separate issue.
+The interchange suite additionally loads Lua-written ANS files through xfemm's
+independent disk postprocessor and compares $A$, unsmoothed $B$ and $H$.
+Independent solves of the exported U-coil and alnico models agree to within
+2 percent in the tested gap-field samples at the two draft mesh resolutions.
+This is a bounded validation result, not a universal accuracy guarantee;
+see Section~\ref{sec:interchange} and the reproducible reports in |build/interop|.
+
+Imported domains are carved from a constrained staging mesh. Their audit also
+checks active area, protected exposed edges and the Euler characteristic of the
+active cell complex; shared child boundaries are counted as a union. Exclusions
+are never silently replaced by air. Unanchored disconnected components have
+independent gauges and current-balance checks.
+
+\subsection{Supported physics and practical diagnostics}
+The static solver is planar or axisymmetric, with a linear symmetric permeability
+tensor or a monotone tabulated law and prescribed permanent-magnet direction.
+Section~\ref{sec:axisymmetric} gives the separate cylindrical formulation.
+The separate linear harmonic solver in Section~\ref{sec:harmonic} adds
+single-frequency diffusion and eddy currents. Section~\ref{sec:biased-harmonic}
+extends it to a fixed differential tensor around a nonlinear DC bias.
+Real backward-Euler time diffusion and controlled motion are described in
+Section~\ref{sec:time}. Hysteresis history and irreversible demagnetisation
+remain unsupported. Circular P1 moving bands
+are described in Section~\ref{sec:sliding}; the independent full-circle Fourier
+operator is described in Section~\ref{sec:machine-studies}. Forces and circular
+open-boundary approximations are available as described in their chapters.
+
+If Newton fails, inspect the material data, extreme element aspect ratios
+and current scale before raising |max iterations|. For a lost or collapsed
+geometric feature, compare its size with PGF capture precision and the
+merging tolerance. For a graph with jumps, inspect the elementwise field
+and sampling side before requesting graphical smoothing. The log identifies
+the failing stage; a solver failure is not turned into a plausible plot.
+
+\subsection{Primary references}
+The development was based on studying the source code of FEMM/xfemm
+and Triangle, then reimplementing selected formulations and algorithms
+in Lua/LuaTeX. No native solver or mesher is embedded. The following primary references
+also describe the surrounding algorithms and interfaces:
+\begin{itemize}
+\item \href{https://www.femm.info/wiki/Documentation}{FEMM documentation},
+  planar magnetostatics and material conventions; FEMM revision
+  \nolinkurl{7d9e8ed90772ddb939a3256f976e231bcb5cca97}.
+\item xfemm revision \nolinkurl{34ac6cc586a346066984526620dfb67383c8e3c5},
+  \nolinkurl{cfemm/fsolver/static2d.cpp} and
+  \nolinkurl{cfemm/libfemm/CMaterialProp.cpp}.
+\item Jonathan Shewchuk,
+  \href{https://www.cs.cmu.edu/~quake/robust.html}{Robust Adaptive Floating-Point Geometric Predicates}
+  and \href{https://www.cs.cmu.edu/~quake/triangle.research.html}{Triangle algorithm references}.
+\item The \href{https://tikz.dev}{PGF/TikZ manual} and the installed
+  PGFPlots manual for path transformations, key handlers and axes.
+\end{itemize}
+
+\subsection{Circular moving-band operator}
+Section~\ref{sec:sliding} describes retained bulk meshes, annular reconnection
+and prescribed-weight Maxwell stress. The operator remains planar P1 at each
+static angle; exact orientations and mesh coverage are checked before solving.
+It does not reuse the previous position's nonlinear field as a frozen material
+law. Coenergy differences and mesh/angle sensitivity remain necessary checks.

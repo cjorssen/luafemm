@@ -42,7 +42,7 @@
 \begin{tikzpicture}[ideal toroid,scale=.7]
   \node[femm/tapered toroid={ampere turns=0,
     pole thickness=6,taper angle=25,magnet span=30,
-    magnet material=ndfeb-40-mgoe}] (M) {};
+    magnet material=n40}] (M) {};
   \pic[femm/lines=9] {femm field};
   \pic[femm/mean={component=M,kind=flux,profile=taper-magnet},
     femm/mean style={violet}] {femm mean path};

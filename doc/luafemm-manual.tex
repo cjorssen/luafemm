@@ -1,0 +1,145 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Build from the source root with the included build-manual.py. Examples execute on LuaTeX.
+% The PGF documentation environments also used by tikz-ext provide indexed
+% keys, library/command signatures and adjacent source/rendered examples.
+\documentclass[a4paper,11pt]{ltxdoc}
+\usepackage[margin=23mm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb,booktabs,longtable,multicol}
+\usepackage{xkeyval,calc,listings,fp,pifont,xxcolor}
+\usepackage{tikz,pgfplots}
+\usepackage{makeidx,needspace,adjustbox}
+\makeindex
+\usepackage[hyperindex=false]{hyperref}
+\usepackage{xurl}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black,
+  pdftitle={The luafemm TikZ and PGFPlots libraries},pdfauthor={Christophe Jorssen}}
+\IfFileExists{doc/luafemm-manual.tex}{\def\luafemmdocdir{doc}}%
+  {\def\luafemmdocdir{doc/luatex/luafemm}}
+\input{pgfmanual-en-macros.tex}
+\input{\luafemmdocdir/manual-examples.tex}
+\usetikzlibrary{femm,calc,backgrounds}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\tracinglostchars=3
+\setlength\emergencystretch{2em}
+% Reserve enough room for two-digit section and subsection numbers in the TOC.
+\makeatletter
+\renewcommand*\l@subsection{\@dottedtocline{2}{1.5em}{3.2em}}
+\makeatother
+\title{The \textsf{luafemm} TikZ and PGFPlots libraries\\
+  \large Generic LuaTeX magnetic and electric fields and quantitative profiles}
+\author{Christophe Jorssen\\
+  \normalsize\href{mailto:christophe.jorssen@gmail.com}{\nolinkurl{christophe.jorssen@gmail.com}}}
+\date{Version \luafemmversion\quad---\quad\luafemmversiondate}
+\begin{document}
+\maketitle
+\begin{abstract}
+Declare magnetic media on ordinary TikZ paths, solve a finite-element
+problem (static, transient or supported harmonic, planar or axisymmetric) entirely in Lua, and draw oriented field lines or PGFPlots profiles.
+Prescribed coplanar electric charges and classical charged bodies or ideal
+capacitors additionally provide analytical fields, equipotentials and quantitative profiles.
+Planar and axisymmetric electrostatic finite elements resolve finite electrodes, dielectric interfaces
+and prescribed volume or surface charges with the same drawing interface.
+Analytical line or axial point sources can also be combined with a regular
+finite-element correction for scalar dielectrics and voltage conductors.
+The same generic implementation works with plain LuaTeX, LuaLaTeX and
+ConTeXt MkIV. This manual documents every supported public key, the numerical
+conventions, and the limitations of the supported models.
+\end{abstract}
+\section*{How to read this manual}
+Start with the first picture and the tutorials. The reference then follows
+three tasks: declare the physical model, obtain fields and measurements, and
+reuse solutions for operating-point or machine studies. File exchange,
+numerical assumptions and limitations have their own part.
+
+A shaded code/result pair runs the code printed beside or below its result.
+Each worked case is independent; names may be reused in a later case.
+A setup block defines the styles, dimensions or saved models explicitly used
+by the following blocks in the same worked case. Short configuration extracts
+state their required picture or axis context in the surrounding text. Complete
+runnable documents are also supplied in \texttt{examples/}; the reference does
+not repeat their loading preambles. The format appendix is the named exception:
+it compares the three complete wrappers around one shared scene.
+
+\input{\luafemmdocdir/sections/project.tex}
+\clearpage
+\tableofcontents
+\clearpage
+\part{First steps and tutorials}
+\input{\luafemmdocdir/sections/getting-started.tex}
+\input{\luafemmdocdir/sections/tutorial.tex}
+\input{\luafemmdocdir/sections/tutorial-machines.tex}
+\input{\luafemmdocdir/sections/tutorial-ndt.tex}
+\input{\luafemmdocdir/sections/tutorial-electric.tex}
+\input{\luafemmdocdir/sections/tutorial-electric-classics.tex}
+\input{\luafemmdocdir/sections/tutorial-electric-fe.tex}
+\input{\luafemmdocdir/sections/tutorial-electric-axisymmetric.tex}
+\input{\luafemmdocdir/sections/tutorial-electric-floating.tex}
+\part{Building a magnetic model}
+\input{\luafemmdocdir/sections/model.tex}
+\input{\luafemmdocdir/sections/domains.tex}
+\input{\luafemmdocdir/sections/materials.tex}
+\input{\luafemmdocdir/sections/components.tex}
+\input{\luafemmdocdir/sections/machines.tex}
+\input{\luafemmdocdir/sections/boundaries.tex}
+\input{\luafemmdocdir/sections/static.tex}
+\input{\luafemmdocdir/sections/axisymmetric.tex}
+\input{\luafemmdocdir/sections/exterior.tex}
+\input{\luafemmdocdir/sections/biot.tex}
+\input{\luafemmdocdir/sections/view-3d.tex}
+\input{\luafemmdocdir/sections/harmonic.tex}
+\input{\luafemmdocdir/sections/ac-circuits.tex}
+\input{\luafemmdocdir/sections/electrical-networks.tex}
+\input{\luafemmdocdir/sections/losses.tex}
+\input{\luafemmdocdir/sections/harmonic-material-models.tex}
+\input{\luafemmdocdir/sections/ideal.tex}
+\part{Solving, displaying and measuring}
+\input{\luafemmdocdir/sections/mesh-quality.tex}
+\input{\luafemmdocdir/sections/adaptive-mesh.tex}
+\input{\luafemmdocdir/sections/field.tex}
+\input{\luafemmdocdir/sections/quantitative-fields.tex}
+\input{\luafemmdocdir/sections/cache.tex}
+\input{\luafemmdocdir/sections/profiles.tex}
+\input{\luafemmdocdir/sections/postprocessing.tex}
+\input{\luafemmdocdir/sections/currents.tex}
+\part{Electrostatic fields}
+\input{\luafemmdocdir/sections/electrostatic.tex}
+\input{\luafemmdocdir/sections/electric-classics.tex}
+\input{\luafemmdocdir/sections/electric-images.tex}
+\input{\luafemmdocdir/sections/electric-fe.tex}
+\input{\luafemmdocdir/sections/electric-axisymmetric.tex}
+\input{\luafemmdocdir/sections/electric-extended.tex}
+\input{\luafemmdocdir/sections/electric-hybrid.tex}
+\input{\luafemmdocdir/sections/electric-exchange.tex}
+\input{\luafemmdocdir/sections/dielectrics.tex}
+\part{Operating points and machine studies}
+\input{\luafemmdocdir/sections/operating.tex}
+\input{\luafemmdocdir/sections/biased-harmonic.tex}
+\input{\luafemmdocdir/sections/sliding.tex}
+\input{\luafemmdocdir/sections/machine-studies.tex}
+\input{\luafemmdocdir/sections/sector-gaps.tex}
+\input{\luafemmdocdir/sections/native-gaps.tex}
+\input{\luafemmdocdir/sections/time.tex}
+\part{Interchange, methods and limits}
+\input{\luafemmdocdir/sections/interchange.tex}
+\input{\luafemmdocdir/sections/native-storage.tex}
+\input{\luafemmdocdir/sections/numerics.tex}
+\input{\luafemmdocdir/sections/status.tex}
+\input{\luafemmdocdir/sections/development.tex}
+\appendix
+\part{Format examples and material catalogue}
+\input{\luafemmdocdir/sections/format-examples.tex}
+\section{Complete FEMM material catalogue}
+\label{sec:catalogue}
+The identifiers below are exact choices for |material| and |library|.
+The original FEMM 5 names are retained. The full data and original folder paths are available through
+the Lua catalogue and in \texttt{doc/materials-catalog.md}.
+\input{build/doc/materials-catalog.tex}
+\clearpage
+\printindex
+\end{document}

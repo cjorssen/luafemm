@@ -1,0 +1,103 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\pgfplotsset{compat=1.18}
+\pagestyle{empty}
+\begin{document}
+\begin{tikzpicture}[femm/electrostatic={model=charged sphere,
+    radius=1,volume charge density=3e-7,name=lesson ball,
+    xmin=-2,xmax=2,ymin=-2,ymax=2}]
+  \pic {femm electric geometry};
+  \pic[femm/electric={levels={.6,.9,1.2,1.5}}] {femm equipotentials};
+  \pic {femm electric field};
+  \draw[densely dotted,femm/electric profile={name=ball radius,samples=121}]
+    (0,0)--(2,0) node[right] {$r$};
+  \node[above left] at (0,1) {$\rho$};
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}[femm/electrostatic={model=charged sphere,
+    radius=1,charge distribution=surface,surface charge density=1e-9,
+    name=lesson shell,xmin=-2,xmax=2,ymin=-2,ymax=2}]
+  \pic {femm electric geometry};
+  \pic[femm/electric={levels={.6,.9}}] {femm equipotentials};
+  \pic {femm electric field};
+  \path[femm/electric profile={name=shell radius,samples=121}] (0,0)--(2,0);
+  \node at (0,0) {$\mathbf E=\mathbf 0$};
+  \node[above left] at (0,1) {$\sigma$};
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$r$ (cm)},ylabel={$E_r$ (V/m)},legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmelectricplot[profile=ball radius,component=Ex,abscissa=x,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Volume charge}
+  \femmelectricplot[profile=shell radius,component=Ex,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Surface charge}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$r$ (cm)},ylabel={$V$ (V)},legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmelectricplot[profile=ball radius,component=V,abscissa=x,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Volume charge}
+  \femmelectricplot[profile=shell radius,component=V,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Surface charge}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+\tikzset{lesson cylinder/.style={femm/electrostatic={model=charged cylinder,
+  radius=1,reference radius=2,xmin=-2,xmax=2,ymin=-2,ymax=2}}}
+
+\par\medskip
+\begin{tikzpicture}[lesson cylinder,
+    femm/electrostatic={volume charge density=2e-7,name=lesson cylinder}]
+  \pic {femm electric geometry};
+  \pic[femm/electric={levels={.2,.5,.9,1.2}}] {femm equipotentials};
+  \pic {femm electric field};
+  \path[femm/electric profile={name=cylinder radius,samples=121}]
+    (0,0)--(2,0);
+\end{tikzpicture}
+\begin{tikzpicture}[lesson cylinder,
+    femm/electrostatic={charge distribution=surface,
+      surface charge density=1e-9,name=lesson cylinder shell}]
+  \pic {femm electric geometry};
+  \pic[femm/electric={levels={.2,.5}}] {femm equipotentials};
+  \pic {femm electric field};
+  \path[femm/electric profile={name=cylinder shell radius,samples=121}]
+    (0,0)--(2,0);
+\end{tikzpicture}
+
+\par\medskip
+\begin{tikzpicture}
+\begin{axis}[width=9cm,height=5cm,no markers,grid=major,
+  xlabel={$r$ (cm)},ylabel={$E_r$ (V/m)},legend style={at={(.5,1.03)},anchor=south,legend columns=2}]
+  \femmelectricplot[profile=cylinder radius,component=Ex,abscissa=x,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Volume charge}
+  \femmelectricplot[profile=cylinder shell radius,component=Ex,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Surface charge}
+\end{axis}
+\end{tikzpicture}
+
+\par\medskip
+$Q=\femmelectricvalue[model=lesson ball,quantity=charge]\,\mathrm C$,\qquad
+$\lambda=\femmelectricvalue[model=lesson cylinder,
+  quantity=charge per length]\,\mathrm{C/m}$.
+
+\end{document}

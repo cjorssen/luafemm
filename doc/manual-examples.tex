@@ -1,0 +1,50 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+% Worked cases contain ordinary PGF codeexample blocks in the section sources.
+% Their local group isolates styles; named Lua data remain available to later
+% blocks of that case. The job prefix only separates generated caches/files.
+\newcommand\luafemmexamplebegin[1]{%
+  \par\begingroup
+  \edef\jobname{manual-\detokenize{#1}}%
+  \label{ex:#1}%
+}
+\newcommand\luafemmexampleend[1]{%
+  \par\smallskip\noindent
+  \textit{Extended runnable example: }%
+  \href{https://github.com/cjorssen/luafemm/blob/main/examples/#1.tex}%
+    {\nolinkurl{examples/#1.tex}}.\par
+  \endgroup
+}
+% Complete wrappers are justified only in the format-comparison appendix.
+\newcommand\luafemmsource[1]{%
+  \par\medskip\noindent\textbf{Source: }\nolinkurl{examples/#1.tex}\par
+  \begingroup\codeexample[multipage,from file=examples/#1.tex]\endgroup
+}
+\newcommand\luafemmformatexample[1]{%
+  \label{ex:#1}\luafemmsource{#1}%
+  \par\noindent\textit{Native-format check: rebuilt from this source with
+    the manual; its wrapper cannot run inside LuaLaTeX.}\par
+  \includegraphics[width=.96\linewidth,height=.7\textheight,keepaspectratio]
+    {build/doc/examples/#1.pdf}\par
+}
+\newcommand\luafemmlatexexample{%
+  \label{ex:formats/latex}\luafemmsource{formats/latex}%
+  \par\noindent The shared scene executes here inside LuaLaTeX.\par
+  \begingroup
+    \begin{adjustbox}{max width=.96\linewidth,center}
+      \begin{minipage}{160mm}\input{build/doc/bodies/formats/latex.tex}\end{minipage}
+    \end{adjustbox}
+  \endgroup\par
+}
+% The documentation builder compares this count with its source inventory.
+% Counting all PGF examples also covers loading skeletons and setup blocks.
+\newcount\luafemmmanualexamples
+\let\luafemmoriginalcodeexample\codeexample
+\def\codeexample{%
+  \global\advance\luafemmmanualexamples by1
+  \typeout{LUAFEMM-MANUAL-EXAMPLE: \the\luafemmmanualexamples}%
+  \luafemmoriginalcodeexample
+}

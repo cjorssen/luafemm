@@ -21,10 +21,10 @@
       width=80,height=60,leg thickness=15,
       gap=\gap,armature thickness=15,
       ampere turns=2000,gap mesh size=1,
-      core material=pure-iron,armature material=pure-iron},
+      core material=armco-pure-iron,armature material=armco-pure-iron},
       anchor=core center] (M) {};
     % This path only selects existing elements. It adds no physical interface.
-    \path[femm/selection={name=armature,material=pure-iron}]
+    \path[femm/selection={name=armature,material=armco-pure-iron}]
       (-42,31) rectangle (42,55);
     \path[femm/measure={pull,name=\result,parameter=\gap}];
     \begin{scope}

@@ -1,0 +1,426 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Planar electrostatic finite elements}
+\label{sec:electric-fe}
+
+Select |femm/electrostatic={model=finite elements,...}| on the picture.
+The unknown is the real scalar electric potential $V$, with
+$\mathbf E=-\nabla V$ and $\mathbf D=\epsilon\mathbf E$. The domain is a finite
+rectangle, invariant perpendicular to the drawing. This is a planar Poisson
+formulation, not the magnetic $A_z$ equation with relabelled output, and not a
+three-dimensional point-charge solve. Relative permittivities are positive
+scalars in the introductory examples. Floating conductors, positive symmetric
+dielectric tensors, mixed/translated periodic boundaries, capacitance matrices
+and Maxwell contour forces are described in Section~\ref{sec:electric-extended}.
+Nonlinear dielectrics, coupled electric circuits, exterior transformations
+are outside this interface. Native electric interchange is described in
+Section~\ref{sec:electric-exchange}. The optional axisymmetric formulation is documented
+in Section~\ref{sec:electric-axisymmetric}; named dielectric choices are listed
+in Section~\ref{sec:dielectrics}. The physical path families below are shared
+by both FE geometries, with the revolved normalization and axis rules stated there.
+The source-correction provider reuses dielectric, conductor and boundary paths
+with additional restrictions; see Section~\ref{sec:electric-hybrid}.
+
+\subsection{Domain, mesh and operation order}
+\label{sec:electric-fe-model}
+The common |length unit| and |relative permittivity| specify physical length
+and the background dielectric. For this model, the picture's |xmin|, |xmax|,
+|ymin| and |ymax| specify the \emph{physical computational rectangle}. The common
+|volume charge density| additionally specifies the background $\rho$ in
+$\mathrm{C/m^3}$ (empty means zero). A dielectric region replaces both background
+properties inside its fill; its default volume density is zero.
+
+Use |/femm/electric/xmin| and the other view bounds to crop a figure without
+changing that rectangle. A saved FE snapshot retains its physical box, mesh,
+fields, source data, electrode names and solver diagnostics. It may be displayed
+with a different view window and root TikZ transform. Repeating its nondefault
+|length unit| and background |relative permittivity| is required; other physical
+or numerical overrides on restoration are rejected.
+
+The operation order is:
+\begin{enumerate}
+\item Select the model and rectangle before the picture starts.
+\item Declare every dielectric, electrode, charge layer and exterior boundary.
+      Seed contours and ordinary annotations can be added without solving.
+\item Request a mesh, field, profile or numerical result. Meshing locks physical
+      declarations; evaluation also solves. Changing physical path keys later
+      does not modify a solved mesh and a new physical declaration fails.
+\item Reuse the owned profiles and named solution in later pictures or axes.
+\end{enumerate}
+No |\femmsolve| is needed. The electric solver is independent of magnetic
+materials, circuits, boundary tags and disk caches. A picture with a nonempty
+|name| solves at picture end even if no field was requested, so its saved result
+is complete. A picture without evaluation or a saved name need not solve.
+
+\begin{key}{/femm/electrostatic/outer boundary=\meta{choice} (initially voltage)}
+|voltage| holds the rectangle at |boundary potential|. |insulated| imposes
+$\mathbf D\cdot\mathbf n=0$ on its untagged edges, where $\mathbf n$ points
+out of the computational domain. Neither choice is an infinite-domain condition.
+Explicit boundary paths override the default on their tagged edges. At least
+one prescribed potential is required; a pure Neumann problem is rejected rather
+than silently receiving a gauge constraint.
+\end{key}
+\begin{key}{/femm/electrostatic/boundary potential=\meta{number} (initially 0)}
+Default exterior Dirichlet value in volts when |outer boundary=voltage|.
+Changing it shifts only this boundary, not the electrode potentials. A gauge
+shift requires adding the same voltage to \emph{all} prescribed potentials.
+\end{key}
+\begin{key}{/femm/electrostatic/depth=\meta{positive number} (initially 1)}
+Extrusion length for reported total charge and energy, in model length units.
+Per-length quantities and the solved field do not depend on it. This does not
+introduce finite-depth end effects. For example the default centimetre unit
+with |depth=2| represents a 2\,cm reporting length.
+\end{key}
+\begin{key}{/femm/electrostatic/mesh size=\meta{positive number} (initially .25)}
+Global target triangular mesh spacing in model units. Physical path vertices
+and intersections are constrained. Begin coarse, then refine for the observables
+of interest. A local physical-path |mesh size| may request a finer spacing.
+\end{key}
+\begin{key}{/femm/electrostatic/mesh tolerance=\meta{nonnegative number} (initially 0)}
+Mesher snapping tolerance in model units. Zero selects $10^{-12}$ times the
+larger domain span. It must be positive after automatic selection and smaller
+than one percent of |mesh size|. It is distinct from TikZ curve flattening and
+from the coordinate-to-exterior snapping below.
+\end{key}
+\begin{key}{/femm/electrostatic/minimum angle=\meta{number} (initially 0)}
+Optional strict minimum triangle angle in degrees, from zero to less than 34.
+Zero disables the target. The existing constrained mesher diagnoses impossible
+acute input corners and exhausted refinement budgets; it does not silently
+report an unmet quality target as success.
+\end{key}
+\begin{key}{/femm/electrostatic/maximum area=\meta{nonnegative number} (initially 0)}
+Optional maximum triangle area in squared model units. Zero disables this
+quality target. It supplements |mesh size| and may increase the element count.
+\end{key}
+\begin{key}{/femm/electrostatic/maximum Steiner points=\meta{integer} (initially 10000)}
+Refinement budget, from 0 to 1000000. Used by optional angle/area refinement;
+it does not guarantee that every requested geometry can meet those targets.
+\end{key}
+\begin{key}{/femm/electrostatic/solver tolerance=\meta{number} (initially 1e-10)}
+Relative tolerance of the reduced real SPD linear solve, strictly between
+zero and one. Sparse equilibration, bounded preconditioning and original-system
+residual/backward-error checks are shared with the numerical core. This is
+not a bound on finite-element or exterior-domain error.
+\end{key}
+\begin{key}{/femm/electrostatic/maximum iterations=\meta{integer} (initially 10000)}
+Linear iteration budget, from 1 to 1000000. Failure to satisfy the linear
+acceptance criteria is an error; no unconverged potential is drawn.
+\end{key}
+\begin{key}{/femm/electrostatic/boundary snap tolerance=\meta{nonnegative number} (initially .0001)}
+For TeX-captured paths only, coordinates within this distance of a rectangle
+side snap to that side. Units are model coordinates. This accommodates decimal
+PGF arithmetic and rotations at finite TeX precision; it does not snap interior
+interfaces or change the mesher tolerance. Zero disables it. It must be smaller
+than one percent of the shorter domain span. Reduce it for very small geometry,
+or select a more suitable |length unit|. The direct Lua geometry API retains
+its separate floating-point roundoff checks.
+\end{key}
+
+All these options are picture-scoped physical/numerical data, set before the
+picture starts. Finite numeric literals and expanded numeric macros are
+accepted; scientific notation is allowed. They do not configure an analytical
+symmetry model. The relevant geometric and algebraic settings are retained in
+owned snapshots.
+
+\subsection{Physical TikZ paths}
+\label{sec:electric-fe-paths}
+These styles capture the evaluated PGF path and keep its ordinary drawing
+options. One physical role per declaration is recommended; use ordinary
+|draw|, |fill|, |rounded corners|, transformations and native PGF styles.
+All physical vertices must lie in the finite rectangle. Each individual closed
+contour must be simple; crossings between declarations are split by the mesher.
+
+\begin{key}{/tikz/femm/electric region=\marg{options} (default \{\})}
+Declare a closed, possibly compound dielectric/source region. Options belong
+to |/femm/electric region|. The PGF |even odd rule| or |nonzero rule| determines
+membership, including holes; holes retain earlier regions or the background.
+The last declared dielectric wins in an overlap. Electrode interiors take
+precedence over dielectric regions. No source is placed inside a solid conductor.
+\end{key}
+\begin{key}{/femm/electric region/relative permittivity=\meta{positive number} (initially \normalfont empty)}
+Dimensionless $\epsilon_r$. Empty inherits the picture's background value.
+The magnetic material catalogue is not an electric permittivity database.
+\end{key}
+\begin{key}{/femm/electric region/volume charge density=\meta{number} (initially 0)}
+Signed prescribed $\rho$ in $\mathrm{C/m^3}$. This replaces the background
+volume density in the region, even when only permittivity was explicitly
+changed. Charge remains prescribed; it is not a conductor equilibrium law.
+\end{key}
+\begin{key}{/tikz/femm/electric electrode=\marg{options}}
+Prescribe a voltage on one connected open or closed path. Options belong to
+|/femm/electric electrode|. An open path is a zero-thickness electrode strip
+extruded perpendicular to the section. A closed path uses |interior| to choose
+between a solid conductor and a voltage boundary enclosing dielectric material.
+Electrodes must not overlap or touch under distinct names; merge a connected
+conductor under one name. Conflicting potentials fail explicitly.
+An electrode on the exterior overrides the default exterior voltage. It cannot
+conflict with an explicitly tagged voltage or displacement condition there.
+\end{key}
+\begin{key}{/femm/electric electrode/name=\meta{name} (initially \normalfont empty)}
+Name used to retrieve the electrode reaction charge. Empty assigns
+|electrode 1|, |electrode 2|, and so on in declaration order. Explicit names
+are preferable for measurements. Repeated names connect electrode parts with identical prescribed data;
+|outer boundary| is reserved for the artificial exterior's reaction.
+\end{key}
+\begin{key}{/femm/electric electrode/potential=\meta{number} (initially \normalfont required)}
+Prescribed real potential in volts. There is no implicit voltage inferred from
+the path's colour, label or name. Zero and negative values are valid.
+\end{key}
+\begin{key}{/femm/electric electrode/interior=\meta{choice} (initially conductor)}
+For a closed path, |conductor| fills the simple loop with constant potential
+and zero field. Its triangles are excluded from dielectric assembly.
+|dielectric| constrains only the loop, retaining its interior dielectric/source
+regions. Use this for a grounded tube around a charged cylinder, or the outer
+electrode of a coaxial capacitor. An open path has no solid interior under
+either choice. A compound conductor with holes is not defined by this key.
+\end{key}
+\begin{key}{/tikz/femm/electric charge layer=\marg{options}}
+Add a prescribed sheet charge on one open or closed internal dielectric path.
+Options belong to |/femm/electric charge layer|. Path direction does not change
+the sign of this scalar source. Its weak edge load produces the normal-D jump.
+Overlapping source layers add their densities. A layer must not lie on the
+exterior or on/inside a solid or voltage electrode; use an exterior displacement
+condition or a voltage constraint as appropriate.
+\end{key}
+\begin{key}{/femm/electric charge layer/surface charge density=\meta{number} (initially \normalfont required)}
+Signed $\sigma$ in $\mathrm{C/m^2}$. The planar line represents a surface
+extruded perpendicular to the section. Its charge per length is the integral
+of $\sigma$ along the line measured in metres.
+\end{key}
+\begin{key}{/tikz/femm/electric boundary=\marg{options} (default \{\})}
+Tag one connected path on the rectangular exterior.
+Use the |/femm/electric boundary| family to set its options. Every resulting segment must lie on that exterior;
+interior paths fail. Tagged edges override the picture's default exterior
+condition. Overlapping boundary declarations and incompatible corner potentials
+are rejected. Insulating and voltage sides can meet at a corner; its voltage
+then fixes the shared node.
+\end{key}
+\begin{key}{/femm/electric boundary/condition=\meta{choice} (initially insulated)}
+|insulated| sets $\mathbf D\cdot\mathbf n=0$; |voltage| sets |potential|;
+|displacement| sets |normal displacement|. The normal is outward from the
+computational rectangle, independently of the captured path's direction.
+\end{key}
+\begin{key}{/femm/electric boundary/potential=\meta{number} (initially \normalfont empty)}
+Required voltage in volts for |condition=voltage|. Ignored for the other
+condition choices. Different constant-voltage sides must have compatible
+values at a shared corner.
+\end{key}
+\begin{key}{/femm/electric boundary/normal displacement=\meta{number} (initially \normalfont empty)}
+Required signed outward $g=\mathbf D\cdot\mathbf n$ in $\mathrm{C/m^2}$ for
+|condition=displacement|. The weak load has sign $-g$. Positive values mean
+flux leaving the dielectric domain; reversing the TikZ path does not reverse it.
+\end{key}
+\begin{key}{/femm/electric region/mesh size=\meta{nonnegative number} (initially 0)}
+Local spacing in model units; zero inherits the global spacing. A smaller
+value refines the constrained segments. For a dielectric region it also seeds
+the interior more densely; an open path does not define an interior refinement
+patch. Values larger than the global spacing do not coarsen the global mesh.
+\end{key}
+\begin{key}{/femm/electric region/curve tolerance=\meta{positive number} (initially .001)}
+Chord-distance bound in model units when flattening evaluated TikZ curves and
+rounded corners. The original TikZ drawing retains its curves; the physical
+mesh uses their polygonal approximation. Refine this separately from mesh
+spacing when geometry error matters. This key has ordinary path-local scope.
+\end{key}
+\begin{key}{/femm/electric electrode/mesh size=\meta{nonnegative number} (initially 0)}
+Local spacing in model units; zero inherits the global spacing. A smaller
+value refines the constrained segments. For a dielectric region it also seeds
+the interior more densely; an open path does not define an interior refinement
+patch. Values larger than the global spacing do not coarsen the global mesh.
+\end{key}
+\begin{key}{/femm/electric electrode/curve tolerance=\meta{positive number} (initially .001)}
+Chord-distance bound in model units when flattening evaluated TikZ curves and
+rounded corners. The original TikZ drawing retains its curves; the physical
+mesh uses their polygonal approximation. Refine this separately from mesh
+spacing when geometry error matters. This key has ordinary path-local scope.
+\end{key}
+\begin{key}{/femm/electric charge layer/mesh size=\meta{nonnegative number} (initially 0)}
+Local spacing in model units; zero inherits the global spacing. A smaller
+value refines the constrained segments. For a dielectric region it also seeds
+the interior more densely; an open path does not define an interior refinement
+patch. Values larger than the global spacing do not coarsen the global mesh.
+\end{key}
+\begin{key}{/femm/electric charge layer/curve tolerance=\meta{positive number} (initially .001)}
+Chord-distance bound in model units when flattening evaluated TikZ curves and
+rounded corners. The original TikZ drawing retains its curves; the physical
+mesh uses their polygonal approximation. Refine this separately from mesh
+spacing when geometry error matters. This key has ordinary path-local scope.
+\end{key}
+\begin{key}{/femm/electric boundary/mesh size=\meta{nonnegative number} (initially 0)}
+Local spacing in model units; zero inherits the global spacing. A smaller
+value refines the constrained segments. For a dielectric region it also seeds
+the interior more densely; an open path does not define an interior refinement
+patch. Values larger than the global spacing do not coarsen the global mesh.
+\end{key}
+\begin{key}{/femm/electric boundary/curve tolerance=\meta{positive number} (initially .001)}
+Chord-distance bound in model units when flattening evaluated TikZ curves and
+rounded corners. The original TikZ drawing retains its curves; the physical
+mesh uses their polygonal approximation. Refine this separately from mesh
+spacing when geometry error matters. This key has ordinary path-local scope.
+\end{key}
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=0,xmax=2,ymin=0,ymax=1,outer boundary=insulated,mesh size=.2}]
+  \draw[thick,femm/electric electrode={name=reference,potential=0}]
+    (0,0)--(0,1);
+  \draw[dashed,femm/electric boundary={condition=displacement,
+      normal displacement=1e-9}]
+    (2,0)--(2,1);
+  \pic[femm/electric={seeds={.5/.2,.5/.5,.5/.8}}] {femm electric field};
+  \pic {femm equipotentials};
+\end{tikzpicture}
+\end{codeexample}
+
+\subsection{Views, profiles and integral results}
+\label{sec:electric-fe-views}
+\begin{key}{/tikz/pics/femm electric mesh=\meta{pic}}
+Generate and draw the constrained mesh of an FE electric model. Meshing locks
+physical declarations but does not itself solve. It is an error to use this
+pic with an analytical model.
+\end{key}
+\begin{key}{/tikz/femm electric mesh=\meta{style}}
+Default mesh style: pale grey, .15\,pt line width. Use |.append style| or native
+TikZ styles to change it without altering any numerical setting.
+\end{key}
+\begin{key}{/tikz/femm electric dielectric=\meta{style}}
+Default geometry-view dielectric style: blue-grey outline, pale blue fill,
+.5\,pt line width. The saved-geometry pic draws compound contour boundaries
+without filling them, to avoid filling a hole incorrectly. The original physical
+TikZ path retains the user's ordinary fill rule and drawing options.
+\end{key}
+\begin{key}{/tikz/femm electric charge layer=\meta{style}}
+Default saved-geometry sheet style: red dashed outline, .7\,pt line width.
+This drawing style (with spaces) is distinct from the physical declaration
+|femm/electric charge layer| (with a slash).
+\end{key}
+\begin{key}{/tikz/femm electric boundary=\meta{style}}
+Default saved-geometry exterior style: grey densely dotted line, .5\,pt width.
+The geometry pic draws the finite rectangle, declared material contours and
+physical paths. Solid electrodes reuse |femm electric conductor|; open/electrode
+boundaries reuse |femm electric electrode|. Geometry display does not add sources.
+\end{key}
+
+The common |femm electric geometry| pic also accepts FE snapshots. The common
+field, contour and vector pics retain their ordinary styles and view bounds.
+FE equipotentials are extracted from the continuous P1 potential itself:
+|levels| and |level count| select values, while |contour resolution| is relevant
+only to analytical providers. Avoid constant electrode/plateau values if a
+unique contour curve is intended.
+
+Field lines walk the raw constant gradient inside each triangle. They change
+direction at mesh faces without averaging a dielectric or charged interface.
+They terminate at conductors, view/domain edges, a null field, a non-enterable
+raw interface direction, or a tracing budget. A non-enterable direction can
+occur near a discrete stagnation point or at a poorly resolved interface;
+refine and inspect it rather than assuming the displayed path is complete.
+|step| and the RK |tolerance| affect analytical integration only; FE
+|max steps| counts element crossings, and |max length| bounds each direction
+from a seed in model units. Arrows always follow $\mathbf E$.
+
+Explicit seeds and captured seed contours work unchanged. Otherwise the FE
+renderer seeds voltage edges by geometric arclength. |lines per charge| is the
+total seed target for this model. |seed sign=positive| selects edges where E
+enters the dielectric from an electrode, |negative| the opposite direction,
+and |all| both. |auto| prefers positive edges, falling back to negative ones.
+Artificial voltage boundaries may also supply seeds. This is a drawing choice,
+not flux-weighted sampling. For controlled illustrations use an explicit seed
+contour. Vector arrows crossing physical interfaces or a conductor are omitted.
+
+Profiles partition the flattened measurement path at actual mesh faces. They
+retain continuous V and one-sided raw E/D values, separated by NaN rows where
+the gradients differ. Thus their row count may greatly exceed |samples|.
+Uniform extra samples do not smooth or refine a solved field. |outside=error|
+rejects portions outside the FE rectangle; |outside=nan| leaves explicit gaps.
+At an exact face the point sampler selects the lowest-index incident element;
+crossing profiles supply both sides. There is no recovered-field option here.
+
+\begin{key}{/femm/electric value/electrode=\meta{name} (initially \normalfont empty)}
+For |\femmelectricvalue|, select a named FE electrode's charge or voltage.
+|outer boundary| selects the reaction on exterior voltage nodes not owned by
+a named electrode. Empty selects global FE quantities. This option is local
+to the command; it is rejected on analytical models.
+\end{key}
+
+The existing |quantity| choice gains |nodes|, |triangles|, |iterations|,
+|relative residual| and |charge balance per length| for FE models.
+Node/triangle counts include the constant-potential triangles of solid
+conductors. The residual is the reduced linear system's relative residual;
+it is not a mesh-error estimate. Units and ownership are:
+\begin{center}\small
+\begin{tabular}{lll}
+Selection & Quantity & Meaning/units\\\hline
+Global & |charge per length| & Prescribed volume plus sheet charge, C/m\\
+Global & |energy per length| & Dielectric field energy, J/m\\
+Global & |charge|, |energy| & Above quantities times depth, C and J\\
+Electrode & |charge per length|, |charge| & Variational reaction, C/m and C\\
+Electrode & |voltage| & Prescribed or solved potential, V\\
+Global & |charge balance per length| & Signed balance residual, C/m\\
+Global & |nodes|, |triangles|, |iterations| & Dimensionless counts\\
+Global & |relative residual| & Dimensionless linear residual
+\end{tabular}
+\end{center}
+An exterior with different voltage tags has no unique |voltage| result.
+There is no general FE scalar |capacitance| quantity: a charge/voltage ratio
+needs a specified source-free electrode experiment and consistent reference
+potentials. Use |\femmelectricmatrix| (Section~\ref{sec:electric-extended})
+for Maxwell coefficients and separate source offsets. Integral reactions converge
+with the physical discretization; a small algebraic balance alone does not
+certify the capacitance or a local field maximum.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}[femm/electrostatic={model=finite elements,
+    xmin=-2.4,xmax=2.4,ymin=-2.4,ymax=2.4,mesh size=.15,name=fe coax}]
+  \draw[fill=gray!15,femm/electric electrode={name=inner,potential=10}]
+    (0,0) circle[radius=1];
+  \draw[thick,femm/electric electrode={name=outer,potential=0,
+      interior=dielectric}]
+    (0,0) circle[radius=2];
+  \pic {femm electric field};
+  \pic[femm/electric={levels={2,4,6,8}}] {femm equipotentials};
+\end{tikzpicture}
+\end{codeexample}
+\begin{codeexample}[width=0pt]
+$Q_{\rm inner}/L=\femmelectricvalue[model=fe coax,electrode=inner,
+  quantity=charge per length]\,\mathrm{C/m}$.
+\quad
+$W/L=\femmelectricvalue[model=fe coax,quantity=energy per length]\,\mathrm{J/m}$.
+\end{codeexample}
+
+\subsection{Weak formulation, reactions and limits}
+\label{sec:electric-fe-methods}
+With lengths in metres, prescribed internal sheet charge $\sigma$, and outward
+exterior displacement $g$, the weak equation for free test functions is
+\[
+ \int_\Omega\epsilon\nabla V\cdot\nabla w\,dA
+ =\int_\Omega\rho w\,dA+\int_{\Gamma_\sigma}\sigma w\,dl
+   -\int_{\Gamma_N}g w\,dl.
+\]
+Dirichlet values are eliminated before solving. Constant coefficients and
+sources are integrated exactly on straight P1 triangles and segments.
+Dividing matrix and loads by $\epsilon_0$ improves numerical scale without
+changing the law. Explicit model-to-SI factors remain on volume and edge loads.
+The constrained triangular mesher, predicates, spatial acceleration and audited
+sparse CG solver are shared infrastructure; the electric assembly, loads,
+units and observables are separate from magnetic constitutive laws.
+
+For a triangle $T$, $\mathbf E_T=-\sum_i V_i\nabla N_i$ is constant and
+$W/L=\sum_T\epsilon_T|\mathbf E_T|^2|T|/2$. Solid conductor triangles contribute
+neither dielectric stiffness nor field energy. Fixed-node reactions of the
+\emph{full} assembled equation give electrode charge per length; they include
+the volume/surface loads in the electrode-adjacent test functions. Summing
+prescribed volume and sheet charge, electrode/exterior reactions, and subtracting
+prescribed outward Neumann flux gives the reported charge-balance residual.
+Raw-gradient surface quadrature need not equal this discrete conservative reaction.
+
+Validation includes an exact two-dielectric slab, a charged sheet, a manufactured
+volume-charge parabola, displacement signs, planar unit/depth scaling, compound
+holes, snapshots and independent mesh/exterior sensitivity. A coaxial capacitor
+is compared with $C/L=2\pi\epsilon/\log(b/a)$ and $2W=QU$. Curves, material
+interfaces, sharp conductor edges and finite-domain truncation remain separate
+sources of error. Point-charge nodes retain their three-dimensional Coulomb
+meaning and are rejected in this planar FE model. Axisymmetric electrostatics
+requires a different weighted scalar formulation and is not selected here.

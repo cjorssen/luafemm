@@ -1,0 +1,46 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\begin{document}
+
+\begin{tikzpicture}[
+  femm/problem={xmin=0,xmax=10,ymin=0,ymax=10,mesh size=.8,depth=10},
+  femm/pair={first=radial-a,second=radial-b,sectors=4,type=antiperiodic},
+  femm/sliding band={name=quarter-gap,method=analytical,
+    inner radius=4,outer radius=5,segments=12,sectors=4,
+    periodicity=antiperiodic},scale=2]
+  \draw[femm/domain] (0,0)--(10,0) arc[start angle=0,end angle=90,radius=10]--cycle;
+  \path[femm/frontier={name=radial-a,type=periodic}] (0,0)--(10,0);
+  \path[femm/frontier={name=radial-b,type=periodic}] (0,0)--(0,10);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,current density=1e8}]
+    (1,1) rectangle (2,2);
+  \filldraw[fill=orange!25,
+    femm/region={material=copper,current density=-1e8}]
+    (7,1) rectangle (8,2);
+  \draw[blue!50!green,dashed] (4,0) arc[start angle=0,end angle=90,radius=4];
+  \draw[blue!50!green,dashed] (5,0) arc[start angle=0,end angle=90,radius=5];
+\end{tikzpicture}
+
+\par
+
+\begin{tikzpicture}[
+  femm/problem={sliding band=quarter-gap,rotor angle=53},scale=3]
+  \pic {femm geometry};
+  \pic[femm/lines=13] {femm field};
+  \node[above] at (5,10) {$\theta=53^\circ$};
+\end{tikzpicture}
+
+\begin{tikzpicture}[
+  femm/problem={sliding band=quarter-gap,rotor angle=53}]
+  \femmmeasure[name=quarter-torque,quantity=force,method=band]
+  \node {$T_{\rm sector}(53^\circ)=
+    \femmvalue[component=torque]{quarter-torque}$};
+\end{tikzpicture}
+
+\end{document}

@@ -1,0 +1,126 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\section{Native FEMM air-gap elements}
+\label{sec:native-gaps}
+
+A Fourier annulus and a native FEMM air-gap element (AGE) are different numerical
+models. Choose the native formulation when the saved answer must carry FEMM's
+own gap records. Choose |analytical| when the exact radial Fourier formulation
+or sector reduction is wanted. Neither option silently converts the other's
+solved field.
+
+\begin{key}{/femm/sliding band/method=femm4}
+Select the native cubic interpolation for a full-circle concentric planar gap.
+The ordinary initial choice remains |p1|. The inner and outer traces must have
+the same number of uniformly spaced angular nodes; increase |segments| if bulk
+refinement subdivides a trace. The total native trace operator is limited to
+2048 nodes and 2048 total cells (at least three per gap). |layers| is ignored (one display strip); |modes| must be zero.
+\end{key}
+\begin{key}{/femm/sliding band/method=femm5}
+Select the native quintic interpolation, with the same geometry and size limits.
+This is the appropriate explicit choice for the supported FEMM 5 solver.
+It does not change the default |p1| method. Both native choices support static
+and linear harmonic positions, including the supported material laws in the
+bulk. They require zero rotor offsets and one full-circle sector.
+\end{key}
+
+\luafemmexamplebegin{native-gap}
+\begin{codeexample}[width=0pt]
+\tikzset{femm/materials/gap iron/.style={mu r=100}}
+\begin{tikzpicture}[
+  femm/problem={xmin=-8,xmax=8,ymin=-8,ymax=8,mesh size=1.2,depth=10},
+  femm/sliding band={name=native-ring,method=femm5,
+    inner radius=3,outer radius=3.6,segments=64},
+  scale=2.5,baseline=(current bounding box.center)]
+  \draw[femm/region={material=gap iron}]
+    (0,0) ellipse[x radius=2.6,y radius=1.2];
+  \draw[femm/region={material=copper,current density=1e7}]
+    (-6,-1) rectangle (-5,1);
+  \draw[femm/region={material=copper,current density=-1e7}]
+    (5,-1) rectangle (6,1);
+\end{tikzpicture}
+\begin{tikzpicture}[
+  femm/problem={sliding band=native-ring,rotor angle=25},
+  scale=2.5,baseline=(current bounding box.center)]
+  \pic {femm geometry};
+  \pic[femm/lines=13] {femm field};
+  \femmexport[file=\jobname-native-gap.fem,format=fem]
+  \femmexport[file=\jobname-native-gap.ans,format=ans]
+\end{tikzpicture}
+\end{codeexample}
+
+The first picture declares the reference geometry. The second solves at
+$25^\circ$ and exports that physical position. The exported native inner and
+outer angle offsets are zero: the coordinates already contain the rotation.
+Its circular gap boundaries remain arcs in the problem file. Arbitrary TikZ
+curves elsewhere retain the usual controlled polygonal approximation.
+
+\Needspace{6\baselineskip}
+\begin{key}{/femm/import/age interpolation=\meta{choice} (initially empty)}
+For an ordinary planar AGE answer, explicitly choose |femm4| (cubic) or |femm5|
+(quintic). The file format does not reliably identify the interpolation basis;
+the optional raw-ring trailer is not a basis tag. A missing choice is an error.
+This key belongs to |femm/import|, applies to |format=ans|, and has no units.
+It neither changes material interpretation nor converts an answer to another
+basis. Transient and previous-solution AGE answers remain unsupported.
+\end{key}
+\begin{codeexample}[]
+\begin{tikzpicture}[
+  femm/import={file=\jobname-native-gap.ans,
+    age interpolation=femm5},scale=2.5]
+  \pic {femm geometry};
+  \pic[femm/lines=13] {femm field};
+\end{tikzpicture}
+\end{codeexample}
+\luafemmexampleend{native-gap}
+
+An imported answer owns its mesh and potentials; importing it does not perform
+a new solve. The embedded materials and circuits must satisfy the ordinary
+interchange limits. Periodic nodal values are checked, and native AGE names,
+indices, dimensions and optional raw rings are validated. Re-exporting an
+unchanged native snapshot preserves its records. General AGE problem-file
+import for remeshing is not supported: import the native solved |.ans| instead.
+Native answer generation currently covers the full-circle templates above;
+sector AGE answers can be read, but sector generation uses the Fourier method.
+
+\subsection{Which field and which mechanical result?}
+The native stiffness is assembled as $T^\mathsf{T}K_\square T$: $T$ interpolates
+four corner potentials from five nodes on each trace. Cubic Hermite interpolation
+uses central slopes; quintic interpolation also uses central second differences.
+The rectangular energy combines the triangular and bilinear forms with weights
+$2/3$ and $1/3$. This factorisation is checked independently against the native
+expanded matrices for both editions.
+
+Gap samples on the mean radius use the native postprocessor's Fourier transform
+of cell-centre $B_r,B_\theta$. Away from that circle, luafemm continues those
+harmonics radially with Laplace's equation. This continuation is distinct from
+bulk P1 interpolation; do not use it as an independent discretisation certificate.
+The native formulation approximates a thin annulus by an unrolled strip.
+Check both angular refinement and gap thickness relative to radius.
+
+|\femmmeasure[quantity=force,method=band,...]| integrates the gap traction;
+|origin x| and |origin y| determine the torque origin. It also accepts a native
+AGE snapshot. Energy uses the native stiffness, while torque uses the native
+midgap field; their virtual-work agreement is a convergence check, not an exact
+finite-mesh identity. In an imported file with several AGE blocks, the band
+measurement sums their transmitted tractions. It is not a selection of one rotor.
+The gap views sample the reconstructed potential, controlled by
+|contour subdivisions|; separate bulk/gap pieces are not forcibly joined.
+Native bulk coordinates follow the file's body-frame convention. Nonzero saved
+native angle offsets are not interpreted as a rigid rotation of every bulk part.
+
+Regional areas and mean fields integrate the available volume triangles. An
+imported native answer has no such triangles inside its AGE blocks, whereas a
+generated template has a display strip. Consequently these regional quantities
+are not an interchange invariant. Whole-model energy includes the native AGE
+energy in both cases; a partial bulk selection in an imported answer does not
+select an AGE block. Use gap samples and band traction for gap-specific results.
+
+The common AGE records are readable by FEMM 4 and FEMM 5, but their identical
+syntax does not make the cubic and quintic operators interchangeable. Open a
+|method=femm4| answer with the cubic solver/postprocessor, and a |method=femm5|
+answer with the quintic one. The latter also carries |[AgeRings]| for native
+re-pairing; omitting that trailer does not turn a quintic field into a cubic one.

@@ -1,0 +1,79 @@
+% SPDX-License-Identifier: LPPL-1.3c
+% Copyright (C) 2026 Christophe Jorssen
+% Author and Current Maintainer: Christophe Jorssen <christophe.jorssen@gmail.com>
+% LPPL maintenance status: maintained
+% This file is part of luafemm. See LICENSE and LICENSES.md for its terms.
+\documentclass[varwidth=155mm,border=3mm]{standalone}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{femm}
+\usepgfplotslibrary{femm}
+\pgfplotsset{compat=1.18}
+\newbox\Calculation
+\tikzset{
+  femm/materials/core/.style={bh={0/0,1/100,1.5/500,2/5000},
+    harmonic law=\Law},
+  experiment/.style={femm/problem={frequency=\Frequency,depth=20,
+    xmin=-8,xmax=8,ymin=-6,ymax=6,mesh size=.5},
+    femm/circuit={name=drive,current=\Current}},
+  /femm/region/coil/.style={material=copper,circuit=drive,winding fill=.6}}
+\newcommand\Geometry{%
+  \path[even odd rule,femm/region={material=core,mesh size=.25}] (-3,-4) rectangle (3,4) (-1.5,-2.5) rectangle (1.5,2.5);
+  \path[femm/region={coil,turns=-20}] (.8,-2) rectangle (1.3,2);
+  \path[femm/region={coil,turns=20}] (3.7,-2) rectangle (4.2,2);}
+\begin{document}
+\centering
+% The static comparison uses the same peak current. It is not a time waveform.
+\foreach \Case/\Law/\Frequency in {ac/fundamental/50,dc/standard/0}{%
+  \foreach \Index/\Current in {a/.1,b/.3,c/1,d/3,e/10,f/30}{%
+    \setbox\Calculation=\hbox{%
+      \begin{tikzpicture}[experiment,
+        femm/cache={file=\jobname-\Case-\Current,mode=auto}]
+        \Geometry
+        \femmmeasure[name=\Case-\Index,quantity=circuit,circuit=drive,parameter=\Current]
+        \path[femm/profile={name=profile-\Case-\Index,samples=61}]
+          (1.6,0)--(2.9,0);
+      \end{tikzpicture}}}}
+\def\Law{fundamental}\def\Frequency{50}\def\Current{10}
+\begin{tikzpicture}[experiment,scale=6,
+  femm/cache={file=\jobname-ac-10,mode=auto}]
+  \Geometry
+  \filldraw[even odd rule,fill=blue!10,draw=blue!50!black] (-3,-4) rectangle (3,4) (-1.5,-2.5) rectangle (1.5,2.5);
+  \filldraw[fill=orange!25,draw=orange!65!black] (.8,-2) rectangle (1.3,2);
+  \filldraw[fill=orange!25,draw=orange!65!black] (3.7,-2) rectangle (4.2,2);
+  \pic[femm/lines=11,femm/arrow spacing=12mm] {femm field};
+  \draw[red!75!black,very thick] (1.6,0)--(2.9,0);
+  \node[above] at (0,5) {Fundamental approximation, $10$ A peak};
+  \node at (1.05,0) {$\otimes$}; \node at (3.95,0) {$\odot$};
+\end{tikzpicture}
+\par\medskip
+\begin{tikzpicture}
+\begin{semilogxaxis}[width=7.5cm,height=6cm,grid=major,
+  xlabel={Peak current (A)},ylabel={Flux linkage (Wb turn)},
+  legend style={font=\scriptsize,at={(.03,.97)},anchor=north west}]
+  \femmresultplot[results={ac-a,ac-b,ac-c,ac-d,ac-e,ac-f},
+    component=linkage_real,plot options={blue!70!black,thick,mark=*}]
+  \addlegendentry{Fundamental at 50 Hz}
+  \femmresultplot[results={dc-a,dc-b,dc-c,dc-d,dc-e,dc-f},
+    component=linkage,plot options={red!70!black,dashed,thick,mark=square*}]
+  \addlegendentry{Static at peak current}
+\end{semilogxaxis}
+\end{tikzpicture}%
+\begin{tikzpicture}
+\begin{axis}[width=7.5cm,height=6cm,grid=major,
+  no markers,yticklabel style={/pgf/number format/fixed,/pgf/number format/precision=3},
+  xlabel={$x$ in the right limb (mm)},ylabel={$B_y$ (T)},
+  legend style={font=\scriptsize,at={(.5,1.03)},anchor=south}]
+  \femmplot[profile=profile-ac-e,component=By,abscissa=x,representation=real,
+    plot options={blue!70!black,thick}]
+  \addlegendentry{Fundamental amplitude}
+  \femmplot[profile=profile-dc-e,component=By,abscissa=x,
+    plot options={red!70!black,dashed,thick}]
+  \addlegendentry{Static at peak current}
+\end{axis}
+\end{tikzpicture}
+\par\smallskip
+\small Illustrative isotropic B--H table; no magnetic loss or resolved eddy
+currents. The approximation retains the fundamental of $H(\widehat B\cos\omega t)$.
+Higher harmonics, waveform distortion and hysteresis are excluded. Coil currents
+are prescribed and in phase. Frequency only sets the induced terminal voltage.
+\end{document}
